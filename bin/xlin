@@ -464,7 +464,7 @@ cmd_doctor() {
   pgrep -f xlin-dock-watch >/dev/null && echo "  ok       dock watcher" || echo "  NOT RUNNING  dock watcher (fix: xlin start)"
   pgrep -f '^nwg-dock-hyprland' >/dev/null && echo "  ok       dock visible" || echo "  not running  dock (normal if nothing is open or pinned)"
   pgrep -x hypridle >/dev/null && echo "  ok       auto-lock" || echo "  off      auto-lock (xlin idle on)"
-  fc-list 2>/dev/null | grep -qiE 'Symbols Nerd|Font Awesome' \
+  fc-list 2>/dev/null | grep -qiE 'Symbols Nerd|Nerd Font|Font Awesome' \
     && echo "  ok       icon font" || { echo "  MISSING  icon font (sudo pacman -S ttf-nerd-fonts-symbols)"; missing=1; }
   echo "Files:"
   local f

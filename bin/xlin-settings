@@ -1,0 +1,538 @@
+#!/usr/bin/env python3
+"""XLIN Settings - sidebar + pages, in the style of KDE System Settings.
+
+Usage: xlin-settings [wifi|bluetooth|display|sound|appearance|about]
+Opens centered on screen (window rules in ~/.config/hypr/xlin.conf).
+"""
+import os
+import re
+import shutil
+import subprocess
+import sys
+import threading
+
+import gi
+
+gi.require_version("Gtk", "4.0")
+from gi.repository import Gio, GLib, Gtk  # noqa: E402
+
+APP_ID = "dev.xlin.Settings"
+STATE = os.path.expanduser("~/.config/xlin/state")
+
+PAGES = [
+    ("wifi", "Wi-Fi", "network-wireless-symbolic"),
+    ("bluetooth", "Bluetooth", "bluetooth-symbolic"),
+    ("display", "Display", "video-display-symbolic"),
+    ("sound", "Sound", "audio-volume-high-symbolic"),
+    ("appearance", "Appearance", "preferences-desktop-theme-symbolic"),
+    ("about", "About", "help-about-symbolic"),
+]
+
+CSS = b"""
+.xlin-side { padding: 10px 8px; }
+.xlin-side row { border-radius: 8px; margin: 2px 0; padding: 6px 4px; }
+.xlin-title { font-size: 22px; font-weight: 700; }
+.xlin-sub { opacity: 0.65; font-size: 11px; }
+.xlin-card { border-radius: 10px; padding: 4px 14px; background: alpha(currentColor, 0.06); }
+.xlin-row { padding: 11px 0; }
+"""
+
+
+def run(cmd, timeout=15):
+    """Run a command, never raise. Returns (ok, stdout)."""
+    try:
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        return p.returncode == 0, p.stdout.strip()
+    except Exception:
+        return False, ""
+
+
+def have(cmd):
+    return shutil.which(cmd) is not None
+
+
+def in_thread(fn, done=None):
+    """Run fn() in a thread; call done(result) on the GTK thread."""
+    def work():
+        result = fn()
+        if done:
+            GLib.idle_add(done, result)
+    threading.Thread(target=work, daemon=True).start()
+
+
+def read_state(name, default=""):
+    try:
+        with open(os.path.join(STATE, name)) as f:
+            return f.read().strip() or default
+    except OSError:
+        return default
+
+
+# ---------------------------------------------------------------- widgets
+def page_box(title, subtitle=""):
+    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+    box.set_margin_top(26)
+    box.set_margin_bottom(20)
+    box.set_margin_start(30)
+    box.set_margin_end(30)
+    t = Gtk.Label(label=title, xalign=0)
+    t.add_css_class("xlin-title")
+    box.append(t)
+    if subtitle:
+        s = Gtk.Label(label=subtitle, xalign=0)
+        s.add_css_class("xlin-sub")
+        box.append(s)
+    return box
+
+
+def card():
+    c = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+    c.add_css_class("xlin-card")
+    c.set_margin_top(14)
+    return c
+
+
+def row(title, subtitle=None, widget=None):
+    r = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+    r.add_css_class("xlin-row")
+    text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+    text.set_hexpand(True)
+    text.set_valign(Gtk.Align.CENTER)
+    a = Gtk.Label(label=title, xalign=0)
+    text.append(a)
+    if subtitle:
+        b = Gtk.Label(label=subtitle, xalign=0)
+        b.add_css_class("xlin-sub")
+        text.append(b)
+    r.append(text)
+    if widget is not None:
+        widget.set_valign(Gtk.Align.CENTER)
+        r.append(widget)
+    return r
+
+
+def switch(active, on_change):
+    sw = Gtk.Switch()
+    sw.set_active(active)
+    sw.connect("state-set", lambda _s, state: (on_change(state), False)[1])
+    return sw
+
+
+def slider(value, on_change, lo=0, hi=100):
+    sc = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, lo, hi, 1)
+    sc.set_value(value)
+    sc.set_size_request(240, -1)
+    sc.set_draw_value(False)
+    pending = {"id": 0}
+
+    def changed(s):
+        if pending["id"]:
+            GLib.source_remove(pending["id"])
+
+        def fire():
+            pending["id"] = 0
+            on_change(s.get_value())
+            return False
+        pending["id"] = GLib.timeout_add(180, fire)  # debounce while dragging
+    sc.connect("value-changed", changed)
+    return sc
+
+
+def button(label, on_click):
+    b = Gtk.Button(label=label)
+    b.connect("clicked", lambda _b: on_click())
+    return b
+
+
+# ----------------------------------------------------------------- pages
+class WifiPage(Gtk.Box):
+    def __init__(self, win):
+        super().__init__(orientation=Gtk.Orientation.VERTICAL)
+        self.win = win
+        self.box = page_box("Wi-Fi", "Choose a network")
+        ok, out = run(["nmcli", "radio", "wifi"])
+        on = out == "enabled"
+        top = card()
+        top.append(row("Wi-Fi", None, switch(on, self.set_radio)))
+        self.box.append(top)
+        self.status = Gtk.Label(label="", xalign=0)
+        self.status.add_css_class("xlin-sub")
+        self.status.set_margin_top(8)
+        self.box.append(self.status)
+        self.list_card = card()
+        self.box.append(self.list_card)
+        self.box.append(Gtk.Box(vexpand=True))
+        self.refresh_btn = button("Refresh", self.refresh)
+        self.refresh_btn.set_halign(Gtk.Align.START)
+        self.box.append(self.refresh_btn)
+        if have("nmcli"):
+            self.refresh()
+        else:
+            self.status.set_text("NetworkManager (nmcli) is not installed.")
+
+    def set_radio(self, state):
+        in_thread(lambda: run(["nmcli", "radio", "wifi", "on" if state else "off"]),
+                  lambda _r: self.refresh())
+
+    def refresh(self):
+        self.status.set_text("Scanning...")
+        in_thread(lambda: run(["nmcli", "-t", "-f", "IN-USE,SSID,SIGNAL,SECURITY",
+                               "dev", "wifi", "list", "--rescan", "yes"], 25), self.show)
+
+    def show(self, result):
+        ok, out = result
+        child = self.list_card.get_first_child()
+        while child:
+            nxt = child.get_next_sibling()
+            self.list_card.remove(child)
+            child = nxt
+        seen = set()
+        for line in out.splitlines():
+            parts = re.split(r"(?<!\\):", line)
+            if len(parts) < 4:
+                continue
+            use, ssid, sig, sec = parts[0], parts[1].replace("\\:", ":"), parts[2], parts[3]
+            if not ssid or ssid in seen:
+                continue
+            seen.add(ssid)
+            connected = use.strip() == "*"
+            sub = f"Signal {sig}%" + (" · Secured" if sec and sec != "--" else " · Open")
+            if connected:
+                b = Gtk.Label(label="Connected")
+            else:
+                b = button("Connect", lambda s=ssid, e=(sec and sec != "--"): self.connect_to(s, e))
+            self.list_card.append(row(ssid, sub, b))
+        self.status.set_text("" if seen else "No networks found (is Wi-Fi turned on?)")
+
+    def connect_to(self, ssid, secured):
+        self.status.set_text(f"Connecting to {ssid}...")
+
+        def work():
+            return run(["nmcli", "dev", "wifi", "connect", ssid], 30)
+
+        def done(res):
+            ok, _ = res
+            if ok:
+                self.status.set_text(f"Connected to {ssid}")
+                self.refresh()
+            elif secured:
+                self.ask_password(ssid)
+            else:
+                self.status.set_text(f"Could not connect to {ssid}")
+        in_thread(work, done)
+
+    def ask_password(self, ssid):
+        d = Gtk.Window(title=f"Password for {ssid}", modal=True, transient_for=self.win)
+        d.set_default_size(340, 120)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        for m in ("top", "bottom", "start", "end"):
+            getattr(box, f"set_margin_{m}")(18)
+        entry = Gtk.PasswordEntry(show_peek_icon=True)
+        box.append(entry)
+        go = Gtk.Button(label="Connect")
+        go.add_css_class("suggested-action")
+
+        def submit(*_a):
+            pw = entry.get_text()
+            d.close()
+            self.status.set_text(f"Connecting to {ssid}...")
+            in_thread(lambda: run(["nmcli", "dev", "wifi", "connect", ssid, "password", pw], 30),
+                      lambda r: (self.status.set_text(
+                          f"Connected to {ssid}" if r[0] else "Wrong password or network unreachable"),
+                          self.refresh()))
+        go.connect("clicked", submit)
+        entry.connect("activate", submit)
+        box.append(go)
+        d.set_child(box)
+        d.present()
+
+
+class BluetoothPage(Gtk.Box):
+    def __init__(self, win):
+        super().__init__(orientation=Gtk.Orientation.VERTICAL)
+        self.box = page_box("Bluetooth", "Your devices")
+        _ok, show = run(["bluetoothctl", "show"])
+        _ok2, rf = run(["rfkill", "list", "bluetooth"])
+        powered = "Powered: yes" in show and "Soft blocked: yes" not in rf
+        top = card()
+        top.append(row("Bluetooth", None, switch(powered, self.set_radio)))
+        self.box.append(top)
+        self.status = Gtk.Label(label="", xalign=0, wrap=True)
+        self.status.add_css_class("xlin-sub")
+        self.status.set_margin_top(8)
+        self.box.append(self.status)
+        self.list_card = card()
+        self.box.append(self.list_card)
+        self.box.append(Gtk.Box(vexpand=True))
+        bar = Gtk.Box(spacing=8)
+        bar.append(button("Refresh", lambda: self.refresh(False)))
+        bar.append(button("Scan for new devices", lambda: self.refresh(True)))
+        self.box.append(bar)
+        if not have("bluetoothctl"):
+            self.status.set_text("bluetoothctl is not installed. Run: sudo pacman -S bluez-utils")
+            return
+        ok, active = run(["systemctl", "is-active", "bluetooth"])
+        if active != "active":
+            self.status.set_text("The Bluetooth service is not running. "
+                                 "Run: sudo systemctl enable --now bluetooth")
+        else:
+            self.refresh(False)
+
+    def set_radio(self, state):
+        def work():
+            if state:
+                run(["rfkill", "unblock", "bluetooth"])
+                return run(["bluetoothctl", "power", "on"])
+            return run(["bluetoothctl", "power", "off"])
+        in_thread(work, lambda _r: self.refresh(False))
+
+    def refresh(self, scan=False):
+        self.status.set_text("Scanning for devices (8 seconds)..." if scan else "Loading...")
+
+        def work():
+            if scan:
+                run(["bluetoothctl", "--timeout", "8", "scan", "on"], 20)
+            _ok, out = run(["bluetoothctl", "devices"])
+            devs = []
+            for line in out.splitlines():
+                m = re.match(r"Device\s+(\S+)\s+(.*)", line)
+                if m:
+                    mac, name = m.groups()
+                    if re.fullmatch(r"[0-9A-F]{2}([-:][0-9A-F]{2}){5}", name):
+                        continue  # unnamed device, shown only as its address
+                    _ok2, info = run(["bluetoothctl", "info", mac])
+                    devs.append((mac, name, "Paired: yes" in info, "Connected: yes" in info))
+            devs.sort(key=lambda d: (not d[3], not d[2], d[1].lower()))
+            return devs
+        in_thread(work, self.show)
+
+    def show(self, devs):
+        child = self.list_card.get_first_child()
+        while child:
+            nxt = child.get_next_sibling()
+            self.list_card.remove(child)
+            child = nxt
+        for mac, name, paired, connected in devs:
+            if connected:
+                label, sub = "Disconnect", "Connected"
+            elif paired:
+                label, sub = "Connect", "Paired"
+            else:
+                label, sub = "Pair", "Nearby"
+            self.list_card.append(row(name, sub, button(
+                label, lambda m=mac, p=paired, c=connected: self.act(m, p, c))))
+        self.status.set_text("" if devs else "No devices yet. Put your device in pairing mode, "
+                                              "then press \"Scan for new devices\".")
+
+    def act(self, mac, paired, connected):
+        self.status.set_text("Working...")
+
+        def work():
+            if connected:
+                return run(["bluetoothctl", "disconnect", mac], 20)
+            if not paired:
+                run(["bluetoothctl", "pair", mac], 40)
+                run(["bluetoothctl", "trust", mac], 10)
+            return run(["bluetoothctl", "connect", mac], 25)
+        in_thread(work, lambda r: (
+            self.status.set_text("" if r[0] else "That did not work. Is the device in pairing mode?"),
+            self.refresh(False)))
+
+
+def display_page(win):
+    box = page_box("Display", "Brightness and screens")
+    c = card()
+    box.append(c)
+    ok, out = run(["brightnessctl", "-m", "info"])
+    pct = 70
+    if ok and out:
+        m = re.search(r"(\d+)%", out)
+        if m:
+            pct = int(m.group(1))
+    if have("brightnessctl") and ok:
+        c.append(row("Brightness", None,
+                     slider(pct, lambda v: run(["brightnessctl", "set", f"{max(1, int(v))}%"]), 1, 100)))
+    else:
+        c.append(row("Brightness", "No adjustable backlight found (normal on desktop PCs)"))
+    if have("nwg-displays"):
+        c.append(row("Screen layout", "Resolution, position and scale",
+                     button("Open...", lambda: subprocess.Popen(["nwg-displays"]))))
+    else:
+        c.append(row("Screen layout", "Install nwg-displays to arrange screens"))
+    return box
+
+
+def sound_page(win):
+    box = page_box("Sound", "Output volume")
+    c = card()
+    box.append(c)
+    vol = 50
+    ok, out = run(["wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"])
+    m = re.search(r"([\d.]+)", out or "")
+    if m:
+        vol = int(float(m.group(1)) * 100)
+    c.append(row("Volume", None, slider(
+        min(vol, 100),
+        lambda v: run(["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", f"{v / 100:.2f}"]))))
+    c.append(row("Mute", None, switch(
+        "MUTED" in (out or ""),
+        lambda s: run(["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "1" if s else "0"]))))
+    if have("pavucontrol"):
+        c.append(row("Devices and apps", "Choose speakers, microphone, per-app volume",
+                     button("Open...", lambda: subprocess.Popen(["pavucontrol"]))))
+    return box
+
+
+def appearance_page(win):
+    box = page_box("Appearance", "Theme, transparency and wallpaper")
+    c = card()
+    box.append(c)
+    dark = read_state("theme", "light") == "dark"
+    c.append(row("Dark mode", "Bar, dock, launcher, panel and apps", switch(
+        dark, lambda s: in_thread(lambda: run(["xlin", "theme", "dark" if s else "light"], 30)))))
+
+    c.append(row("Accent colour", "Highlights, buttons and selections", accent_dots()))
+
+    def set_opacity(v):
+        val = "1.0" if v >= 100 else f"{v / 100:.2f}"
+        run(["xlin", "opacity", val])
+    c.append(row("Window transparency", "Fullscreen windows are always solid",
+                 slider(85, set_opacity, 40, 100)))
+    autohide = read_state("dock_autohide", "on") != "off"
+    c.append(row("Auto-hide dock", "Show the dock only when you reach the bottom edge", switch(
+        autohide, lambda s: in_thread(lambda: run(["xlin", "dock", "autohide", "on" if s else "off"])))))
+
+    def pick_wall():
+        dlg = Gtk.FileDialog(title="Choose a wallpaper")
+        flt = Gtk.FileFilter()
+        flt.set_name("Images")
+        flt.add_mime_type("image/png")
+        flt.add_mime_type("image/jpeg")
+        flt.add_mime_type("image/webp")
+        store = Gio.ListStore.new(Gtk.FileFilter)
+        store.append(flt)
+        dlg.set_filters(store)
+
+        def done(d, res):
+            try:
+                f = d.open_finish(res)
+            except GLib.Error:
+                return
+            in_thread(lambda: run(["xlin", "wallpaper", f.get_path()], 30))
+        dlg.open(win, None, done)
+
+    wb = Gtk.Box(spacing=8)
+    wb.append(button("Next", lambda: in_thread(lambda: run(["xlin", "wallpaper", "next"], 30))))
+    wb.append(button("Choose image...", pick_wall))
+    c.append(row("Wallpaper", None, wb))
+    return box
+
+
+def about_page(win):
+    box = page_box("About", "XLIN desktop")
+    c = card()
+    box.append(c)
+    c.append(row("XLIN", "Phase 1"))
+    ok, out = run(["hyprctl", "version", "-j"])
+    ver = "unknown"
+    m = re.search(r'"tag"\s*:\s*"([^"]+)"', out or "")
+    if m:
+        ver = m.group(1)
+    c.append(row("Hyprland", ver))
+    c.append(row("User", f"{os.environ.get('USER', '?')}@{os.uname().nodename}"))
+    c.append(row("Theme", read_state("theme", "light")))
+    return box
+
+
+# ------------------------------------------------------------------- app
+class SettingsWindow(Gtk.ApplicationWindow):
+    def __init__(self, app):
+        super().__init__(application=app, title="Settings")
+        self.set_default_size(920, 640)
+        root = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        self.set_child(root)
+
+        self.side = Gtk.ListBox()
+        self.side.add_css_class("xlin-side")
+        self.side.set_size_request(210, -1)
+        root.append(self.side)
+        root.append(Gtk.Separator(orientation=Gtk.Orientation.VERTICAL))
+
+        self.stack = Gtk.Stack(hexpand=True, vexpand=True)
+        self.stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
+        scroll = Gtk.ScrolledWindow(hexpand=True, vexpand=True)
+        scroll.set_child(self.stack)
+        root.append(scroll)
+
+        self.keep = []  # page objects must stay alive while their widgets are shown
+
+        def keep(obj):
+            self.keep.append(obj)
+            return obj.box
+        builders = {
+            "wifi": lambda: keep(WifiPage(self)),
+            "bluetooth": lambda: keep(BluetoothPage(self)),
+            "display": lambda: display_page(self),
+            "sound": lambda: sound_page(self),
+            "appearance": lambda: appearance_page(self),
+            "about": lambda: about_page(self),
+        }
+        self.pages = {}
+        for key, label, icon in PAGES:
+            r = Gtk.Box(spacing=10)
+            r.set_margin_top(4)
+            r.set_margin_bottom(4)
+            r.set_margin_start(6)
+            r.append(Gtk.Image.new_from_icon_name(icon))
+            r.append(Gtk.Label(label=label))
+            lr = Gtk.ListBoxRow()
+            lr.set_child(r)
+            lr.key = key
+            self.side.append(lr)
+            self.pages[key] = (lr, builders[key])
+        self.built = set()
+        self.side.connect("row-selected", self.on_select)
+        self.show_page("wifi")
+
+    def on_select(self, _lb, lr):
+        if lr is None:
+            return
+        key = lr.key
+        if key not in self.built:
+            widget = self.pages[key][1]()
+            self.stack.add_named(widget, key)
+            self.built.add(key)
+        self.stack.set_visible_child_name(key)
+
+    def show_page(self, key):
+        if key not in self.pages:
+            key = "wifi"
+        self.side.select_row(self.pages[key][0])
+
+
+class SettingsApp(Gtk.Application):
+    def __init__(self):
+        super().__init__(application_id=APP_ID,
+                         flags=Gio.ApplicationFlags.HANDLES_COMMAND_LINE)
+        self.win = None
+
+    def do_startup(self):
+        Gtk.Application.do_startup(self)
+        from gi.repository import Gdk
+        prov = Gtk.CssProvider()
+        prov.load_from_data(CSS)
+        Gtk.StyleContext.add_provider_for_display(
+            Gdk.Display.get_default(), prov, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+
+    def do_command_line(self, cmdline):
+        args = cmdline.get_arguments()[1:]
+        page = args[0].lower() if args else "wifi"
+        if self.win is None:
+            self.win = SettingsWindow(self)
+        self.win.show_page(page)
+        self.win.present()
+        return 0
+
+
+if __name__ == "__main__":
+    sys.exit(SettingsApp().run(sys.argv))

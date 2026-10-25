@@ -1,0 +1,1037 @@
+#!/usr/bin/env python3
+"""XLIN Tools.
+
+  xlin-tools              the small Tools menu under the top bar
+  xlin-tools calculator   a floating calculator window
+  xlin-tools calendar     a floating calendar window
+  xlin-tools notes        a floating notes window (notes are plain .md files)
+
+Each tool is its own small floating window: drag it by its top strip, use it next to
+your work, close it with the x in its corner.
+"""
+import ast
+import calendar
+import json
+import operator
+import os
+import shutil
+import subprocess
+import sys
+from datetime import date, datetime
+
+import gi
+
+gi.require_version("Gtk", "4.0")
+from gi.repository import Gdk, Gio, GLib, Gtk  # noqa: E402
+
+CSS_FILE = os.path.expanduser("~/.config/xlin/tools.css")
+
+# name -> (window title, Wayland app id, width, height, short description, icon)
+TOOLS = {
+    "calculator": ("Calculator", "dev.xlin.Calculator", 300, 420, "Quick sums", "accessories-calculator-symbolic"),
+    "calendar":   ("Calendar",   "dev.xlin.Calendar",   340, 430, "Dates and weekends", "x-office-calendar-symbolic"),
+    "notes":      ("Notes",      "dev.xlin.Notes",      360, 470, "Quick notes, saved as files", "accessories-text-editor-symbolic"),
+}
+MENU_ID, MENU_W, MENU_H = "dev.xlin.Tools", 300, 250
+POWER_ID, POWER_W, POWER_H = "dev.xlin.Power", 290, 300
+SESSION_ID, SESSION_W, SESSION_H = "dev.xlin.Session", 200, 282
+# key, glyph, label, xlin command, needs a second click to confirm
+SESSION_ITEMS = [("lock", "\uf023", "Lock Screen", "lock", False),
+                 ("sleep", "\uf186", "Sleep", "sleep", False),
+                 ("logout", "\uf08b", "Log Out", "logout", True),
+                 ("reboot", "\uf021", "Restart", "reboot", True),
+                 ("poweroff", "\uf011", "Power Off", "poweroff", True)]
+ALL_IDS = {MENU_ID, POWER_ID, SESSION_ID} | {t[1] for t in TOOLS.values()}
+MODES = [("power-saver", "Power saver", "Longer battery life"),
+         ("balanced", "Balanced", "Good for everyday use"),
+         ("performance", "Performance", "Fastest, uses more power")]
+
+FALLBACK_CSS = b"""
+window.xlin-tools { border-radius: 11px; }
+.calc-key { border-radius: 8px; min-height: 44px; }
+.calc-display { font-size: 30px; font-weight: 600; }
+.calc-expr { opacity: 0.6; font-size: 12px; }
+.cal-day { border-radius: 8px; min-height: 34px; padding: 0; }
+.cal-out { opacity: 0.35; }
+.tool-title { font-weight: 700; }
+"""
+
+
+# ------------------------------------------------------------ safe maths
+_BIN = {ast.Add: operator.add, ast.Sub: operator.sub,
+        ast.Mult: operator.mul, ast.Div: operator.truediv}
+
+
+def safe_eval(text):
+    """Evaluate + - * / and brackets only. Nothing else is ever executed."""
+    def ev(n):
+        if isinstance(n, ast.Expression):
+            return ev(n.body)
+        if isinstance(n, ast.Constant) and isinstance(n.value, (int, float)) \
+                and not isinstance(n.value, bool):
+            return n.value
+        if isinstance(n, ast.UnaryOp) and isinstance(n.op, (ast.UAdd, ast.USub)):
+            v = ev(n.operand)
+            return v if isinstance(n.op, ast.UAdd) else -v
+        if isinstance(n, ast.BinOp) and type(n.op) in _BIN:
+            return _BIN[type(n.op)](ev(n.left), ev(n.right))
+        raise ValueError("unsupported")
+    return ev(ast.parse(text, mode="eval"))
+
+
+def pretty(value):
+    if isinstance(value, float):
+        if value != value or value in (float("inf"), float("-inf")):
+            raise ValueError("bad result")
+        value = float(f"{value:.12g}")
+        if value == int(value) and abs(value) < 1e15:
+            return str(int(value))
+        return f"{value:.12g}"
+    return str(value)
+
+
+def to_python(expr):
+    return (expr.replace("×", "*").replace("÷", "/").replace("−", "-")
+                .replace("%", "/100"))
+
+
+# ------------------------------------------------------------ calculator
+class Calculator(Gtk.Box):
+    KEYS = [
+        ["C", "⌫", "%", "÷"],
+        ["7", "8", "9", "×"],
+        ["4", "5", "6", "−"],
+        ["1", "2", "3", "+"],
+        ["±", "0", ".", "="],
+    ]
+
+    def __init__(self):
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        self.expr = ""
+        self.fresh = False  # True right after "=": typing a digit starts over
+
+        self.top = Gtk.Label(label="", xalign=1)
+        self.top.add_css_class("calc-expr")
+        self.top.set_ellipsize(3)  # END
+        self.display = Gtk.Label(label="0", xalign=1)
+        self.display.add_css_class("calc-display")
+        self.display.set_ellipsize(1)  # START: keep the newest digits visible
+        self.display.set_margin_bottom(4)
+        self.append(self.top)
+        self.append(self.display)
+
+        grid = Gtk.Grid(row_spacing=6, column_spacing=6)
+        grid.set_row_homogeneous(True)
+        grid.set_column_homogeneous(True)
+        grid.set_vexpand(True)
+        for r, line in enumerate(self.KEYS):
+            for c, key in enumerate(line):
+                b = Gtk.Button(label=key)
+                b.add_css_class("calc-key")
+                if key in "÷×−+%":
+                    b.add_css_class("calc-op")
+                if key == "=":
+                    b.add_css_class("calc-eq")
+                b.connect("clicked", lambda _b, k=key: self.press(k))
+                grid.attach(b, c, r, 1, 1)
+        self.append(grid)
+
+    # --- state ---------------------------------------------------------
+    def show(self):
+        self.display.set_text(self.expr if self.expr else "0")
+
+    def press(self, key):
+        ops = "÷×−+"
+        if key == "C":
+            self.expr, self.fresh = "", False
+            self.top.set_text("")
+        elif key == "⌫":
+            self.expr = self.expr[:-1]
+            self.fresh = False
+        elif key == "=":
+            self.equals()
+            return
+        elif key == "±":
+            self.negate()
+        elif key in ops:
+            if not self.expr:
+                if key == "−":
+                    self.expr = "−"
+            elif self.expr[-1] in ops:
+                self.expr = self.expr[:-1] + key  # replace the operator
+            else:
+                self.expr += key
+            self.fresh = False
+        elif key == "%":
+            if self.expr and (self.expr[-1].isdigit() or self.expr[-1] in ").%"):
+                self.expr += "%"
+            self.fresh = False
+        elif key == ".":
+            if self.fresh:
+                self.expr, self.fresh = "", False
+            last = self.last_number()
+            if "." not in last:
+                self.expr += "." if last else "0."
+        else:  # digit
+            if self.fresh:
+                self.expr, self.fresh = "", False
+                self.top.set_text("")
+            if self.last_number() == "0":
+                self.expr = self.expr[:-1]  # no leading zeros
+            self.expr += key
+        self.show()
+
+    def last_number(self):
+        i = len(self.expr)
+        while i > 0 and (self.expr[i - 1].isdigit() or self.expr[i - 1] == "."):
+            i -= 1
+        return self.expr[i:]
+
+    def negate(self):
+        if not self.expr:
+            return
+        n = self.last_number()
+        if not n:
+            return
+        head = self.expr[:len(self.expr) - len(n)]
+        if head.endswith("(−"):
+            self.expr = head[:-2] + n
+        elif head == "−":
+            self.expr = n
+        elif head == "" or head[-1] in "÷×−+":
+            self.expr = head + "(−" + n
+        else:
+            self.expr = head + n
+        self.fresh = False
+        # keep brackets balanced: "(−5" needs a closing bracket when evaluated
+        # (handled in equals)
+
+    def equals(self):
+        if not self.expr:
+            return
+        text = self.expr
+        while text and text[-1] in "÷×−+(":
+            text = text[:-1]  # ignore a dangling operator
+        text += ")" * (text.count("(") - text.count(")"))
+        if not text:
+            return
+        try:
+            result = pretty(safe_eval(to_python(text)))
+        except ZeroDivisionError:
+            self.top.set_text(text)
+            self.display.set_text("Can't divide by 0")
+            self.expr, self.fresh = "", False
+            return
+        except Exception:
+            self.display.set_text("Check the numbers")
+            self.expr, self.fresh = "", False
+            return
+        self.top.set_text(text + " =")
+        self.expr = result.replace("-", "−")
+        self.fresh = True
+        self.show()
+
+    # --- keyboard ------------------------------------------------------
+    def on_key(self, key):
+        """Returns True if the key was used."""
+        name = Gdk.keyval_name(key) or ""
+        mapping = {"plus": "+", "minus": "−", "asterisk": "×", "x": "×", "slash": "÷",
+                   "period": ".", "comma": ".", "percent": "%", "equal": "=",
+                   "Return": "=", "KP_Enter": "=", "BackSpace": "⌫", "Delete": "C",
+                   "c": "C", "C": "C", "KP_Add": "+", "KP_Subtract": "−",
+                   "KP_Multiply": "×", "KP_Divide": "÷", "KP_Decimal": "."}
+        if name in mapping:
+            self.press(mapping[name])
+            return True
+        if len(name) == 1 and name.isdigit():
+            self.press(name)
+            return True
+        if name.startswith("KP_") and name[3:].isdigit():
+            self.press(name[3:])
+            return True
+        return False
+
+
+
+# ------------------------------------------------------------------ notes
+NOTES_DIR = os.path.join(os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share"),
+                         "xlin", "notes")
+
+
+def note_title(text):
+    """First non-empty line, without markdown # marks."""
+    for line in text.splitlines():
+        line = line.strip().lstrip("#").strip()
+        if line:
+            return line[:80]
+    return "New note"
+
+
+def note_snippet(text):
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    return (lines[1] if len(lines) > 1 else "")[:80]
+
+
+def list_notes(query="", folder=None):
+    """[(path, title, snippet, mtime)] newest first, optionally filtered by text."""
+    folder = folder or NOTES_DIR
+    out = []
+    try:
+        names = [n for n in os.listdir(folder) if n.endswith(".md")]
+    except OSError:
+        return out
+    q = query.strip().lower()
+    for n in names:
+        path = os.path.join(folder, n)
+        try:
+            with open(path, encoding="utf-8") as f:
+                text = f.read()
+            mtime = os.path.getmtime(path)
+        except OSError:
+            continue
+        if q and q not in text.lower():
+            continue
+        out.append((path, note_title(text), note_snippet(text), mtime))
+    out.sort(key=lambda r: r[3], reverse=True)
+    return out
+
+
+def new_note_path(folder=None):
+    folder = folder or NOTES_DIR
+    os.makedirs(folder, exist_ok=True)
+    base = datetime.now().strftime("%Y%m%d-%H%M%S")
+    path, i = os.path.join(folder, base + ".md"), 1
+    while os.path.exists(path):
+        path = os.path.join(folder, f"{base}-{i}.md")
+        i += 1
+    return path
+
+
+def save_note(path, text):
+    """Write the note; an empty note is removed instead of kept."""
+    if not text.strip():
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+        return
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(text)
+    os.replace(tmp, path)
+
+
+class NotesView(Gtk.Box):
+    """List of notes, and an editor that saves by itself."""
+
+    def __init__(self):
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        self.path = None
+        self.save_id = 0
+        self.delete_armed = False
+        self.stack = Gtk.Stack()
+        self.stack.set_vexpand(True)
+        self.append(self.stack)
+
+        # ---- list page
+        lp = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        top = Gtk.Box(spacing=8)
+        self.search = Gtk.SearchEntry()
+        self.search.set_hexpand(True)
+        self.search.set_placeholder_text("Search notes")
+        self.search.connect("search-changed", lambda _e: self.refresh())
+        add = Gtk.Button(label="+ New")
+        add.add_css_class("note-new")
+        add.connect("clicked", lambda _b: self.open_note(None))
+        top.append(self.search)
+        top.append(add)
+        lp.append(top)
+        self.list = Gtk.ListBox()
+        self.list.set_selection_mode(Gtk.SelectionMode.NONE)
+        self.list.add_css_class("note-list")
+        sc = Gtk.ScrolledWindow()
+        sc.set_vexpand(True)
+        sc.set_child(self.list)
+        lp.append(sc)
+        self.stack.add_named(lp, "list")
+
+        # ---- editor page
+        ep = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        bar = Gtk.Box(spacing=8)
+        back = Gtk.Button(label="\u2039 Notes")
+        back.add_css_class("note-new")
+        back.connect("clicked", lambda _b: self.show_list())
+        self.when = Gtk.Label(xalign=0.5, hexpand=True)
+        self.when.add_css_class("tools-sub")
+        self.delete = Gtk.Button(label="Delete")
+        self.delete.add_css_class("note-new")
+        self.delete.connect("clicked", lambda _b: self.on_delete())
+        for w in (back, self.when, self.delete):
+            bar.append(w)
+        ep.append(bar)
+        self.buf = Gtk.TextBuffer()
+        self.buf.connect("changed", lambda _b: self.queue_save())
+        self.view = Gtk.TextView(buffer=self.buf)
+        self.view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
+        self.view.add_css_class("note-text")
+        self.view.set_left_margin(4)
+        self.view.set_right_margin(4)
+        sc2 = Gtk.ScrolledWindow()
+        sc2.set_vexpand(True)
+        sc2.set_child(self.view)
+        ep.append(sc2)
+        self.stack.add_named(ep, "edit")
+
+        self.refresh()
+
+    def on_key(self, key):
+        return False
+
+    # ---- list
+    def refresh(self):
+        child = self.list.get_first_child()
+        while child is not None:
+            nxt = child.get_next_sibling()
+            self.list.remove(child)
+            child = nxt
+        rows = list_notes(self.search.get_text())
+        if not rows:
+            lab = Gtk.Label(label="No notes yet. Press + New.", margin_top=24)
+            lab.add_css_class("tools-sub")
+            self.list.append(lab)
+        for path, title, snippet, mtime in rows:
+            b = Gtk.Button()
+            b.add_css_class("tools-item")
+            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
+            t = Gtk.Label(label=title, xalign=0, ellipsize=3)
+            sub = datetime.fromtimestamp(mtime).strftime("%b %e  %H:%M")
+            if snippet:
+                sub += "  \u00b7  " + snippet
+            s = Gtk.Label(label=sub, xalign=0, ellipsize=3)
+            s.add_css_class("tools-sub")
+            box.append(t)
+            box.append(s)
+            b.set_child(box)
+            b.connect("clicked", lambda _b, p=path: self.open_note(p))
+            self.list.append(b)
+
+    def show_list(self):
+        self.flush()
+        self.path = None
+        self.refresh()
+        self.stack.set_visible_child_name("list")
+
+    # ---- editor
+    def open_note(self, path):
+        self.delete_armed = False
+        self.delete.set_label("Delete")
+        if path is None:
+            path = new_note_path()
+            text = ""
+        else:
+            try:
+                with open(path, encoding="utf-8") as f:
+                    text = f.read()
+            except OSError:
+                text = ""
+        self.path = path
+        self.loading = True
+        self.buf.set_text(text)
+        self.loading = False
+        self.when.set_text(datetime.now().strftime("%b %e, %H:%M"))
+        self.stack.set_visible_child_name("edit")
+        self.view.grab_focus()
+
+    def text(self):
+        return self.buf.get_text(self.buf.get_start_iter(), self.buf.get_end_iter(), False)
+
+    def queue_save(self):
+        if getattr(self, "loading", False) or not self.path:
+            return
+        if self.save_id:
+            GLib.source_remove(self.save_id)
+        self.save_id = GLib.timeout_add(600, self.flush_timer)
+
+    def flush_timer(self):
+        self.save_id = 0
+        self.flush()
+        return False
+
+    def flush(self):
+        if self.save_id:
+            GLib.source_remove(self.save_id)
+            self.save_id = 0
+        if self.path and self.stack.get_visible_child_name() == "edit":
+            try:
+                save_note(self.path, self.text())
+            except OSError:
+                pass
+
+    def on_delete(self):
+        if not self.delete_armed:           # first click asks, second click deletes
+            self.delete_armed = True
+            self.delete.set_label("Sure?")
+            GLib.timeout_add(3000, self.disarm)
+            return
+        try:
+            if self.path:
+                os.remove(self.path)
+        except OSError:
+            pass
+        self.path = None
+        self.show_list()
+
+    def disarm(self):
+        self.delete_armed = False
+        self.delete.set_label("Delete")
+        return False
+
+
+# -------------------------------------------------------------- calendar
+class CalendarView(Gtk.Box):
+    WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+    def __init__(self):
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        today = date.today()
+        self.year, self.month, self.selected = today.year, today.month, today
+
+        bar = Gtk.Box(spacing=6)
+        self.title = Gtk.Label(label="", xalign=0, hexpand=True)
+        self.title.add_css_class("cal-title")
+        bar.append(self.title)
+        for label, fn in (("‹", lambda: self.step(-1)), ("Today", self.go_today), ("›", lambda: self.step(1))):
+            b = Gtk.Button(label=label)
+            b.add_css_class("cal-nav")
+            b.connect("clicked", lambda _b, f=fn: f())
+            bar.append(b)
+        self.append(bar)
+
+        self.grid = Gtk.Grid(row_spacing=2, column_spacing=2)
+        self.grid.set_column_homogeneous(True)
+        self.grid.set_vexpand(True)
+        self.append(self.grid)
+
+        self.info = Gtk.Label(label="", xalign=0)
+        self.info.add_css_class("cal-info")
+        self.append(self.info)
+        self.build()
+
+    def clear(self):
+        child = self.grid.get_first_child()
+        while child:
+            nxt = child.get_next_sibling()
+            self.grid.remove(child)
+            child = nxt
+
+    def build(self):
+        self.clear()
+        self.title.set_text(f"{calendar.month_name[self.month]} {self.year}")
+        for c, name in enumerate(self.WEEKDAYS):
+            l = Gtk.Label(label=name)
+            l.add_css_class("cal-wd")
+            if c >= 5:
+                l.add_css_class("cal-weekend")
+            self.grid.attach(l, c, 0, 1, 1)
+        weeks = calendar.Calendar(firstweekday=0).monthdatescalendar(self.year, self.month)
+        while len(weeks) < 6:  # keep the window the same height every month
+            last = weeks[-1][-1]
+            weeks.append([date.fromordinal(last.toordinal() + 1 + i) for i in range(7)])
+        today = date.today()
+        for r, week in enumerate(weeks, start=1):
+            for c, d in enumerate(week):
+                b = Gtk.Button(label=str(d.day))
+                b.add_css_class("cal-day")
+                if d.month != self.month:
+                    b.add_css_class("cal-out")
+                if c >= 5:
+                    b.add_css_class("cal-weekend")
+                if d == today:
+                    b.add_css_class("cal-today")
+                if d == self.selected:
+                    b.add_css_class("cal-sel")
+                b.connect("clicked", lambda _b, dd=d: self.pick(dd))
+                self.grid.attach(b, c, r, 1, 1)
+        self.show_info()
+
+    def show_info(self):
+        d = self.selected
+        text = f"{d.strftime('%A, %-d %B %Y')}  ·  week {d.isocalendar()[1]}"
+        if d == date.today():
+            text = "Today  ·  " + text
+        self.info.set_text(text)
+
+    def pick(self, d):
+        self.selected = d
+        if (d.year, d.month) != (self.year, self.month):
+            self.year, self.month = d.year, d.month
+        self.build()
+
+    def step(self, delta):
+        m = self.month - 1 + delta
+        self.year += m // 12
+        self.month = m % 12 + 1
+        self.build()
+
+    def go_today(self):
+        t = date.today()
+        self.year, self.month, self.selected = t.year, t.month, t
+        self.build()
+
+    def on_key(self, key):
+        name = Gdk.keyval_name(key) or ""
+        if name in ("Left", "Page_Up", "Up"):
+            self.step(-1)
+        elif name in ("Right", "Page_Down", "Down"):
+            self.step(1)
+        elif name in ("Home", "t", "T"):
+            self.go_today()
+        else:
+            return False
+        return True
+
+
+
+# ------------------------------------------------------------ placement
+def hypr_json(what):
+    try:
+        out = subprocess.run(["hyprctl", what, "-j"], capture_output=True, text=True, timeout=3).stdout
+        return json.loads(out or "[]")
+    except Exception:
+        return []
+
+
+def place_window(app_id, stagger):
+    """Hyprland: put a floating window under the top bar at the right edge,
+    shifted a little for each tool that is already open, so they do not hide each other."""
+    try:
+        clients = hypr_json("clients")
+        mons = hypr_json("monitors")
+        me = next(c for c in clients if c.get("class") == app_id)
+        mon = next((m for m in mons if m.get("id") == me.get("monitor")),
+                   next((m for m in mons if m.get("focused")), mons[0]))
+        n = 0
+        if stagger:
+            n = sum(1 for c in clients if c.get("class") in ALL_IDS and c.get("class") != MENU_ID
+                    and c.get("address") != me.get("address"))
+        scale = mon.get("scale") or 1
+        top = (mon.get("reserved") or [0, 0, 0, 0])[1]
+        x = int(mon["x"] + mon["width"] / scale - me["size"][0] - 12 - 26 * n)
+        y = int(mon["y"] + top + 8 + 26 * n)
+        if abs(me["at"][0] - x) <= 6 and abs(me["at"][1] - y) <= 6:
+            return False   # the window rule already opened it there: no jump, no animation
+        subprocess.run(["hyprctl", "dispatch", "movewindowpixel",
+                        f"exact {x} {y},address:{me['address']}"], capture_output=True, timeout=3)
+    except Exception:
+        pass  # not on Hyprland, or the window rules already placed it
+    return False
+
+
+
+# ---------------------------------------------------------------- battery
+def read_battery():
+    """(percent, status, minutes_left) from /sys, or None when there is no battery."""
+    base = "/sys/class/power_supply"
+    try:
+        names = sorted(n for n in os.listdir(base) if n.startswith("BAT"))
+    except OSError:
+        return None
+    if not names:
+        return None
+    d = os.path.join(base, names[0])
+
+    def rd(name):
+        try:
+            with open(os.path.join(d, name)) as f:
+                return f.read().strip()
+        except OSError:
+            return None
+
+    cap = rd("capacity")
+    if cap is None:
+        return None
+    status = rd("status") or "Unknown"
+    mins = None
+    try:
+        now = float(rd("energy_now") or rd("charge_now"))
+        full = float(rd("energy_full") or rd("charge_full"))
+        rate = float(rd("power_now") or rd("current_now"))
+        if rate > 0:
+            hours = (full - now) / rate if status == "Charging" else now / rate
+            mins = int(hours * 60)
+    except (TypeError, ValueError):
+        pass
+    return int(cap), status, mins
+
+
+def profile_get():
+    try:
+        r = subprocess.run(["powerprofilesctl", "get"], capture_output=True, text=True, timeout=3)
+        return r.stdout.strip() if r.returncode == 0 else None
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def profile_set(name):
+    try:
+        return subprocess.run(["powerprofilesctl", "set", name],
+                              capture_output=True, timeout=5).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def profile_available():
+    try:
+        r = subprocess.run(["powerprofilesctl", "list"], capture_output=True, text=True, timeout=3)
+        return [m[0] for m in MODES if r.returncode == 0 and m[0] + ":" in r.stdout]
+    except (OSError, subprocess.SubprocessError):
+        return []
+
+
+# -------------------------------------------------------------- windows
+class ToolWindow(Gtk.ApplicationWindow):
+    """Base: borderless window with a drag strip. Subclasses fill self.body."""
+
+    def __init__(self, app, title, width, height, with_close):
+        super().__init__(application=app, title=title)
+        self.set_default_size(width, height)
+        self.set_resizable(False)
+        self.set_decorated(False)
+        self.add_css_class("xlin-tools")
+
+        root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        for m in ("top", "bottom", "start", "end"):
+            getattr(root, f"set_margin_{m}")(14)
+        self.set_child(root)
+
+        # The drag strip: hold it and move the window anywhere on the screen
+        handle = Gtk.WindowHandle()
+        strip = Gtk.Box(spacing=8)
+        t = Gtk.Label(label=title, xalign=0, hexpand=True)
+        t.add_css_class("tool-title")
+        strip.append(t)
+        if with_close:
+            x = Gtk.Button(label="✕")
+            x.add_css_class("tool-close")
+            x.connect("clicked", lambda _b: self.close())
+            strip.append(x)
+        handle.set_child(strip)
+        root.append(handle)
+
+        self.body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, vexpand=True)
+        root.append(self.body)
+
+
+class MenuWindow(ToolWindow):
+    """The small dropdown: one row per tool."""
+
+    def __init__(self, app):
+        super().__init__(app, "Tools", MENU_W, MENU_H, with_close=False)
+        self.was_active = False
+        for key, (label, _id, _w, _h, sub, icon) in TOOLS.items():
+            row = Gtk.Button()
+            row.add_css_class("tools-item")
+            box = Gtk.Box(spacing=12)
+            img = Gtk.Image.new_from_icon_name(icon)
+            img.set_pixel_size(22)
+            box.append(img)
+            text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
+            a = Gtk.Label(label=label, xalign=0)
+            b = Gtk.Label(label=sub, xalign=0)
+            b.add_css_class("tools-sub")
+            text.append(a)
+            text.append(b)
+            box.append(text)
+            row.set_child(box)
+            row.connect("clicked", lambda _b, k=key: self.open_tool(k))
+            self.body.append(row)
+
+        keys = Gtk.EventControllerKey()
+        keys.connect("key-pressed", self.on_key_pressed)
+        self.add_controller(keys)
+        self.connect("notify::is-active", self.on_active)
+
+    def open_tool(self, key):
+        exe = shutil.which("xlin-tools") or os.path.abspath(__file__)
+        subprocess.Popen([exe, key], start_new_session=True,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        GLib.timeout_add(80, self.close_now)
+
+    def close_now(self):
+        self.close()
+        return False
+
+    def on_key_pressed(self, _c, keyval, _code, _state):
+        if keyval == Gdk.KEY_Escape:
+            self.close()
+            return True
+        return False
+
+    # close like a dropdown when you click somewhere else
+    def on_active(self, *_a):
+        if self.is_active():
+            self.was_active = True
+        elif self.was_active:
+            GLib.timeout_add(150, self.close_if_inactive)
+
+    def close_if_inactive(self):
+        if not self.is_active():
+            self.close()
+        return False
+
+
+class PowerWindow(ToolWindow):
+    """Battery dropdown: charge level plus the power mode (saver / balanced / performance)."""
+
+    def __init__(self, app):
+        super().__init__(app, "Battery", POWER_W, POWER_H, with_close=False)
+        self.was_active = False
+        self.rows = {}
+
+        self.big = Gtk.Label(xalign=0)
+        self.big.add_css_class("power-big")
+        self.sub = Gtk.Label(xalign=0)
+        self.sub.add_css_class("tools-sub")
+        self.bar = Gtk.LevelBar(min_value=0, max_value=100)
+        self.bar.add_css_class("power-bar")
+        for w in (self.big, self.sub, self.bar):
+            self.body.append(w)
+
+        sep = Gtk.Label(label="Power mode", xalign=0, margin_top=10)
+        sep.add_css_class("tools-sub")
+        self.body.append(sep)
+
+        avail = profile_available()
+        if not avail:
+            msg = Gtk.Label(wrap=True, xalign=0, margin_top=4,
+                            label="Power modes need power-profiles-daemon:\n"
+                                  "sudo pacman -S power-profiles-daemon\n"
+                                  "sudo systemctl enable --now power-profiles-daemon")
+            msg.add_css_class("tools-sub")
+            msg.set_selectable(True)
+            self.body.append(msg)
+        for key, label, sub in MODES:
+            if avail and key not in avail:
+                continue
+            row = Gtk.Button()
+            row.add_css_class("tools-item")
+            box = Gtk.Box(spacing=10)
+            text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1, hexpand=True)
+            a = Gtk.Label(label=label, xalign=0)
+            b = Gtk.Label(label=sub, xalign=0)
+            b.add_css_class("tools-sub")
+            text.append(a)
+            text.append(b)
+            tick = Gtk.Label(label="")
+            box.append(text)
+            box.append(tick)
+            row.set_child(box)
+            row.set_sensitive(bool(avail))
+            row.connect("clicked", lambda _b, k=key: self.pick(k))
+            self.rows[key] = (row, tick)
+            self.body.append(row)
+
+        keys = Gtk.EventControllerKey()
+        keys.connect("key-pressed", self.on_key_pressed)
+        self.add_controller(keys)
+        self.connect("notify::is-active", self.on_active)
+        self.refresh()
+        GLib.timeout_add_seconds(5, self.refresh)
+
+    def refresh(self):
+        info = read_battery()
+        if info is None:
+            self.big.set_text("No battery")
+            self.sub.set_text("This computer runs on mains power")
+            self.bar.set_value(0)
+        else:
+            pct, status, mins = info
+            self.big.set_text(f"{pct}%")
+            self.bar.set_value(pct)
+            word = {"Charging": "Charging", "Full": "Fully charged",
+                    "Discharging": "On battery", "Not charging": "Plugged in"}.get(status, status)
+            if mins is not None and status in ("Charging", "Discharging"):
+                h, m = divmod(mins, 60)
+                word += f" · {h}h {m:02d}m " + ("until full" if status == "Charging" else "left")
+            self.sub.set_text(word)
+        cur = profile_get()
+        for key, (row, tick) in self.rows.items():
+            tick.set_text("✓" if key == cur else "")
+            if key == cur:
+                row.add_css_class("tools-active")
+            else:
+                row.remove_css_class("tools-active")
+        return self.get_visible()
+
+    def pick(self, key):
+        profile_set(key)
+        self.refresh()
+        GLib.timeout_add(250, self.close_now)
+
+    def close_now(self):
+        self.close()
+        return False
+
+    def on_key_pressed(self, _c, keyval, _code, _state):
+        if keyval == Gdk.KEY_Escape:
+            self.close()
+            return True
+        return False
+
+    def on_active(self, *_a):
+        if self.is_active():
+            self.was_active = True
+        elif self.was_active:
+            GLib.timeout_add(150, self.close_if_inactive)
+
+    def close_if_inactive(self):
+        if not self.is_active():
+            self.close()
+        return False
+
+
+class SessionWindow(ToolWindow):
+    """Narrow vertical dropdown: Lock Screen, Sleep, Log Out, Restart, Power Off.
+    Log Out, Restart and Power Off ask for a second click so they cannot happen by accident."""
+
+    def __init__(self, app):
+        super().__init__(app, "Power", SESSION_W, SESSION_H, with_close=False)
+        self.was_active = False
+        self.armed = None
+        self.rows = {}
+        for key, glyph, label, cmd, confirm in SESSION_ITEMS:
+            row = Gtk.Button()
+            row.add_css_class("tools-item")
+            box = Gtk.Box(spacing=12)
+            g = Gtk.Label(label=glyph, width_chars=2)
+            t = Gtk.Label(label=label, xalign=0, hexpand=True)
+            box.append(g)
+            box.append(t)
+            row.set_child(box)
+            row.connect("clicked", lambda _b, k=key: self.on_pick(k))
+            self.rows[key] = (row, t, label)
+            self.body.append(row)
+        keys = Gtk.EventControllerKey()
+        keys.connect("key-pressed", self.on_key_pressed)
+        self.add_controller(keys)
+        self.connect("notify::is-active", self.on_active)
+
+    def item(self, key):
+        return next(i for i in SESSION_ITEMS if i[0] == key)
+
+    def on_pick(self, key):
+        _k, _g, _label, cmd, confirm = self.item(key)
+        if confirm and self.armed != key:
+            self.disarm()
+            self.armed = key
+            row, t, _l = self.rows[key]
+            t.set_text("Click to confirm")
+            row.add_css_class("tools-danger")
+            GLib.timeout_add(3000, self.disarm)
+            return
+        exe = shutil.which("xlin") or "xlin"
+        self.close()
+        subprocess.Popen([exe, cmd], start_new_session=True,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    def disarm(self):
+        if self.armed:
+            row, t, label = self.rows[self.armed]
+            t.set_text(label)
+            row.remove_css_class("tools-danger")
+            self.armed = None
+        return False
+
+    def on_key_pressed(self, _c, keyval, _code, _state):
+        if keyval == Gdk.KEY_Escape:
+            self.close()
+            return True
+        return False
+
+    def on_active(self, *_a):
+        if self.is_active():
+            self.was_active = True
+        elif self.was_active:
+            GLib.timeout_add(150, self.close_if_inactive)
+
+    def close_if_inactive(self):
+        if not self.is_active():
+            self.close()
+        return False
+
+
+class FloatingTool(ToolWindow):
+    """A tool in its own window: stays open until you press x (or Esc)."""
+
+    def __init__(self, app, key):
+        label, _id, w, h, _sub, _icon = TOOLS[key]
+        super().__init__(app, label, w, h, with_close=True)
+        self.tool = {"calculator": Calculator, "calendar": CalendarView, "notes": NotesView}[key]()
+        self.connect("close-request", lambda *_: (getattr(self.tool, "flush", lambda: None)(), False)[1])
+        self.body.append(self.tool)
+        keys = Gtk.EventControllerKey()
+        keys.connect("key-pressed", self.on_key_pressed)
+        self.add_controller(keys)
+
+    def on_key_pressed(self, _c, keyval, _code, _state):
+        if keyval == Gdk.KEY_Escape:
+            self.close()
+            return True
+        return bool(self.tool.on_key(keyval))
+
+
+class ToolsApp(Gtk.Application):
+    def __init__(self, mode):
+        mode = mode if (mode in TOOLS or mode in ("power", "session")) else None
+        app_id = {"power": POWER_ID, "session": SESSION_ID}.get(mode) or (TOOLS[mode][1] if mode else MENU_ID)
+        super().__init__(application_id=app_id, flags=Gio.ApplicationFlags.FLAGS_NONE)
+        self.mode = mode
+        self.win = None
+
+    def do_startup(self):
+        Gtk.Application.do_startup(self)
+        display = Gdk.Display.get_default()
+        for data in (FALLBACK_CSS, self.read_theme_css()):
+            if not data:
+                continue
+            prov = Gtk.CssProvider()
+            try:
+                prov.load_from_data(data)
+            except Exception:
+                continue
+            Gtk.StyleContext.add_provider_for_display(
+                display, prov, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+
+    @staticmethod
+    def read_theme_css():
+        try:
+            with open(CSS_FILE, "rb") as f:
+                return f.read()
+        except OSError:
+            return None
+
+    def do_activate(self):
+        if self.win is not None:      # already open: just bring it forward
+            self.win.present()
+            return
+        if self.mode is None:
+            self.win = MenuWindow(self)
+        elif self.mode == "power":
+            self.win = PowerWindow(self)
+        elif self.mode == "session":
+            self.win = SessionWindow(self)
+        else:
+            self.win = FloatingTool(self, self.mode)
+        self.win.present()
+        app_id = self.get_application_id()
+        stagger = self.mode in TOOLS
+        GLib.timeout_add(120, place_window, app_id, stagger)
+        GLib.timeout_add(400, place_window, app_id, stagger)  # again once Hyprland settled the size
+
+
+if __name__ == "__main__":
+    mode = sys.argv[1].lower() if len(sys.argv) > 1 else None
+    if mode and mode not in TOOLS and mode not in ("power", "session"):
+        print("usage: xlin-tools [calculator|calendar|power|session]")
+        sys.exit(2)
+    sys.exit(ToolsApp(mode).run([sys.argv[0]]))

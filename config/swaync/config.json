@@ -1,0 +1,40 @@
+{
+  "$schema": "/etc/xdg/swaync/configSchema.json",
+  "positionX": "right",
+  "positionY": "top",
+  "layer": "overlay",
+  "control-center-layer": "overlay",
+  "control-center-width": 330,
+  "control-center-margin-top": 46,
+  "control-center-margin-right": 12,
+  "control-center-margin-bottom": 12,
+  "control-center-height": 460,
+  "notification-window-width": 340,
+  "notification-icon-size": 40,
+  "timeout": 6,
+  "timeout-low": 4,
+  "timeout-critical": 0,
+  "fit-to-screen": false,
+  "hide-on-clear": false,
+  "widgets": ["title", "buttons-grid", "volume", "backlight", "notifications"],
+  "widget-config": {
+    "title": {
+      "text": "Control Panel",
+      "clear-all-button": true,
+      "button-text": "Clear"
+    },
+    "buttons-grid": {
+      "buttons-per-row": 2,
+      "actions": [
+        { "label": "  Wi-Fi", "command": "xlin toggle wifi" },
+        { "label": "  Bluetooth", "command": "xlin toggle bluetooth" },
+        { "label": "  Airplane", "command": "xlin toggle airplane" },
+        { "label": "  Appearance", "command": "xlin theme toggle" },
+        { "label": "  Wallpaper", "command": "xlin wallpaper next" },
+        { "label": "  Settings", "command": "xlin settings" }
+      ]
+    },
+    "volume": { "label": "" },
+    "backlight": { "label": "" }
+  }
+}

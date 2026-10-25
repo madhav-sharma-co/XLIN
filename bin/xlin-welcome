@@ -1,0 +1,291 @@
+#!/usr/bin/env python3
+"""XLIN Welcome - the short first-run tour (theme, accent colour, dock, shortcuts).
+
+Starts by itself on the first login after installing; run `xlin welcome` to see it again.
+"""
+import os
+import re
+import shutil
+import subprocess
+import sys
+import threading
+
+import gi
+
+gi.require_version("Gtk", "4.0")
+from gi.repository import Gdk, Gio, GLib, Gtk  # noqa: E402
+
+APP_ID = "dev.xlin.Welcome"
+HOME = os.path.expanduser("~")
+STATE = os.path.join(HOME, ".config/xlin/state")
+CSS_FILE = os.path.join(HOME, ".config/xlin/tools.css")
+ACCENTS = [("blue", "#5269dc"), ("teal", "#1f9d9a"), ("green", "#2f9e5f"),
+           ("rose", "#c9507a"), ("orange", "#d9772b"), ("graphite", "#4a5568")]
+
+FALLBACK_CSS = b"""
+window.xlin-tools { border-radius: 11px; }
+.welcome-title { font-size: 26px; font-weight: 700; }
+.swatch { min-width: 30px; min-height: 30px; padding: 0; border-radius: 15px; }
+"""
+
+
+def run(cmd, timeout=30):
+    try:
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        return p.returncode == 0, p.stdout
+    except Exception:
+        return False, ""
+
+
+def in_thread(fn, done=None):
+    def work():
+        r = fn()
+        if done:
+            GLib.idle_add(done, r)
+    threading.Thread(target=work, daemon=True).start()
+
+
+def read_state(name, default=""):
+    try:
+        with open(os.path.join(STATE, name)) as f:
+            return f.read().strip() or default
+    except OSError:
+        return default
+
+
+def write_state(name, value):
+    try:
+        os.makedirs(STATE, exist_ok=True)
+        with open(os.path.join(STATE, name), "w") as f:
+            f.write(value)
+    except OSError:
+        pass
+
+
+def page(title, sub):
+    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+    box.set_vexpand(True)
+    t = Gtk.Label(label=title, xalign=0, wrap=True)
+    t.add_css_class("welcome-title")
+    s = Gtk.Label(label=sub, xalign=0, wrap=True)
+    s.add_css_class("welcome-sub")
+    box.append(t)
+    box.append(s)
+    return box
+
+
+class WelcomeWindow(Gtk.ApplicationWindow):
+    def __init__(self, app, reload_css):
+        super().__init__(application=app, title="Welcome to XLIN")
+        self.reload_css = reload_css
+        self.set_default_size(560, 470)
+        self.set_resizable(False)
+        self.set_decorated(False)
+        self.add_css_class("xlin-tools")
+
+        root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
+        for m in ("top", "bottom", "start", "end"):
+            getattr(root, f"set_margin_{m}")(26)
+        self.set_child(root)
+
+        handle = Gtk.WindowHandle()          # hold the top strip to move the window
+        strip = Gtk.Label(label="XLIN", xalign=0)
+        strip.add_css_class("tool-title")
+        handle.set_child(strip)
+        root.append(handle)
+
+        self.stack = Gtk.Stack()
+        self.stack.set_vexpand(True)
+        self.stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
+        root.append(self.stack)
+
+        self.builders = [self.p_welcome, self.p_look, self.p_basics, self.p_keys]
+        for i, b in enumerate(self.builders):
+            self.stack.add_named(b(), f"p{i}")
+        self.index = 0
+
+        bar = Gtk.Box(spacing=10)
+        self.count = Gtk.Label(xalign=0, hexpand=True)
+        self.count.add_css_class("welcome-sub")
+        self.back = Gtk.Button(label="Back")
+        self.back.add_css_class("welcome-ghost")
+        self.back.connect("clicked", lambda _b: self.go(-1))
+        self.next = Gtk.Button()
+        self.next.add_css_class("welcome-primary")
+        self.next.connect("clicked", lambda _b: self.go(1))
+        for w in (self.count, self.back, self.next):
+            bar.append(w)
+        root.append(bar)
+        self.go(0)
+
+        keys = Gtk.EventControllerKey()
+        keys.connect("key-pressed", self.on_key)
+        self.add_controller(keys)
+        self.connect("close-request", self.on_close)
+
+    # ---- pages
+    def p_welcome(self):
+        b = page("Welcome to XLIN", "A calm, clean desktop for Hyprland.\n\n"
+                 "Take a minute to make it yours: pick light or dark, an accent colour, "
+                 "and see the shortcuts. You can change everything later in Settings.")
+        return b
+
+    def p_look(self):
+        b = page("Make it yours", "Choose how XLIN looks.")
+        modes = Gtk.Box(spacing=12, homogeneous=True)
+        modes.set_margin_top(10)
+        self.mode_buttons = {}
+        cur = read_state("theme", "light")
+        for key, label in (("light", "Light"), ("dark", "Dark")):
+            btn = Gtk.Button(label=label)
+            btn.add_css_class("welcome-choice")
+            if key == cur:
+                btn.add_css_class("active")
+            btn.connect("clicked", lambda _b, k=key: self.set_mode(k))
+            self.mode_buttons[key] = btn
+            modes.append(btn)
+        b.append(modes)
+
+        lab = Gtk.Label(label="Accent colour", xalign=0, margin_top=14)
+        lab.add_css_class("welcome-sub")
+        b.append(lab)
+        dots = Gtk.Box(spacing=10)
+        self.dot_buttons = {}
+        current = read_state("accent", "blue")
+        for name, _hx in ACCENTS:
+            d = Gtk.Button()
+            d.add_css_class("swatch")
+            d.add_css_class(f"swatch-{name}")
+            d.set_tooltip_text(name.capitalize())
+            if name == current:
+                d.add_css_class("active")
+            d.connect("clicked", lambda _b, n=name: self.set_accent(n))
+            self.dot_buttons[name] = d
+            dots.append(d)
+        b.append(dots)
+        return b
+
+    def p_basics(self):
+        b = page("Good defaults", "Two things most people like to decide right away.")
+        for title, sub, active, cb in (
+            ("Auto-hide the dock", "Show it only when you reach the bottom edge",
+             read_state("dock_autohide", "on") != "off", self.set_autohide),
+            ("Lock when idle", "Lock the screen after 5 minutes",
+             not os.path.exists(os.path.join(STATE, "idle_off")), self.set_idle),
+        ):
+            r = Gtk.Box(spacing=12, margin_top=12)
+            text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, hexpand=True)
+            text.append(Gtk.Label(label=title, xalign=0))
+            s = Gtk.Label(label=sub, xalign=0)
+            s.add_css_class("welcome-sub")
+            text.append(s)
+            sw = Gtk.Switch(valign=Gtk.Align.CENTER)
+            sw.set_active(active)
+            sw.connect("state-set", lambda _s, st, f=cb: (f(st), False)[1])
+            r.append(text)
+            r.append(sw)
+            b.append(r)
+        nxt = Gtk.Button(label="Try another wallpaper", halign=Gtk.Align.START, margin_top=16)
+        nxt.add_css_class("welcome-choice")
+        nxt.connect("clicked", lambda _b: in_thread(lambda: run(["xlin", "wallpaper", "next"])))
+        b.append(nxt)
+        return b
+
+    def p_keys(self):
+        b = page("Shortcuts", "Press Super+/ any time to see this list again.")
+        ok, out = run(["xlin", "keys"], 5)
+        text = re.sub(r"\x1b\[[0-9;]*m", "", out) if ok and out else "Run `xlin keys` in a terminal."
+        lab = Gtk.Label(label=text.strip(), xalign=0, yalign=0, selectable=False)
+        lab.add_css_class("welcome-keys")
+        sc = Gtk.ScrolledWindow()
+        sc.set_vexpand(True)
+        sc.set_child(lab)
+        sc.set_margin_top(6)
+        b.append(sc)
+        return b
+
+    # ---- actions
+    def set_mode(self, key):
+        for k, btn in self.mode_buttons.items():
+            (btn.add_css_class if k == key else btn.remove_css_class)("active")
+        in_thread(lambda: run(["xlin", "theme", key]), lambda _r: self.reload_css())
+
+    def set_accent(self, name):
+        for k, btn in self.dot_buttons.items():
+            (btn.add_css_class if k == name else btn.remove_css_class)("active")
+        in_thread(lambda: run(["xlin", "accent", name]), lambda _r: self.reload_css())
+
+    def set_autohide(self, on):
+        in_thread(lambda: run(["xlin", "dock", "autohide", "on" if on else "off"]))
+
+    def set_idle(self, on):
+        in_thread(lambda: run(["xlin", "idle", "on" if on else "off"]))
+
+    # ---- navigation
+    def go(self, step):
+        self.index = max(0, min(len(self.builders) - 1, self.index + step))
+        if step > 0 and self.index == len(self.builders) - 1 and self.next.get_label() == "Start using XLIN":
+            self.close()
+            return
+        self.stack.set_visible_child_name(f"p{self.index}")
+        last = self.index == len(self.builders) - 1
+        self.next.set_label("Start using XLIN" if last else "Next")
+        self.back.set_visible(self.index > 0)
+        self.count.set_text(f"{self.index + 1} of {len(self.builders)}")
+
+    def on_key(self, _c, keyval, _code, _state):
+        if keyval == Gdk.KEY_Escape:
+            self.close()
+            return True
+        return False
+
+    def on_close(self, *_a):
+        write_state("welcomed", "1")     # closing = done, it will not show again by itself
+        return False
+
+
+class WelcomeApp(Gtk.Application):
+    def __init__(self):
+        super().__init__(application_id=APP_ID, flags=Gio.ApplicationFlags.FLAGS_NONE)
+        self.win = None
+        self.theme_provider = None
+
+    def css(self):
+        out = FALLBACK_CSS + b"\n" + "".join(
+            f".swatch-{n} {{ background-color: {hx}; }}\n" for n, hx in ACCENTS).encode()
+        return out
+
+    def theme_css(self):
+        try:
+            with open(CSS_FILE, "rb") as f:
+                return f.read()
+        except OSError:
+            return b""
+
+    def reload_css(self):
+        if self.theme_provider is not None:
+            try:
+                self.theme_provider.load_from_data(self.theme_css())
+            except Exception:
+                pass
+        return False
+
+    def do_startup(self):
+        Gtk.Application.do_startup(self)
+        display = Gdk.Display.get_default()
+        base = Gtk.CssProvider()
+        base.load_from_data(self.css())
+        Gtk.StyleContext.add_provider_for_display(display, base, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        self.theme_provider = Gtk.CssProvider()
+        self.reload_css()
+        Gtk.StyleContext.add_provider_for_display(display, self.theme_provider,
+                                                  Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1)
+
+    def do_activate(self):
+        if self.win is None:
+            self.win = WelcomeWindow(self, self.reload_css)
+        self.win.present()
+
+
+if __name__ == "__main__":
+    sys.exit(WelcomeApp().run([sys.argv[0]]))

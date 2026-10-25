@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# Update XLIN from this folder WITHOUT installing packages.
+# Use this after downloading a newer xlin.tar.gz:   ./update.sh
+set -euo pipefail
+
+SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+XLIN_HOME="$HOME/.config/xlin"
+export XLIN_HOME
+
+[[ $EUID -ne 0 ]] || { echo "Run as your normal user, not root."; exit 1; }
+say() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
+
+say "Copying XLIN files"
+mkdir -p "$XLIN_HOME/state" "$XLIN_HOME/wallpapers" "$HOME/.config/hypr" "$HOME/.config/waybar" "$HOME/.config/swaync"
+cp -r "$SRC/themes" "$SRC/templates" "$XLIN_HOME/"
+cp "$SRC/config/shell/xlin.bash" "$XLIN_HOME/shell.bash"
+cp "$SRC/config/kitty/kitty.conf" "$XLIN_HOME/kitty.conf"
+cp "$SRC/config/hypr/xlin.conf" "$HOME/.config/hypr/xlin.conf"
+cp "$SRC/config/waybar/config.jsonc" "$HOME/.config/waybar/config.jsonc"
+cp "$SRC/config/swaync/config.json" "$HOME/.config/swaync/config.json"
+
+say "Power modes need power-profiles-daemon (skipped if you have it)"
+sudo pacman -S --needed --noconfirm power-profiles-daemon || echo "(could not install it; the battery menu will show how)"
+sudo systemctl enable --now power-profiles-daemon 2>/dev/null || true
+
+say "Lock screen"
+sudo pacman -S --needed --noconfirm hyprlock || echo "(could not install hyprlock; Super+L will tell you)"
+
+say "Daily-use extras (screenshots, clipboard, auto-lock, night light, portals)"
+for pkg in grim slurp wl-clipboard cliphist hypridle hyprsunset xdg-desktop-portal-hyprland xdg-desktop-portal-gtk hyprpolkitagent; do
+  sudo pacman -S --needed --noconfirm "$pkg" >/dev/null 2>&1 || echo "   (could not install $pkg)"
+done
+systemctl --user enable --now hyprpolkitagent.service >/dev/null 2>&1 || true
+
+say "Installing the xlin commands (asks for your password once)"
+for b in xlin xlin-dock-watch xlin-settings xlin-tools xlin-welcome xlin-files; do
+  sudo install -m 755 "$SRC/bin/$b" "/usr/local/bin/$b"
+done
+
+mkdir -p "$HOME/.local/share/applications"
+cp "$SRC/config/applications/dev.xlin.Files.desktop" "$HOME/.local/share/applications/"
+
+say "Applying theme and terminal"
+theme="$(cat "$XLIN_HOME/state/theme" 2>/dev/null || echo light)"
+/usr/local/bin/xlin theme "$theme" || true
+/usr/local/bin/xlin terminal || true
+/usr/local/bin/xlin adapt || true
+
+if [[ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]]; then
+  hyprctl reload >/dev/null 2>&1 || true
+  /usr/local/bin/xlin restart || true
+fi
+say "Done. Open a new terminal."

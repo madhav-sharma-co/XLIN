@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Keeps the dock hidden entirely when nothing is running or pinned,
+# and shows it (auto-hiding) as soon as there is something to show.
+sock="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock"
+
+xlin dock check
+[[ -S "$sock" ]] || exit 0
+
+socat -U - "UNIX-CONNECT:$sock" | while read -r line; do
+  case "$line" in
+    openwindow*|closewindow*) xlin dock check ;;
+  esac
+done

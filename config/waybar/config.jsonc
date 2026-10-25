@@ -1,0 +1,98 @@
+{
+  "layer": "top",
+  "position": "top",
+  "height": 38,
+  "spacing": 2,
+  "exclusive": true,
+  "modules-left": ["custom/xlin", "hyprland/window"],
+  "modules-center": [],
+  "modules-right": ["custom/settings", "custom/tools", "network", "bluetooth", "pulseaudio", "battery", "clock", "custom/session", "custom/panel"],
+
+  "custom/xlin": {
+    "format": "X",
+    "format-alt": "X",
+    "tooltip": false,
+    "on-click": "xlin launcher"
+  },
+
+  "hyprland/window": {
+    "format": "{class}",
+    "max-length": 40,
+    "separate-outputs": true,
+    "rewrite": { "": "XLIN" }
+  },
+
+  "custom/settings": {
+    "format": "",
+    "tooltip": false,
+    "on-click": "xlin settings"
+  },
+
+  "custom/tools": {
+    "format": "",
+    "tooltip-format": "Tools",
+    "on-click": "xlin tools"
+  },
+
+  "network": {
+    "format-wifi": "",
+    "format-ethernet": "",
+    "format-disconnected": "",
+    "tooltip-format-wifi": "{essid} ({signalStrength}%)",
+    "tooltip-format-ethernet": "{ifname}",
+    "tooltip-format-disconnected": "Wi-Fi off",
+    "on-click": "xlin settings wifi"
+  },
+
+  "bluetooth": {
+    "format": "",
+    "format-off": "",
+    "format-disabled": "",
+    "tooltip-format": "Bluetooth: {status}",
+    "on-click": "xlin settings bluetooth"
+  },
+
+  "pulseaudio": {
+    "format": "{icon}",
+    "format-muted": "",
+    "format-icons": { "default": ["", "", ""] },
+    "tooltip-format": "Volume {volume}%",
+    "on-click": "pavucontrol",
+    "on-scroll-up": "wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 3%+",
+    "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 3%-"
+  },
+
+  "battery": {
+    "states": { "warning": 25, "critical": 12 },
+    "format": "{icon}",
+    "format-charging": "\uf0e7",
+    "format-plugged": "\uf1e6",
+    "format-full": "\uf240",
+    "format-icons": ["\uf244", "\uf243", "\uf242", "\uf241", "\uf240"],
+    "tooltip": true,
+    "tooltip-format": "{capacity}%",
+    "tooltip-format-discharging": "{capacity}% · {timeTo}",
+    "tooltip-format-charging": "{capacity}% · charging · {timeTo}",
+    "tooltip-format-plugged": "{capacity}% · plugged in",
+    "tooltip-format-full": "{capacity}% · fully charged",
+    "on-click": "xlin power"
+  },
+
+  "clock": {
+    "format": "{:%a %b %e   %I:%M %p}",
+    "tooltip-format": "<tt>{calendar}</tt>",
+    "on-click": "xlin settings calendar"
+  },
+
+  "custom/session": {
+    "format": "\uf011",
+    "tooltip-format": "Power",
+    "on-click": "xlin session"
+  },
+
+  "custom/panel": {
+    "format": "",
+    "tooltip": false,
+    "on-click": "xlin panel"
+  }
+}

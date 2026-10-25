@@ -5,12 +5,22 @@ panels, thin 11px corners, and its own apps (Settings, Tools, Welcome, Terminal,
 
 ## Install (Arch + Hyprland)
 
-    tar xf xlin.tar.gz && cd xlin && ./install.sh
+    git clone https://github.com/madhav-sharma-co/XLIN.git
+    cd XLIN
+    ./install.sh          # asks for your password to install packages
     hyprctl reload        # or log out and back in
     xlin doctor           # shows anything missing
 
-Update later with `./update.sh` from a newer download. Remove everything with `xlin uninstall`
-(your old Waybar, swaync and Kitty configs are put back).
+Run it as your normal user, not root. The installer backs up the Waybar and swaync
+configs it replaces.
+
+Update later:
+
+    cd XLIN && git pull && ./update.sh
+
+Remove everything (your old Waybar, swaync and Kitty configs are put back):
+
+    xlin uninstall
 
 ## What you get
 

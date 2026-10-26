@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=System Monitor
+GenericName=Task manager
+Comment=CPU, memory, disk and your running apps
+Exec=xlin-monitor
+Icon=xlin-monitor
+Terminal=false
+Categories=System;Monitor;
+StartupWMClass=dev.xlin.Monitor

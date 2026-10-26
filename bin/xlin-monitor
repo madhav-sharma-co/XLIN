@@ -1,0 +1,366 @@
+#!/usr/bin/env python3
+"""XLIN Monitor - CPU, memory, disk and network at a glance, plus your running apps.
+
+Usage: xlin-monitor
+Select an app and press "End" (asks it to close) or "Force quit" (stops it at once).
+Only your own processes are listed, so nothing system-wide can be killed by accident.
+Keys: Ctrl+F search | Delete = End | Esc close
+"""
+import os
+import signal
+import sys
+import time
+
+import gi
+
+gi.require_version("Gtk", "4.0")
+gi.require_version("Gdk", "4.0")
+from gi.repository import Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
+
+APP_ID = "dev.xlin.Monitor"
+HOME = os.path.expanduser("~")
+CSS_FILE = os.path.join(HOME, ".config/xlin/tools.css")
+PAGE = os.sysconf("SC_PAGE_SIZE")
+UID = os.getuid()
+SELF = os.getpid()
+
+FALLBACK_CSS = b"""
+window.xlin-tools { border-radius: 11px; }
+.mon-card { padding: 12px; border-radius: 12px; }
+.mon-big { font-size: 22px; font-weight: 700; }
+.mon-list row { border-radius: 8px; padding: 2px 6px; }
+"""
+
+
+# ------------------------------------------------------------- reading /proc
+def cpu_times():
+    """(busy, total) jiffies for the whole machine."""
+    with open("/proc/stat") as f:
+        parts = [int(x) for x in f.readline().split()[1:]]
+    idle = parts[3] + (parts[4] if len(parts) > 4 else 0)
+    total = sum(parts[:8])
+    return total - idle, total
+
+
+def memory():
+    """(used, total) bytes; used = total - available, like most monitors."""
+    info = {}
+    with open("/proc/meminfo") as f:
+        for line in f:
+            k, v = line.split(":", 1)
+            info[k] = int(v.split()[0]) * 1024
+    total = info.get("MemTotal", 0)
+    return total - info.get("MemAvailable", info.get("MemFree", 0)), total
+
+
+def disk(path="/"):
+    s = os.statvfs(path)
+    total = s.f_blocks * s.f_frsize
+    return total - s.f_bavail * s.f_frsize, total
+
+
+def net_bytes():
+    """(received, sent) bytes over all real interfaces."""
+    rx = tx = 0
+    try:
+        with open("/proc/net/dev") as f:
+            for line in list(f)[2:]:
+                name, data = line.split(":", 1)
+                if name.strip() == "lo":
+                    continue
+                cols = data.split()
+                rx += int(cols[0])
+                tx += int(cols[8])
+    except OSError:
+        pass
+    return rx, tx
+
+
+def processes():
+    """{pid: (name, ticks, rss_bytes)} for the current user's processes."""
+    out = {}
+    for entry in os.listdir("/proc"):
+        if not entry.isdigit():
+            continue
+        pid = int(entry)
+        if pid == SELF:
+            continue
+        try:
+            if os.stat(f"/proc/{pid}").st_uid != UID:
+                continue
+            with open(f"/proc/{pid}/stat") as f:
+                raw = f.read()
+            # the name sits in (...) and may contain spaces or brackets
+            name = raw[raw.index("(") + 1: raw.rindex(")")]
+            rest = raw[raw.rindex(")") + 2:].split()
+            ticks = int(rest[11]) + int(rest[12])        # utime + stime
+            with open(f"/proc/{pid}/statm") as f:
+                rss = int(f.read().split()[1]) * PAGE
+            out[pid] = (name, ticks, rss)
+        except (OSError, ValueError, IndexError):
+            continue
+    return out
+
+
+def human(n):
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if n < 1000 or unit == "TB":
+            return f"{n:.0f} B" if unit == "B" else f"{n:.1f} {unit}"
+        n /= 1000.0
+
+
+def rate(n):
+    return human(n) + "/s"
+
+
+# ------------------------------------------------------------------ the window
+class Card(Gtk.Box):
+    def __init__(self, title):
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=4, hexpand=True)
+        self.add_css_class("mon-card")
+        self.add_css_class("tools-card")
+        t = Gtk.Label(label=title, xalign=0)
+        t.add_css_class("tools-sub")
+        self.big = Gtk.Label(label="-", xalign=0)
+        self.big.add_css_class("mon-big")
+        self.bar = Gtk.LevelBar(min_value=0, max_value=1)
+        self.small = Gtk.Label(label="", xalign=0)
+        self.small.add_css_class("tools-sub")
+        for w in (t, self.big, self.bar, self.small):
+            self.append(w)
+
+    def set(self, big, frac, small):
+        self.big.set_text(big)
+        self.bar.set_value(max(0.0, min(1.0, frac)))
+        self.small.set_text(small)
+
+
+class MonitorWindow(Gtk.ApplicationWindow):
+    def __init__(self, app):
+        super().__init__(application=app, title="System Monitor")
+        self.set_default_size(760, 600)
+        self.add_css_class("xlin-tools")
+        self.ncpu = os.cpu_count() or 1
+        self.prev_cpu = cpu_times()
+        self.prev_net = net_bytes()
+        self.prev_procs = processes()
+        self.prev_t = time.monotonic()
+        self.rows = {}          # pid -> dict(row, name, cpu, mem, vals)
+        self.sort_key = "cpu"
+        self.query = ""
+
+        root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        for m in ("top", "bottom", "start", "end"):
+            getattr(root, f"set_margin_{m}")(16)
+        self.set_child(root)
+
+        title = Gtk.Label(label="System Monitor", xalign=0)
+        title.add_css_class("tool-title")
+        root.append(title)
+
+        cards = Gtk.Box(spacing=10, homogeneous=True)
+        self.c_cpu, self.c_mem = Card("Processor"), Card("Memory")
+        self.c_disk, self.c_net = Card("Disk (/)"), Card("Network")
+        for c in (self.c_cpu, self.c_mem, self.c_disk, self.c_net):
+            cards.append(c)
+        root.append(cards)
+
+        bar = Gtk.Box(spacing=8)
+        lab = Gtk.Label(label="Your apps and processes", xalign=0, hexpand=True)
+        lab.add_css_class("tools-sub")
+        self.search = Gtk.SearchEntry()
+        self.search.set_placeholder_text("Search (Ctrl+F)")
+        self.search.set_max_width_chars(20)
+        self.search.connect("search-changed", self.on_search)
+        self.btn_cpu = Gtk.ToggleButton(label="By CPU", active=True)
+        self.btn_mem = Gtk.ToggleButton(label="By memory", group=self.btn_cpu)
+        for b in (self.btn_cpu, self.btn_mem):
+            b.add_css_class("note-new")
+        self.btn_cpu.connect("toggled", lambda b: b.get_active() and self.set_sort("cpu"))
+        self.btn_mem.connect("toggled", lambda b: b.get_active() and self.set_sort("mem"))
+        for w in (lab, self.search, self.btn_cpu, self.btn_mem):
+            bar.append(w)
+        root.append(bar)
+
+        head = Gtk.Box(spacing=8, margin_start=10, margin_end=10)
+        for text, w, align in (("Name", -1, 0.0), ("CPU", 70, 1.0), ("Memory", 90, 1.0), ("PID", 70, 1.0)):
+            l = Gtk.Label(label=text, xalign=align, hexpand=(w == -1))
+            l.add_css_class("tools-sub")
+            if w > 0:
+                l.set_size_request(w, -1)
+            head.append(l)
+        root.append(head)
+
+        self.list = Gtk.ListBox()
+        self.list.add_css_class("fm-list")
+        self.list.add_css_class("mon-list")
+        self.list.set_selection_mode(Gtk.SelectionMode.SINGLE)
+        self.list.set_sort_func(self.sort_rows)
+        self.list.set_filter_func(self.filter_row)
+        sc = Gtk.ScrolledWindow(vexpand=True)
+        sc.set_child(self.list)
+        root.append(sc)
+
+        acts = Gtk.Box(spacing=8)
+        self.status = Gtk.Label(label="", xalign=0, hexpand=True)
+        self.status.add_css_class("tools-sub")
+        self.b_end = Gtk.Button(label="End")
+        self.b_end.set_tooltip_text("Ask the app to close (the polite way)")
+        self.b_kill = Gtk.Button(label="Force quit")
+        self.b_kill.set_tooltip_text("Stop it immediately. Unsaved work is lost.")
+        self.b_end.add_css_class("note-new")
+        self.b_kill.add_css_class("tools-danger")
+        self.b_end.connect("clicked", lambda _b: self.stop_selected(signal.SIGTERM))
+        self.b_kill.connect("clicked", lambda _b: self.stop_selected(signal.SIGKILL))
+        for w in (self.status, self.b_end, self.b_kill):
+            acts.append(w)
+        root.append(acts)
+
+        keys = Gtk.EventControllerKey()
+        keys.connect("key-pressed", self.on_key)
+        self.add_controller(keys)
+        self.refresh()
+        GLib.timeout_add_seconds(2, self.refresh)
+
+    # ---- list helpers
+    def sort_rows(self, a, b):
+        ka, kb = a.vals.get(self.sort_key, 0), b.vals.get(self.sort_key, 0)
+        if ka != kb:
+            return -1 if ka > kb else 1
+        return (a.name.lower() > b.name.lower()) - (a.name.lower() < b.name.lower())
+
+    def filter_row(self, row):
+        q = self.query
+        return not q or q in row.name.lower() or q in str(row.pid)
+
+    def set_sort(self, key):
+        self.sort_key = key
+        self.list.invalidate_sort()
+
+    def on_search(self, entry):
+        self.query = entry.get_text().strip().lower()
+        self.list.invalidate_filter()
+
+    def on_key(self, _c, keyval, _code, state):
+        if keyval == Gdk.KEY_Escape:
+            self.close()
+            return True
+        if state & Gdk.ModifierType.CONTROL_MASK and keyval in (Gdk.KEY_f, Gdk.KEY_F):
+            self.search.grab_focus()
+            return True
+        if keyval == Gdk.KEY_Delete:
+            self.stop_selected(signal.SIGTERM)
+            return True
+        return False
+
+    def make_row(self, pid, name):
+        row = Gtk.ListBoxRow()
+        row.pid, row.name, row.vals = pid, name, {}
+        box = Gtk.Box(spacing=8)
+        n = Gtk.Label(label=name, xalign=0, hexpand=True)
+        n.set_ellipsize(Pango.EllipsizeMode.END)
+        cpu = Gtk.Label(label="", xalign=1)
+        cpu.set_size_request(70, -1)
+        mem = Gtk.Label(label="", xalign=1)
+        mem.set_size_request(90, -1)
+        p = Gtk.Label(label=str(pid), xalign=1)
+        p.set_size_request(70, -1)
+        p.add_css_class("tools-sub")
+        for w in (n, cpu, mem, p):
+            box.append(w)
+        row.set_child(box)
+        row.cpu_l, row.mem_l = cpu, mem
+        return row
+
+    # ---- one refresh tick
+    def refresh(self):
+        now = time.monotonic()
+        dt = max(0.2, now - self.prev_t)
+        # processor
+        busy, total = cpu_times()
+        pb, pt = self.prev_cpu
+        dtot = max(1, total - pt)
+        cpu_frac = (busy - pb) / dtot
+        self.c_cpu.set(f"{cpu_frac * 100:.0f}%", cpu_frac, f"{self.ncpu} cores")
+        # memory, disk
+        used, tot = memory()
+        self.c_mem.set(f"{used / tot * 100:.0f}%" if tot else "-", used / tot if tot else 0,
+                       f"{human(used)} of {human(tot)}")
+        du, dtot_b = disk("/")
+        self.c_disk.set(f"{du / dtot_b * 100:.0f}%" if dtot_b else "-", du / dtot_b if dtot_b else 0,
+                        f"{human(du)} of {human(dtot_b)}")
+        # network
+        rx, tx = net_bytes()
+        down, up = (rx - self.prev_net[0]) / dt, (tx - self.prev_net[1]) / dt
+        self.c_net.set("↓ " + rate(max(0, down)), min(1.0, max(0, down) / 12_500_000), "↑ " + rate(max(0, up)))
+        # processes
+        procs = processes()
+        for pid, (name, ticks, rss) in procs.items():
+            prev = self.prev_procs.get(pid)
+            pcpu = 0.0
+            if prev and prev[1] <= ticks:
+                pcpu = (ticks - prev[1]) / dtot * self.ncpu * 100.0
+            row = self.rows.get(pid)
+            if row is None:
+                row = self.make_row(pid, name)
+                self.rows[pid] = row
+                self.list.append(row)
+            row.vals["cpu"], row.vals["mem"] = pcpu, rss
+            row.cpu_l.set_text(f"{pcpu:.1f}%")
+            row.mem_l.set_text(human(rss))
+        for pid in [p for p in self.rows if p not in procs]:
+            self.list.remove(self.rows.pop(pid))
+        self.list.invalidate_sort()
+        self.prev_cpu, self.prev_net, self.prev_procs, self.prev_t = (busy, total), (rx, tx), procs, now
+        return True
+
+    # ---- ending apps
+    def stop_selected(self, sig):
+        row = self.list.get_selected_row()
+        if row is None:
+            self.status.set_text("Select an app first.")
+            return
+        pid, name = row.pid, row.name
+        try:
+            os.kill(pid, sig)
+            self.status.set_text(("Asked %s to close." if sig == signal.SIGTERM else "Stopped %s.") % name)
+        except ProcessLookupError:
+            self.status.set_text(f"{name} has already closed.")
+        except PermissionError:
+            self.status.set_text(f"Not allowed to stop {name}.")
+
+
+class MonitorApp(Gtk.Application):
+    def __init__(self):
+        super().__init__(application_id=APP_ID, flags=Gio.ApplicationFlags.FLAGS_NONE)
+        self.win = None
+
+    def do_startup(self):
+        Gtk.Application.do_startup(self)
+        display = Gdk.Display.get_default()
+        for data in (FALLBACK_CSS, self.theme_css()):
+            if not data:
+                continue
+            prov = Gtk.CssProvider()
+            try:
+                prov.load_from_data(data)
+            except Exception:
+                continue
+            Gtk.StyleContext.add_provider_for_display(display, prov, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+
+    @staticmethod
+    def theme_css():
+        try:
+            with open(CSS_FILE, "rb") as f:
+                return f.read()
+        except OSError:
+            return None
+
+    def do_activate(self):
+        if self.win is None:
+            self.win = MonitorWindow(self)
+        self.win.present()
+
+
+if __name__ == "__main__":
+    sys.exit(MonitorApp().run([sys.argv[0]]))

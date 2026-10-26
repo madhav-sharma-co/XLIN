@@ -478,7 +478,7 @@ cmd_doctor() {
   python3 -c 'import gi; gi.require_version("Gtk","4.0")' 2>/dev/null \
     && echo "  ok       GTK4 for Python" || { echo "  MISSING  GTK4 for Python   (sudo pacman -S gtk4 python-gobject)"; missing=1; }
   echo "XLIN commands:"
-  for b in xlin xlin-dock-watch xlin-settings xlin-tools xlin-welcome xlin-files; do
+  for b in xlin xlin-dock-watch xlin-settings xlin-tools xlin-welcome xlin-files xlin-monitor; do
     have "$b" && printf '  ok       %s\n' "$b" || { printf '  MISSING  %s   (run ./update.sh)\n' "$b"; missing=1; }
   done
   echo "Extras (features that need them):"
@@ -685,7 +685,7 @@ cmd_start() {
 }
 
 # ================================================================= XLIN CLI
-XLIN_VERSION="0.17.0"
+XLIN_VERSION="0.18.0"
 
 if [[ -t 1 ]]; then B=$'\e[1m'; D=$'\e[2m'; R=$'\e[0m'; else B=""; D=""; R=""; fi
 die() { echo "xlin: $*" >&2; return 1; }
@@ -975,6 +975,17 @@ cmd_nightlight() {
   esac
 }
 
+# ---- monitor: CPU, memory, disk, network and your running apps
+cmd_monitor() {
+  if have xlin-monitor && python3 -c 'import gi' >/dev/null 2>&1; then
+    mkdir -p "$HOME/.cache/xlin"
+    pgrep -f '[x]lin-monitor$' >/dev/null && { hyprctl dispatch focuswindow 'class:dev.xlin.Monitor' >/dev/null 2>&1; return 0; }
+    setsid xlin-monitor >>"$HOME/.cache/xlin/monitor.log" 2>&1 &
+    return 0
+  fi
+  echo "XLIN Monitor needs python-gobject (sudo pacman -S python-gobject)"; return 1
+}
+
 # ---- files: the XLIN file manager, or another one if XLIN Files cannot start
 cmd_files() {
   if [[ "${1:-}" == default ]]; then   # make XLIN Files the app other programs use for "show in folder"
@@ -1088,7 +1099,7 @@ EOT
   echo "XLIN removed. Start your own bar with e.g. 'waybar &'. Log out and in again for a clean session."
   # last step replaces this shell, because it deletes the very script that is running
   exec sudo rm -f /usr/local/bin/xlin /usr/local/bin/xlin-dock-watch /usr/local/bin/xlin-settings \
-                  /usr/local/bin/xlin-tools /usr/local/bin/xlin-welcome /usr/local/bin/xlin-files
+                  /usr/local/bin/xlin-tools /usr/local/bin/xlin-welcome /usr/local/bin/xlin-files /usr/local/bin/xlin-monitor
 }
 
 # ---- keeping the XLIN shortcuts working: xlin keys check | fix, and xlin hook
@@ -1100,6 +1111,7 @@ SUPER|E|xlin files
 SUPER|S|xlin settings
 SUPER|C|xlin panel
 SUPER|U|xlin tools
+SUPER|M|xlin monitor
 SUPER|N|xlin tools notes
 SUPER SHIFT|N|xlin note
 SUPER|B|xlin power
@@ -1204,6 +1216,7 @@ Apps|Super+E|Files (Explorer) - XLIN Files
 Apps|Super+S|Settings
 Apps|Super+C|Control panel
 Apps|Super+U|Utilities (Tools: calculator, calendar)
+Apps|Super+M|System Monitor (CPU, memory, end a stuck app)
 Apps|Super+B|Battery and power mode
 Apps|Super+N|Notes (Super+Shift+N: quick note)
 System|Super+L|Lock the screen
@@ -1317,6 +1330,7 @@ ${B}System${R}
   xlin idle [on|off|set <min>]     auto-lock after idle (default 5 min)
   xlin nightlight [on|off|<K>]     warm screen colour (1500-6500K)
   xlin clipboard                   clipboard history
+  xlin monitor                     System Monitor (Super+M)
   xlin files [folder|default]      XLIN Files (default = use it for "show in folder")
   xlin notes [list|dir]            Notes window (Super+N); xlin note "text" saves a quick note
   xlin keys [check|fix]            all keyboard shortcuts (Super+/ shows them); check/fix repairs clashes
@@ -1403,6 +1417,7 @@ case "${1:-help}" in
   poweroff|shutdown) systemctl poweroff ;;
   reboot|restart-pc) systemctl reboot ;;
   files)     shift; cmd_files "$@" ;;
+  monitor)   cmd_monitor ;;
   reload)    reload_all ;;
   doctor)    cmd_doctor ;;
   *) echo "xlin: unknown command '$1'" >&2; echo >&2; cmd_help >&2; exit 1 ;;

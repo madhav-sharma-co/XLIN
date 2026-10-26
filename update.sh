@@ -37,7 +37,7 @@ done
 systemctl --user enable --now hyprpolkitagent.service >/dev/null 2>&1 || true
 
 say "Installing the xlin commands (asks for your password once)"
-for b in xlin xlin-dock-watch xlin-settings xlin-tools xlin-welcome xlin-files; do
+for b in xlin xlin-dock-watch xlin-settings xlin-tools xlin-welcome xlin-files xlin-monitor; do
   sudo install -m 755 "$SRC/bin/$b" "/usr/local/bin/$b"
 done
 

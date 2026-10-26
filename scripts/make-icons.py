@@ -68,6 +68,12 @@ def sparkle():
     return star(60, 66, 34) + star(94, 36, 14) + star(96, 88, 10)
 
 
+def monitor():
+    return ('<rect x="24" y="30" width="80" height="62" rx="10" fill="#fff" fill-opacity=".95"/>'
+            '<path d="M32 74l16-18 12 10 18-26 10 14" fill="none" stroke="#1fa971" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>'
+            '<rect x="48" y="98" width="32" height="7" rx="3.5" fill="#fff"/>')
+
+
 def power(color):
     return (f'<path d="M64 26v36" stroke="#fff" stroke-width="10" stroke-linecap="round" fill="none"/>'
             f'<path d="M44 40a34 34 0 1 0 40 0" stroke="#fff" stroke-width="10" stroke-linecap="round" fill="none"/>')
@@ -81,6 +87,7 @@ ICONS = {
     "xlin-files": ("#5ac8fa", "#0a7cff", folder()),
     "xlin-tools": ("#bf7bff", "#5a57e0", tools()),
     "xlin-welcome": ("#ff8fb1", "#ff8a3d", sparkle()),
+    "xlin-monitor": ("#5ee0a0", "#16a05f", monitor()),
     "xlin-power": ("#ff6b5e", "#d62f2f", power("#d62f2f")),
 }
 

@@ -112,6 +112,11 @@ window.xlin-tools {
 .swatch { min-width: 30px; min-height: 30px; padding: 0; border-radius: 15px; background-image: none; box-shadow: none; border: 2px solid transparent; }
 .swatch.active { border-color: @C_INK@; }
 
+.mon-card { background-color: @C_SOFT@; }
+.mon-big { color: @C_INK@; }
+.mon-card levelbar block.filled { background-color: @C_ACCENT@; border-radius: 4px; }
+.mon-card levelbar block.empty { background-color: @C_LINE_SOLID@; border-radius: 4px; }
+
 /* notes */
 .xlin-tools searchentry, .xlin-tools entry {
   min-height: 32px; border-radius: 8px; border: none; box-shadow: none;

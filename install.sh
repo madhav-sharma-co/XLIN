@@ -94,6 +94,7 @@ sudo install -m 755 "$SRC/bin/xlin-settings" /usr/local/bin/xlin-settings
 sudo install -m 755 "$SRC/bin/xlin-tools" /usr/local/bin/xlin-tools
 sudo install -m 755 "$SRC/bin/xlin-welcome" /usr/local/bin/xlin-welcome
 sudo install -m 755 "$SRC/bin/xlin-files" /usr/local/bin/xlin-files
+sudo install -m 755 "$SRC/bin/xlin-monitor" /usr/local/bin/xlin-monitor
 mkdir -p "$HOME/.local/share/applications"
 cp "$SRC"/config/applications/dev.xlin.*.desktop "$HOME/.local/share/applications/"
 mkdir -p "$HOME/.local/share/icons/hicolor/scalable/apps"

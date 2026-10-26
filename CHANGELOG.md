@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.18.0
+- New app: XLIN Monitor (Super+M, or `xlin monitor`): CPU, memory, disk and network cards, and a live list of your apps with End / Force quit
+- Fix: the Welcome window rule was still the old size, so the new wallpaper page was cut off
+
 ## 0.17.0
 - Welcome: new "Pick a wallpaper" page with thumbnails (and your own picture), a final "You're all set" page, and visible error messages instead of silent failures
 - Fix: changing the wallpaper right after install could do nothing (the wallpaper daemon was not ready yet). XLIN now waits for it, supports old and new hyprpaper, and reports the real error

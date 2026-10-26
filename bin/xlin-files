@@ -529,6 +529,12 @@ class FilesWindow(Gtk.ApplicationWindow):
         self.drive_sig = None
         self.refresh_drives()
         GLib.timeout_add_seconds(4, self.refresh_drives)
+        net = Gtk.Button(label="Connect to server…")
+        net.add_css_class("note-new")
+        net.set_margin_top(10)
+        net.set_tooltip_text("Open a network folder, e.g. smb://server/share or sftp://user@host/")
+        net.connect("clicked", lambda _b: self.connect_server())
+        side_box.append(net)
         outer.append(side_box)
 
         # ---- main column
@@ -593,6 +599,33 @@ class FilesWindow(Gtk.ApplicationWindow):
         keys.connect("key-pressed", self.on_key)
         self.add_controller(keys)
         self.go(HOME, push=False)
+
+    def connect_server(self):
+        def go(uri):
+            uri = uri.strip()
+            if not uri:
+                return
+            if "://" not in uri:
+                uri = "smb://" + uri
+            f = Gio.File.new_for_uri(uri)
+            self.say("Connecting to %s ..." % uri)
+            op = Gtk.MountOperation(parent=self)
+
+            def done(src, res):
+                try:
+                    src.mount_enclosing_volume_finish(res)
+                except GLib.Error as e:
+                    if not e.matches(Gio.io_error_quark(), Gio.IOErrorEnum.ALREADY_MOUNTED):
+                        self.say("Could not connect: %s" % e.message)
+                        return
+                path = src.get_path()
+                if path and os.path.isdir(path):
+                    self.say("")
+                    self.go(path)
+                else:
+                    self.say("Connected, but the folder cannot be shown. Install gvfs: sudo pacman -S gvfs gvfs-smb")
+            f.mount_enclosing_volume(Gio.MountMountFlags.NONE, op, None, done)
+        ask_text(self, "Connect to server", "smb://", "Connect", go)
 
     def refresh_drives(self):
         def work():

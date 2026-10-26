@@ -8,7 +8,9 @@ Keys: Enter/double-click open | Backspace or Alt+Up parent | Alt+Left/Right back
       Ctrl+L type a path | F5 refresh | Ctrl+F search (Enter = search subfolders)
       Right-click for a menu. Ctrl+C copy | Ctrl+X cut | Ctrl+V paste | Ctrl+A select all | drag items onto a folder to move
 """
+import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -20,7 +22,7 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
-from gi.repository import Gdk, Gio, GLib, GObject, Gtk  # noqa: E402
+from gi.repository import Gdk, Gio, GLib, GObject, Gtk, Pango  # noqa: E402
 
 try:                       # picture thumbnails are a bonus: the app works without them
     gi.require_version("GdkPixbuf", "2.0")
@@ -105,6 +107,55 @@ def places():
     items.append(("Trash", TRASH, "user-trash-symbolic"))
     items.append(("This computer", "/", "drive-harddisk-symbolic"))
     return items
+
+
+def list_drives():
+    """Removable/USB partitions: [{dev, parent, label, size, mount}]"""
+    try:
+        out = subprocess.run(
+            ["lsblk", "-J", "-o", "PATH,PKNAME,LABEL,FSTYPE,SIZE,MOUNTPOINT,RM,HOTPLUG,TYPE"],
+            capture_output=True, text=True, timeout=5).stdout
+        data = json.loads(out or "{}")
+    except Exception:
+        return []
+    found = []
+
+    def walk(node, removable):
+        removable = removable or str(node.get("rm")) in ("1", "True", "true") \
+            or str(node.get("hotplug")) in ("1", "True", "true")
+        mp = node.get("mountpoint")
+        if node.get("fstype") and node.get("type") in ("part", "disk", "crypt") and removable \
+                and mp not in ("/", "/boot", "/home", "[SWAP]"):
+            found.append({
+                "dev": node.get("path"),
+                "parent": node.get("pkname"),
+                "label": node.get("label") or "Drive %s" % (node.get("size") or ""),
+                "size": node.get("size") or "",
+                "mount": mp,
+            })
+        for ch in node.get("children") or []:
+            walk(ch, removable)
+
+    for d in data.get("blockdevices", []):
+        walk(d, False)
+    return found
+
+
+def run_udisks(*args):
+    """Run udisksctl; returns (ok, text)."""
+    try:
+        r = subprocess.run(["udisksctl", *args], capture_output=True, text=True, timeout=60)
+    except FileNotFoundError:
+        return False, "udisksctl is missing. Install it: sudo pacman -S udisks2"
+    except Exception as e:
+        return False, str(e)
+    text = (r.stdout + r.stderr).strip()
+    return r.returncode == 0, text
+
+
+def mount_point_from(text):
+    m = re.search(r" at (/.+?)\.?$", text.strip())
+    return m.group(1) if m else None
 
 
 def wants_thumbnail(name, size):
@@ -335,6 +386,19 @@ class FilesWindow(Gtk.ApplicationWindow):
                 self.add_drop(r, path)
         self.side.connect("row-activated", lambda _l, r: self.go(r.path))
         side_box.append(self.side)
+        self.drive_title = Gtk.Label(label="Drives", xalign=0, margin_top=10)
+        self.drive_title.add_css_class("tools-sub")
+        self.drive_title.set_visible(False)
+        side_box.append(self.drive_title)
+        self.drive_box = Gtk.ListBox()
+        self.drive_box.add_css_class("fm-side")
+        self.drive_box.set_selection_mode(Gtk.SelectionMode.NONE)
+        self.drive_box.set_visible(False)
+        self.drive_box.connect("row-activated", self.on_drive_activated)
+        side_box.append(self.drive_box)
+        self.drive_sig = None
+        self.refresh_drives()
+        GLib.timeout_add_seconds(4, self.refresh_drives)
         outer.append(side_box)
 
         # ---- main column
@@ -399,6 +463,85 @@ class FilesWindow(Gtk.ApplicationWindow):
         keys.connect("key-pressed", self.on_key)
         self.add_controller(keys)
         self.go(HOME, push=False)
+
+    def refresh_drives(self):
+        def work():
+            drives = list_drives()
+            GLib.idle_add(self.apply_drives, drives)
+        threading.Thread(target=work, daemon=True).start()
+        return True
+
+    def apply_drives(self, drives):
+        sig = [(d["dev"], d["mount"]) for d in drives]
+        if sig == self.drive_sig:
+            return False
+        self.drive_sig = sig
+        while (r := self.drive_box.get_first_child()) is not None:
+            self.drive_box.remove(r)
+        for d in drives:
+            row = Gtk.ListBoxRow()
+            b = Gtk.Box(spacing=8)
+            b.append(Gtk.Image.new_from_icon_name("drive-removable-media-symbolic"))
+            lab = Gtk.Label(label=d["label"], xalign=0, hexpand=True)
+            lab.set_ellipsize(Pango.EllipsizeMode.END)
+            b.append(lab)
+            if d["mount"]:
+                eject = Gtk.Button(label="⏏")
+                eject.add_css_class("note-new")
+                eject.set_tooltip_text("Safely remove")
+                eject.connect("clicked", lambda _b, dd=d: self.eject_drive(dd))
+                b.append(eject)
+            row.set_child(b)
+            row.drive = d
+            self.drive_box.append(row)
+        self.drive_box.set_visible(bool(drives))
+        self.drive_title.set_visible(bool(drives))
+        return False
+
+    def on_drive_activated(self, _l, row):
+        d = row.drive
+        if d["mount"]:
+            self.go(d["mount"])
+            return
+        self.say("Opening %s ..." % d["label"])
+
+        def work():
+            ok, text = run_udisks("mount", "-b", d["dev"])
+            mp = mount_point_from(text) if ok else None
+            if not mp and "already mounted" in text:
+                mm = re.search(r"at `?(/[^'`]+)", text)
+                mp = mm.group(1) if mm else None
+            GLib.idle_add(self.after_mount, d, ok, mp, text)
+        threading.Thread(target=work, daemon=True).start()
+
+    def after_mount(self, d, ok, mp, text):
+        self.drive_sig = None
+        self.refresh_drives()
+        if mp and os.path.isdir(mp):
+            self.say("")
+            self.go(mp)
+        else:
+            self.say("Could not open %s: %s" % (d["label"], text or "unknown error"))
+        return False
+
+    def eject_drive(self, d):
+        if self.path_entry.get_text().startswith(d["mount"] or "\0"):
+            self.go(HOME)
+        self.say("Removing %s ..." % d["label"])
+
+        def work():
+            ok, text = run_udisks("unmount", "-b", d["dev"])
+            if ok and d.get("parent"):
+                run_udisks("power-off", "-b", "/dev/" + d["parent"])
+            GLib.idle_add(self.after_eject, d, ok, text)
+        threading.Thread(target=work, daemon=True).start()
+
+    def after_eject(self, d, ok, text):
+        self.drive_sig = None
+        self.refresh_drives()
+        self.say("%s can be removed safely." % d["label"] if ok
+                 else "Could not remove %s: %s (is a file still open?)" % (d["label"], text))
+        return False
 
     def tbutton(self, label, tip, cb):
         b = Gtk.Button(label=label)

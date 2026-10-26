@@ -22,6 +22,7 @@ cp "$SRC/config/swaync/config.json" "$HOME/.config/swaync/config.json"
 
 say "Power modes need power-profiles-daemon (skipped if you have it)"
 sudo pacman -S --needed --noconfirm power-profiles-daemon || echo "(could not install it; the battery menu will show how)"
+sudo pacman -S --needed --noconfirm udisks2 >/dev/null 2>&1 || echo "(could not install udisks2; USB drives in Files need it)"
 sudo systemctl enable --now power-profiles-daemon 2>/dev/null || true
 
 say "Lock screen"

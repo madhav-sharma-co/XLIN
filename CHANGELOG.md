@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.11.0
+- XLIN Files: USB drives and other removable disks appear under "Drives" in the sidebar; click to mount and open, ⏏ to safely remove (needs udisks2, installed by the installer)
+
 ## 0.10.0
 - `xlin update` and `xlin update check`; Settings -> About shows the version and has an Update XLIN button
 

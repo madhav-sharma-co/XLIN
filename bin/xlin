@@ -651,7 +651,7 @@ cmd_start() {
 }
 
 # ================================================================= XLIN CLI
-XLIN_VERSION="0.13.0"
+XLIN_VERSION="0.13.1"
 
 if [[ -t 1 ]]; then B=$'\e[1m'; D=$'\e[2m'; R=$'\e[0m'; else B=""; D=""; R=""; fi
 die() { echo "xlin: $*" >&2; return 1; }
@@ -1130,7 +1130,16 @@ cmd_hook() {
 # ---- updates: xlin update [check]   (needs XLIN installed from a git clone)
 cmd_update() {
   local src ver n up
-  src="$(cat "$STATE/source" 2>/dev/null || true)"
+  src="$(head -n1 "$STATE/source" 2>/dev/null || true)"
+  if [[ -z "$src" || ! -d "$src/.git" ]]; then
+    # source file missing or damaged: look for the clone in the usual places
+    local d
+    for d in "$HOME/XLIN" "$HOME/Downloads/XLIN" "$HOME/Documents/XLIN" "$HOME/projects/XLIN" "$HOME/src/XLIN" "$HOME/Desktop/XLIN"; do
+      if [[ -d "$d/.git" && -x "$d/update.sh" ]] && git -C "$d" remote get-url origin 2>/dev/null | grep -qi 'XLIN'; then
+        src="$d"; echo "$src" >"$STATE/source"; break
+      fi
+    done
+  fi
   if [[ -z "$src" || ! -d "$src/.git" ]]; then
     echo "Updates need XLIN installed from its git folder: git clone https://github.com/madhav-sharma-co/XLIN.git && cd XLIN && ./install.sh"
     return 3

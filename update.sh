@@ -11,8 +11,8 @@ export XLIN_HOME
 say() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 
 say "Copying XLIN files"
-mkdir -p "$XLIN_HOME/state" "$XLIN_HOME/wallpapers"
-echo "$SRC" >"$XLIN_HOME/state/source" "$HOME/.config/hypr" "$HOME/.config/waybar" "$HOME/.config/swaync"
+mkdir -p "$XLIN_HOME/state" "$XLIN_HOME/wallpapers" "$HOME/.config/hypr" "$HOME/.config/waybar" "$HOME/.config/swaync"
+echo "$SRC" >"$XLIN_HOME/state/source"
 cp -r "$SRC/themes" "$SRC/templates" "$XLIN_HOME/"
 cp "$SRC/config/shell/xlin.bash" "$XLIN_HOME/shell.bash"
 cp "$SRC/config/kitty/kitty.conf" "$XLIN_HOME/kitty.conf"

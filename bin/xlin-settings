@@ -384,6 +384,40 @@ def sound_page(win):
     return box
 
 
+ACCENTS = [("blue", "#5269dc"), ("teal", "#1f9d9a"), ("green", "#2f9e5f"),
+           ("rose", "#c9507a"), ("orange", "#d9772b"), ("graphite", "#4a5568")]
+CSS += (b".swatch { min-width: 28px; min-height: 28px; padding: 0; border-radius: 14px;"
+        b" background-image: none; box-shadow: none; border: 2px solid transparent; }\n"
+        b".swatch.active { border-color: currentColor; }\n"
+        + "".join(f".swatch-{n} {{ background-color: {hx}; }}\n" for n, hx in ACCENTS).encode())
+
+
+def accent_dots():
+    """A row of colour dots; clicking one runs `xlin accent <name>`."""
+    current = read_state("accent", "blue")
+    box = Gtk.Box(spacing=8)
+    dots = {}
+
+    def pick(name):
+        for n, b in dots.items():
+            if n == name:
+                b.add_css_class("active")
+            else:
+                b.remove_css_class("active")
+        in_thread(lambda: run(["xlin", "accent", name], 30))
+    for name, _hx in ACCENTS:
+        b = Gtk.Button()
+        b.add_css_class("swatch")
+        b.add_css_class(f"swatch-{name}")
+        b.set_tooltip_text(name.capitalize())
+        if name == current:
+            b.add_css_class("active")
+        b.connect("clicked", lambda _b, n=name: pick(n))
+        dots[name] = b
+        box.append(b)
+    return box
+
+
 def appearance_page(win):
     box = page_box("Appearance", "Theme, transparency and wallpaper")
     c = card()

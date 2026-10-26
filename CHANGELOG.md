@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.3
+- Fix: the Settings Appearance page did not open (missing accent colour row code)
+- Screenshots: clear "Screenshot taken, saved in Pictures/Screenshots" notification, and a failure notification with the reason
+
 ## 0.9.2
 - Shortcuts can no longer be taken over by another config: the installer and `./update.sh` put the XLIN line last in hyprland.conf (`xlin hook`)
 - `xlin keys check` shows every XLIN shortcut and what it does now; `xlin keys fix` repairs clashes (also runs at login)

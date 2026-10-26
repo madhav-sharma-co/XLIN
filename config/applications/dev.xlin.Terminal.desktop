@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Terminal
+GenericName=Terminal
+Comment=The XLIN terminal
+Exec=xlin term
+Icon=xlin-terminal
+Terminal=false
+Categories=System;TerminalEmulator;
+StartupWMClass=dev.xlin.Terminal

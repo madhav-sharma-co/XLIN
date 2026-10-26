@@ -74,6 +74,13 @@ def monitor():
             '<rect x="48" y="98" width="32" height="7" rx="3.5" fill="#fff"/>')
 
 
+def terminal():
+    return ('<rect x="20" y="28" width="88" height="72" rx="12" fill="#101216"/>'
+            '<circle cx="34" cy="41" r="3.2" fill="#ff5f57"/><circle cx="45" cy="41" r="3.2" fill="#febc2e"/><circle cx="56" cy="41" r="3.2" fill="#28c840"/>'
+            '<path d="M35 62l14 10-14 10" fill="none" stroke="#5ee0a0" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>'
+            '<rect x="58" y="80" width="26" height="6" rx="3" fill="#fff" fill-opacity=".85"/>')
+
+
 def power(color):
     return (f'<path d="M64 26v36" stroke="#fff" stroke-width="10" stroke-linecap="round" fill="none"/>'
             f'<path d="M44 40a34 34 0 1 0 40 0" stroke="#fff" stroke-width="10" stroke-linecap="round" fill="none"/>')
@@ -88,6 +95,7 @@ ICONS = {
     "xlin-tools": ("#bf7bff", "#5a57e0", tools()),
     "xlin-welcome": ("#ff8fb1", "#ff8a3d", sparkle()),
     "xlin-monitor": ("#5ee0a0", "#16a05f", monitor()),
+    "xlin-terminal": ("#5b6272", "#23262f", terminal()),
     "xlin-power": ("#ff6b5e", "#d62f2f", power("#d62f2f")),
 }
 

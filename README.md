@@ -43,7 +43,7 @@ Remove everything (your old Waybar, swaync and Kitty configs are put back):
 | Notes           | Quick notes saved as plain .md files (Super+N, Super+Shift+N for a new one) |
 | Look and feel   | XLIN mouse cursor (follows light/dark), app icons, eight built-in wallpapers (Super+W) |
 | Welcome         | First-run tour: theme, accent, wallpaper, dock and shortcuts          |
-| Terminal        | Kitty with the XLIN prompt and welcome card                           |
+| Terminal        | XLIN Terminal (tabs, follows light/dark, Super+Return), or Kitty with `xlin terminal use kitty`; XLIN prompt and welcome card |
 | Look            | light / dark, accent colours, window transparency (fullscreen stays solid) |
 | Daily basics    | screenshots, clipboard history, night light, volume/brightness popup  |
 

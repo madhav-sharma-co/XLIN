@@ -478,7 +478,7 @@ cmd_doctor() {
   python3 -c 'import gi; gi.require_version("Gtk","4.0")' 2>/dev/null \
     && echo "  ok       GTK4 for Python" || { echo "  MISSING  GTK4 for Python   (sudo pacman -S gtk4 python-gobject)"; missing=1; }
   echo "XLIN commands:"
-  for b in xlin xlin-dock-watch xlin-settings xlin-tools xlin-welcome xlin-files xlin-monitor; do
+  for b in xlin xlin-dock-watch xlin-settings xlin-tools xlin-welcome xlin-files xlin-monitor xlin-terminal; do
     have "$b" && printf '  ok       %s\n' "$b" || { printf '  MISSING  %s   (run ./update.sh)\n' "$b"; missing=1; }
   done
   echo "Extras (features that need them):"
@@ -547,8 +547,31 @@ EOF
 
 # XLIN Terminal: the full Kitty config, the XLIN prompt and welcome card.
 # Safe to run again. Your old kitty.conf is saved once as kitty.conf.xlin-backup.
+# `xlin term [-d folder] [-e command]`: open a terminal window (XLIN Terminal, or kitty as the fallback)
+cmd_term() {
+  mkdir -p "$HOME/.cache/xlin"
+  local choice
+  choice="$(cat "$STATE/terminal" 2>/dev/null || echo xlin)"
+  if [[ "$choice" == xlin ]] && have xlin-terminal \
+     && python3 -c "import gi; gi.require_version('Vte','3.91')" >/dev/null 2>&1; then
+    setsid xlin-terminal "$@" >>"$HOME/.cache/xlin/terminal.log" 2>&1 &
+  elif have kitty; then
+    [[ "${1:-}" == -e ]] && shift
+    setsid kitty "$@" >>"$HOME/.cache/xlin/terminal.log" 2>&1 &
+  else
+    notify "No terminal found" "Install one: sudo pacman -S vte4  (XLIN Terminal) or kitty"
+    return 1
+  fi
+}
+
 cmd_terminal() {
   case "${1:-}" in
+    use)
+      case "${2:-}" in
+        xlin|kitty) echo "$2" >"$STATE/terminal"; echo "terminal: $2 (Super+Return opens it)" ;;
+        *) echo "usage: xlin terminal use xlin|kitty   (now: $(cat "$STATE/terminal" 2>/dev/null || echo xlin))" ;;
+      esac
+      return ;;
     font) write_font "${2:-}" "${3:-}"; return ;;
     banner)
       case "${2:-}" in
@@ -685,7 +708,7 @@ cmd_start() {
 }
 
 # ================================================================= XLIN CLI
-XLIN_VERSION="0.18.0"
+XLIN_VERSION="0.19.0"
 
 if [[ -t 1 ]]; then B=$'\e[1m'; D=$'\e[2m'; R=$'\e[0m'; else B=""; D=""; R=""; fi
 die() { echo "xlin: $*" >&2; return 1; }
@@ -1099,7 +1122,7 @@ EOT
   echo "XLIN removed. Start your own bar with e.g. 'waybar &'. Log out and in again for a clean session."
   # last step replaces this shell, because it deletes the very script that is running
   exec sudo rm -f /usr/local/bin/xlin /usr/local/bin/xlin-dock-watch /usr/local/bin/xlin-settings \
-                  /usr/local/bin/xlin-tools /usr/local/bin/xlin-welcome /usr/local/bin/xlin-files /usr/local/bin/xlin-monitor
+                  /usr/local/bin/xlin-tools /usr/local/bin/xlin-welcome /usr/local/bin/xlin-files /usr/local/bin/xlin-monitor /usr/local/bin/xlin-terminal
 }
 
 # ---- keeping the XLIN shortcuts working: xlin keys check | fix, and xlin hook
@@ -1317,6 +1340,8 @@ ${B}Look and feel${R}
   xlin wallpaper [next|<image>]    change the wallpaper
   xlin opacity <0.3-1.0>           window transparency
   xlin dock autohide on|off        dock behaviour
+  xlin term [-d folder] [-e cmd]   open a terminal window
+  xlin terminal use xlin|kitty     which terminal Super+Return opens
   xlin terminal font ["Name" 12]   terminal font
   xlin terminal banner on|off      terminal welcome card
 EOT
@@ -1418,6 +1443,7 @@ case "${1:-help}" in
   reboot|restart-pc) systemctl reboot ;;
   files)     shift; cmd_files "$@" ;;
   monitor)   cmd_monitor ;;
+  term)      shift; cmd_term "$@" ;;
   reload)    reload_all ;;
   doctor)    cmd_doctor ;;
   *) echo "xlin: unknown command '$1'" >&2; echo >&2; cmd_help >&2; exit 1 ;;

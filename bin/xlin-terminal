@@ -1,0 +1,349 @@
+#!/usr/bin/env python3
+"""XLIN Terminal - the XLIN terminal app (tabs, XLIN colours, follows light/dark).
+
+Usage: xlin-terminal [-d folder] [-e command ...]
+
+Keys: Ctrl+Shift+T new tab | Ctrl+Shift+W close tab | Ctrl+Tab / Ctrl+Shift+Tab next / previous tab
+      Alt+1..9 go to tab | Ctrl+Shift+C copy | Ctrl+Shift+V paste | Ctrl+= / Ctrl+- / Ctrl+0 text size
+      Right-click for copy / paste / new tab. Colours and font come from `xlin theme` and `xlin terminal font`.
+"""
+import os
+import re
+import shlex
+import sys
+
+import gi
+
+gi.require_version("Gtk", "4.0")
+gi.require_version("Gdk", "4.0")
+gi.require_version("Vte", "3.91")
+from gi.repository import Gdk, Gio, GLib, Gtk, Pango, Vte  # noqa: E402
+
+APP_ID = "dev.xlin.Terminal"
+HOME = os.path.expanduser("~")
+KITTY_DIR = os.path.join(HOME, ".config/kitty")
+CSS_FILE = os.path.join(HOME, ".config/xlin/tools.css")
+
+DEFAULT_THEME = {"foreground": "#182035", "background": "#f4f7fb", "cursor": "#182035",
+                 "selection_foreground": "#182035", "selection_background": "#dbe5f5"}
+DEFAULT_PALETTE = ["#1c1c1e", "#c0392b", "#2f9e5f", "#b8860b", "#2f5fd0", "#8e44ad", "#1f9d9a", "#d8dce6",
+                   "#6b7280", "#e5533d", "#34c27a", "#d9a21b", "#5b86f0", "#a569bd", "#2ec4c0", "#ffffff"]
+
+
+# ------------------------------------------------------------- settings
+def read_kv(path):
+    """kitty-style 'key value' lines -> dict (last one wins)."""
+    out = {}
+    try:
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                parts = line.split(None, 1)
+                if len(parts) == 2:
+                    out[parts[0]] = parts[1].strip()
+    except OSError:
+        pass
+    return out
+
+
+def load_theme():
+    kv = read_kv(os.path.join(KITTY_DIR, "xlin-theme.conf"))
+    theme = {k: kv.get(k, v) for k, v in DEFAULT_THEME.items()}
+    palette = [kv.get(f"color{i}", DEFAULT_PALETTE[i]) for i in range(16)]
+    return theme, palette
+
+
+def load_font():
+    kv = read_kv(os.path.join(KITTY_DIR, "xlin-font.conf"))
+    fam = kv.get("font_family", "monospace")
+    m = re.search(r'family="([^"]+)"', fam)
+    family = m.group(1) if m else fam
+    try:
+        size = float(kv.get("font_size", "11.5"))
+    except ValueError:
+        size = 11.5
+    return family, size
+
+
+def theme_mtime():
+    try:
+        return os.path.getmtime(os.path.join(KITTY_DIR, "xlin-theme.conf"))
+    except OSError:
+        return 0
+
+
+def rgba(hexcolor):
+    c = Gdk.RGBA()
+    if not c.parse(hexcolor):
+        c.parse("#000000")
+    return c
+
+
+# ---------------------------------------------------------------- window
+class TermWindow(Gtk.ApplicationWindow):
+    def __init__(self, app, cwd, command):
+        super().__init__(application=app, title="Terminal")
+        self.set_default_size(980, 600)
+        self.add_css_class("xlin-tools")
+        self.add_css_class("xlin-terminal")
+        self.scale = 1.0
+        self.font_family, self.font_size = load_font()
+        self.theme, self.palette = load_theme()
+        self.mtime = theme_mtime()
+        self.provider = Gtk.CssProvider()
+        Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), self.provider,
+                                                  Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 2)
+        self.terms = []
+
+        self.nb = Gtk.Notebook()
+        self.nb.set_show_tabs(False)
+        self.nb.set_scrollable(True)
+        self.nb.set_show_border(False)
+        self.nb.connect("switch-page", self.on_switch)
+        self.set_child(self.nb)
+
+        keys = Gtk.EventControllerKey()
+        keys.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        keys.connect("key-pressed", self.on_key)
+        self.add_controller(keys)
+
+        self.apply_css()
+        self.new_tab(cwd, command)
+        GLib.timeout_add(1500, self.watch_theme)
+
+    # ---- look
+    def apply_css(self):
+        bg, fg = self.theme["background"], self.theme["foreground"]
+        css = f"""
+        window.xlin-terminal {{ background-color: {bg}; }}
+        .term-box {{ background-color: {bg}; padding: 12px 16px 8px 16px; }}
+        window.xlin-terminal notebook > header {{ background-color: {bg}; border: none; padding: 2px 8px; }}
+        window.xlin-terminal notebook > header tab {{ background: transparent; color: {fg}; opacity: .55;
+            border-radius: 8px; padding: 3px 12px; margin: 3px 2px; min-height: 0; border: none; }}
+        window.xlin-terminal notebook > header tab:checked {{ opacity: 1; background-color: {self.theme['selection_background']}; }}
+        """
+        try:
+            self.provider.load_from_data(css.encode())
+        except Exception:
+            pass
+
+    def style_term(self, t):
+        t.set_colors(rgba(self.theme["foreground"]), rgba(self.theme["background"]),
+                     [rgba(c) for c in self.palette])
+        t.set_color_cursor(rgba(self.theme["cursor"]))
+        t.set_color_highlight(rgba(self.theme["selection_background"]))
+        t.set_color_highlight_foreground(rgba(self.theme["selection_foreground"]))
+        t.set_font(Pango.FontDescription.from_string(f"{self.font_family} {self.font_size}"))
+        t.set_font_scale(self.scale)
+
+    def watch_theme(self):
+        m = theme_mtime()
+        if m != self.mtime:
+            self.mtime = m
+            self.theme, self.palette = load_theme()
+            self.font_family, self.font_size = load_font()
+            self.apply_css()
+            for t in self.terms:
+                self.style_term(t)
+        return True
+
+    # ---- tabs
+    def current(self):
+        n = self.nb.get_current_page()
+        return self.terms[n] if 0 <= n < len(self.terms) else None
+
+    def cwd_of(self, term):
+        pid = getattr(term, "child_pid", None)
+        if pid:
+            try:
+                return os.readlink(f"/proc/{pid}/cwd")
+            except OSError:
+                pass
+        return None
+
+    def new_tab(self, cwd=None, command=None):
+        if cwd is None and self.current() is not None:
+            cwd = self.cwd_of(self.current())
+        t = Vte.Terminal()
+        t.child_pid = None
+        t.set_scrollback_lines(20000)
+        t.set_scroll_on_keystroke(True)
+        t.set_scroll_on_output(False)
+        t.set_cursor_shape(Vte.CursorShape.IBEAM)
+        t.set_cursor_blink_mode(Vte.CursorBlinkMode.OFF)
+        t.set_mouse_autohide(True)
+        t.set_allow_hyperlink(True)
+        t.set_hexpand(True)
+        t.set_vexpand(True)
+        self.style_term(t)
+
+        box = Gtk.Box()
+        box.add_css_class("term-box")
+        box.append(t)
+        label = Gtk.Label(label="Terminal")
+        label.set_ellipsize(Pango.EllipsizeMode.END)
+        label.set_max_width_chars(22)
+        t.tab_label = label
+
+        t.connect("child-exited", lambda term, _st: self.on_exit(term))
+        t.connect("window-title-changed", lambda term: self.on_title(term))
+        click = Gtk.GestureClick(button=3)
+        click.connect("pressed", lambda g, _n, x, y, term=t: self.menu(term, x, y))
+        t.add_controller(click)
+
+        self.terms.append(t)
+        self.nb.append_page(box, label)
+        self.nb.set_tab_reorderable(box, True)
+        self.nb.set_show_tabs(len(self.terms) > 1)
+        self.nb.set_current_page(len(self.terms) - 1)
+        self.spawn(t, cwd, command)
+        t.grab_focus()
+        return t
+
+    def spawn(self, t, cwd, command):
+        argv = command or [os.environ.get("SHELL") or "/bin/bash"]
+        cwd = cwd if cwd and os.path.isdir(cwd) else HOME
+
+        def started(_term, pid, error, *_a):
+            if error is not None or pid is None or pid < 0:
+                t.feed(f"\r\nCould not start the shell: {error}\r\n".encode())
+            else:
+                t.child_pid = pid
+        try:
+            t.spawn_async(Vte.PtyFlags.DEFAULT, cwd, argv, None, GLib.SpawnFlags.SEARCH_PATH,
+                          None, None, -1, None, started)
+        except Exception as e:
+            t.feed(f"\r\nCould not start the shell: {e}\r\n".encode())
+
+    def on_title(self, term):
+        title = term.get_window_title() or "Terminal"
+        term.tab_label.set_text(title)
+        if term is self.current():
+            self.set_title(title)
+
+    def on_switch(self, _nb, _page, n):
+        if 0 <= n < len(self.terms):
+            self.set_title(self.terms[n].get_window_title() or "Terminal")
+            GLib.idle_add(lambda: (self.terms[n].grab_focus(), False)[1])
+
+    def on_exit(self, term):
+        if term not in self.terms:
+            return
+        i = self.terms.index(term)
+        self.terms.pop(i)
+        self.nb.remove_page(i)
+        if not self.terms:
+            self.close()
+        else:
+            self.nb.set_show_tabs(len(self.terms) > 1)
+
+    def close_tab(self):
+        t = self.current()
+        if t is not None:
+            self.on_exit(t)
+
+    # ---- keys and menu
+    def on_key(self, _c, keyval, _code, state):
+        ctrl = bool(state & Gdk.ModifierType.CONTROL_MASK)
+        shift = bool(state & Gdk.ModifierType.SHIFT_MASK)
+        alt = bool(state & Gdk.ModifierType.ALT_MASK)
+        k = Gdk.keyval_to_lower(keyval)
+        t = self.current()
+        if ctrl and shift and k == Gdk.KEY_t:
+            self.new_tab()
+        elif ctrl and shift and k == Gdk.KEY_w:
+            self.close_tab()
+        elif ctrl and shift and k == Gdk.KEY_c and t:
+            t.copy_clipboard()
+        elif ctrl and shift and k == Gdk.KEY_v and t:
+            t.paste_clipboard()
+        elif ctrl and keyval in (Gdk.KEY_Tab, Gdk.KEY_ISO_Left_Tab):
+            self.nb.set_current_page((self.nb.get_current_page() + (-1 if shift else 1)) % max(1, len(self.terms)))
+        elif alt and Gdk.KEY_1 <= keyval <= Gdk.KEY_9:
+            n = keyval - Gdk.KEY_1
+            if n < len(self.terms):
+                self.nb.set_current_page(n)
+        elif ctrl and keyval in (Gdk.KEY_equal, Gdk.KEY_plus):
+            self.zoom(0.1)
+        elif ctrl and keyval == Gdk.KEY_minus:
+            self.zoom(-0.1)
+        elif ctrl and keyval == Gdk.KEY_0:
+            self.scale = 1.0
+            self.zoom(0)
+        else:
+            return False
+        return True
+
+    def zoom(self, delta):
+        self.scale = max(0.5, min(3.0, round(self.scale + delta, 2)))
+        for t in self.terms:
+            t.set_font_scale(self.scale)
+
+    def menu(self, term, x, y):
+        pop = Gtk.Popover()
+        pop.add_css_class("files-menu")
+        pop.set_parent(term)
+        pop.set_has_arrow(False)
+        rect = Gdk.Rectangle()
+        rect.x, rect.y, rect.width, rect.height = int(x), int(y), 1, 1
+        pop.set_pointing_to(rect)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        for label, fn in (("Copy", term.copy_clipboard), ("Paste", term.paste_clipboard),
+                          ("New tab", lambda: self.new_tab()), ("Close tab", self.close_tab)):
+            b = Gtk.Button(label=label, halign=Gtk.Align.FILL)
+            b.add_css_class("files-menu-item")
+            b.connect("clicked", lambda _b, f=fn, p=pop: (p.popdown(), f()))
+            box.append(b)
+        pop.set_child(box)
+        pop.connect("closed", lambda p: GLib.idle_add(p.unparent))
+        pop.popup()
+
+
+class TermApp(Gtk.Application):
+    def __init__(self, cwd, command):
+        # NON_UNIQUE: every launch opens its own terminal window
+        super().__init__(application_id=APP_ID, flags=Gio.ApplicationFlags.NON_UNIQUE)
+        self.cwd, self.command = cwd, command
+        self.win = None
+
+    def do_startup(self):
+        Gtk.Application.do_startup(self)
+        try:
+            with open(CSS_FILE, "rb") as f:
+                data = f.read()
+            prov = Gtk.CssProvider()
+            prov.load_from_data(data)
+            Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), prov,
+                                                      Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        except Exception:
+            pass
+
+    def do_activate(self):
+        if self.win is None:
+            self.win = TermWindow(self, self.cwd, self.command)
+        self.win.present()
+
+
+def parse_args(argv):
+    cwd, command, i = None, None, 0
+    while i < len(argv):
+        a = argv[i]
+        if a in ("-e", "--command", "-x"):
+            command = argv[i + 1:] if i + 1 < len(argv) else None
+            if command and len(command) == 1 and " " in command[0]:
+                command = shlex.split(command[0])
+            break
+        if a in ("-d", "--working-directory") and i + 1 < len(argv):
+            cwd = argv[i + 1]
+            i += 1
+        elif a.startswith("--working-directory="):
+            cwd = a.split("=", 1)[1]
+        i += 1
+    return cwd, command or None
+
+
+if __name__ == "__main__":
+    c, cmd = parse_args(sys.argv[1:])
+    sys.exit(TermApp(c, cmd).run([sys.argv[0]]))

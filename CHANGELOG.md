@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.19.0
+- New app: XLIN Terminal (VTE): tabs (Ctrl+Shift+T), XLIN colours and font that follow `xlin theme`, copy/paste menu, text zoom. Super+Return / Super+T open it; `xlin term [-d folder] [-e cmd]` from the command line
+- `xlin terminal use kitty` switches back to Kitty; Kitty is also the automatic fallback if VTE is missing
+
 ## 0.18.0
 - New app: XLIN Monitor (Super+M, or `xlin monitor`): CPU, memory, disk and network cards, and a live list of your apps with End / Force quit
 - Fix: the Welcome window rule was still the old size, so the new wallpaper page was cut off

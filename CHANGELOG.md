@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.13.0
+- XLIN Files: "Connect to server..." opens network folders (smb://, sftp://, ftp://, dav://); asks for a password in a window when needed (gvfs is installed by the installer)
+
 ## 0.12.0
 - XLIN Files: right-click -> Open with... (pick an app, optionally make it the default for that file type)
 - XLIN Files: right-click -> Extract here (zip, tar.*, 7z, rar, iso) and Compress to .zip

@@ -603,7 +603,7 @@ class FilesWindow(Gtk.ApplicationWindow):
     def connect_server(self):
         def go(uri):
             uri = uri.strip()
-            if not uri:
+            if not uri or uri.endswith("://"):
                 return
             if "://" not in uri:
                 uri = "smb://" + uri

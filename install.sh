@@ -22,7 +22,7 @@ pick_repo() { # first package that exists in the repos
 }
 
 say "Installing packages"
-core=(udisks2 hyprland waybar swaync jq socat libnotify brightnessctl networkmanager
+core=(udisks2 gvfs gvfs-smb hyprland waybar swaync jq socat libnotify brightnessctl networkmanager
       network-manager-applet pipewire wireplumber pavucontrol blueman
       imagemagick ttf-font-awesome inter-font gtk3 gtk4 python-gobject kitty bluez bluez-utils power-profiles-daemon hyprlock)
 

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Power menu
+GenericName=Power
+Comment=Lock, sleep, log out, restart, shut down
+Exec=xlin power
+Icon=xlin-power
+Terminal=false
+Categories=System;
+StartupWMClass=dev.xlin.Power
+NoDisplay=true

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Calendar
+GenericName=Calendar
+Comment=Dates and weekends
+Exec=xlin-tools calendar
+Icon=xlin-calendar
+Terminal=false
+Categories=Utility;Calendar;
+StartupWMClass=dev.xlin.Calendar

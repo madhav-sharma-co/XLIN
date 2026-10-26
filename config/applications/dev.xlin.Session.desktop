@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Session menu
+GenericName=Session
+Comment=Session options
+Exec=xlin session
+Icon=xlin-power
+Terminal=false
+Categories=System;
+StartupWMClass=dev.xlin.Session
+NoDisplay=true

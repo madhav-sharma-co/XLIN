@@ -93,7 +93,11 @@ sudo install -m 755 "$SRC/bin/xlin-tools" /usr/local/bin/xlin-tools
 sudo install -m 755 "$SRC/bin/xlin-welcome" /usr/local/bin/xlin-welcome
 sudo install -m 755 "$SRC/bin/xlin-files" /usr/local/bin/xlin-files
 mkdir -p "$HOME/.local/share/applications"
-cp "$SRC/config/applications/dev.xlin.Files.desktop" "$HOME/.local/share/applications/"
+cp "$SRC"/config/applications/dev.xlin.*.desktop "$HOME/.local/share/applications/"
+mkdir -p "$HOME/.local/share/icons/hicolor/scalable/apps"
+cp "$SRC"/assets/icons/*.svg "$HOME/.local/share/icons/hicolor/scalable/apps/"
+command -v gtk-update-icon-cache >/dev/null && gtk-update-icon-cache -q -t "$HOME/.local/share/icons/hicolor" 2>/dev/null || true
+command -v update-desktop-database >/dev/null && update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
 mkdir -p "$HOME/.local/share/icons"
 cp -a "$SRC/assets/cursors/." "$HOME/.local/share/icons/"
 mkdir -p "$XLIN_HOME/wallpapers" "$XLIN_HOME/state"

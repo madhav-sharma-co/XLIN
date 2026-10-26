@@ -674,7 +674,7 @@ cmd_start() {
 }
 
 # ================================================================= XLIN CLI
-XLIN_VERSION="0.14.0"
+XLIN_VERSION="0.15.0"
 
 if [[ -t 1 ]]; then B=$'\e[1m'; D=$'\e[2m'; R=$'\e[0m'; else B=""; D=""; R=""; fi
 die() { echo "xlin: $*" >&2; return 1; }
@@ -1068,7 +1068,8 @@ EOT
     cp -a "$HOME/.config/kitty/kitty.conf.xlin-backup" "$HOME/.config/kitty/kitty.conf" && echo "restored ~/.config/kitty/kitty.conf"
   fi
   rm -f "$HOME"/.config/kitty/xlin-{theme,font,opacity}.conf
-  rm -f "$HOME/.config/bashrc/99-xlin" "$HOME/.local/share/applications/dev.xlin.Files.desktop" 
+  rm -f "$HOME/.config/bashrc/99-xlin" "$HOME"/.local/share/applications/dev.xlin.*.desktop
+  rm -f "$HOME"/.local/share/icons/hicolor/scalable/apps/xlin-*.svg
   rm -rf "$HOME/.local/share/icons/XLIN" "$HOME/.local/share/icons/XLIN-Dark"
   [[ -f "$HOME/.bashrc" ]] && sed -i '/xlin\/shell\.bash/d' "$HOME/.bashrc"
   ((purge)) && rm -rf "$HOME/.config/xlin"

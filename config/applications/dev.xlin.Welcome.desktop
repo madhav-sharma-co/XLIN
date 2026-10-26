@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Welcome to XLIN
+GenericName=Welcome
+Comment=A quick tour of XLIN
+Exec=xlin-welcome
+Icon=xlin-welcome
+Terminal=false
+Categories=Utility;
+StartupWMClass=dev.xlin.Welcome

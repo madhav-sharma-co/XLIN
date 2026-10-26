@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Notes
+GenericName=Quick notes
+Comment=Quick notes, saved as plain files
+Exec=xlin-tools notes
+Icon=xlin-notes
+Terminal=false
+Categories=Utility;TextEditor;
+StartupWMClass=dev.xlin.Notes

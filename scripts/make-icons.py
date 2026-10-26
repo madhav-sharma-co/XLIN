@@ -1,0 +1,91 @@
+#!/usr/bin/env python3
+"""Writes the XLIN app icons (rounded squares with a soft gradient) to assets/icons.
+No dependencies. Run: python3 scripts/make-icons.py"""
+import os
+
+OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", "icons")
+FONT = "Inter, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif"
+
+
+def icon(name, c1, c2, body, extra_defs=""):
+    return f'''<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+<defs>
+<linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="{c1}"/><stop offset="1" stop-color="{c2}"/></linearGradient>
+<linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".28"/><stop offset=".55" stop-color="#fff" stop-opacity="0"/></linearGradient>
+<filter id="sh" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="2" stdDeviation="2.2" flood-color="#000" flood-opacity=".28"/></filter>
+{extra_defs}</defs>
+<rect x="6" y="6" width="116" height="116" rx="27" fill="url(#g)"/>
+<rect x="6" y="6" width="116" height="116" rx="27" fill="url(#gloss)"/>
+<rect x="6.5" y="6.5" width="115" height="115" rx="26.5" fill="none" stroke="#fff" stroke-opacity=".35"/>
+<g filter="url(#sh)">{body}</g>
+</svg>
+'''
+
+
+def gear():
+    teeth = '<circle cx="64" cy="64" r="34" fill="none" stroke="#fff" stroke-width="13" stroke-dasharray="13.35 13.35" stroke-dashoffset="6.7"/>'
+    return teeth + '<circle cx="64" cy="64" r="28" fill="#fff"/><circle cx="64" cy="64" r="12" fill="#6b7587"/>'
+
+
+def notes():
+    lines = "".join(f'<rect x="38" y="{y}" width="{w}" height="5" rx="2.5" fill="#d9b65a"/>' for y, w in ((60, 52), (73, 52), (86, 34)))
+    return ('<rect x="30" y="22" width="68" height="86" rx="10" fill="#fff"/>'
+            '<rect x="30" y="22" width="68" height="22" rx="10" fill="#ffe08a"/><rect x="30" y="34" width="68" height="10" fill="#ffe08a"/>'
+            + lines)
+
+
+def calc():
+    keys = ""
+    for r in range(4):
+        for col in range(4):
+            x, y = 28 + col * 18.5, 54 + r * 17
+            fill = "#ff9f0a" if col == 3 else ("#6b6b72" if r == 0 and col < 3 else "#4a4a50")
+            keys += f'<rect x="{x}" y="{y}" width="15" height="13" rx="4.5" fill="{fill}"/>'
+    return '<rect x="28" y="24" width="72" height="24" rx="7" fill="#26262a"/><text x="94" y="43" text-anchor="end" font-family="' + FONT + '" font-size="17" font-weight="600" fill="#fff">26</text>' + keys
+
+
+def calendar():
+    return ('<rect x="24" y="22" width="80" height="86" rx="13" fill="#fff"/>'
+            '<path d="M24 35a13 13 0 0 1 13-13h54a13 13 0 0 1 13 13v9H24z" fill="#ff453a"/>'
+            '<rect x="42" y="14" width="6" height="16" rx="3" fill="#fff"/><rect x="80" y="14" width="6" height="16" rx="3" fill="#fff"/>'
+            '<text x="64" y="94" text-anchor="middle" font-family="' + FONT + '" font-size="40" font-weight="600" fill="#1c1c1e">26</text>')
+
+
+def folder():
+    return ('<path d="M22 44a9 9 0 0 1 9-9h20l9 10h37a9 9 0 0 1 9 9v38a9 9 0 0 1-9 9H31a9 9 0 0 1-9-9z" fill="#fff" fill-opacity=".55"/>'
+            '<path d="M22 56a9 9 0 0 1 9-9h66a9 9 0 0 1 9 9v35a9 9 0 0 1-9 9H31a9 9 0 0 1-9-9z" fill="#fff"/>')
+
+
+def tools():
+    sq = ""
+    for i, (x, y) in enumerate(((28, 28), (70, 28), (28, 70), (70, 70))):
+        sq += f'<rect x="{x}" y="{y}" width="30" height="30" rx="9" fill="#fff" fill-opacity="{1 if i != 3 else .55}"/>'
+    return sq
+
+
+def sparkle():
+    star = lambda cx, cy, r: (f'<path d="M{cx} {cy-r}Q{cx} {cy} {cx+r} {cy}Q{cx} {cy} {cx} {cy+r}Q{cx} {cy} {cx-r} {cy}Q{cx} {cy} {cx} {cy-r}z" fill="#fff"/>')
+    return star(60, 66, 34) + star(94, 36, 14) + star(96, 88, 10)
+
+
+def power(color):
+    return (f'<path d="M64 26v36" stroke="#fff" stroke-width="10" stroke-linecap="round" fill="none"/>'
+            f'<path d="M44 40a34 34 0 1 0 40 0" stroke="#fff" stroke-width="10" stroke-linecap="round" fill="none"/>')
+
+
+ICONS = {
+    "xlin-settings": ("#a3adbf", "#626d82", gear()),
+    "xlin-notes": ("#ffd95e", "#ffb300", notes()),
+    "xlin-calculator": ("#4b4b52", "#1c1c1e", calc()),
+    "xlin-calendar": ("#f5f6fa", "#d9dce6", calendar()),
+    "xlin-files": ("#5ac8fa", "#0a7cff", folder()),
+    "xlin-tools": ("#bf7bff", "#5a57e0", tools()),
+    "xlin-welcome": ("#ff8fb1", "#ff8a3d", sparkle()),
+    "xlin-power": ("#ff6b5e", "#d62f2f", power("#d62f2f")),
+}
+
+if __name__ == "__main__":
+    os.makedirs(OUT, exist_ok=True)
+    for name, (c1, c2, body) in ICONS.items():
+        open(os.path.join(OUT, name + ".svg"), "w").write(icon(name, c1, c2, body))
+        print("wrote", name)

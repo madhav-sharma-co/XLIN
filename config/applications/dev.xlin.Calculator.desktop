@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Calculator
+GenericName=Calculator
+Comment=Quick sums
+Exec=xlin-tools calculator
+Icon=xlin-calculator
+Terminal=false
+Categories=Utility;Calculator;
+StartupWMClass=dev.xlin.Calculator

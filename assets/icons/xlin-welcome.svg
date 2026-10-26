@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+<defs>
+<linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff8fb1"/><stop offset="1" stop-color="#ff8a3d"/></linearGradient>
+<linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".28"/><stop offset=".55" stop-color="#fff" stop-opacity="0"/></linearGradient>
+<filter id="sh" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="2" stdDeviation="2.2" flood-color="#000" flood-opacity=".28"/></filter>
+</defs>
+<rect x="6" y="6" width="116" height="116" rx="27" fill="url(#g)"/>
+<rect x="6" y="6" width="116" height="116" rx="27" fill="url(#gloss)"/>
+<rect x="6.5" y="6.5" width="115" height="115" rx="26.5" fill="none" stroke="#fff" stroke-opacity=".35"/>
+<g filter="url(#sh)"><path d="M60 32Q60 66 94 66Q60 66 60 100Q60 66 26 66Q60 66 60 32z" fill="#fff"/><path d="M94 22Q94 36 108 36Q94 36 94 50Q94 36 80 36Q94 36 94 22z" fill="#fff"/><path d="M96 78Q96 88 106 88Q96 88 96 98Q96 88 86 88Q96 88 96 78z" fill="#fff"/></g>
+</svg>

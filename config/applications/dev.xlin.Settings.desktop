@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Settings
+GenericName=XLIN settings
+Comment=Change the look and behaviour of XLIN
+Exec=xlin-settings
+Icon=xlin-settings
+Terminal=false
+Categories=Settings;DesktopSettings;
+StartupWMClass=dev.xlin.Settings

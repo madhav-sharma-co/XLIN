@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Tools
+GenericName=XLIN tools
+Comment=Notes, calculator and calendar
+Exec=xlin-tools
+Icon=xlin-tools
+Terminal=false
+Categories=Utility;
+StartupWMClass=dev.xlin.Tools

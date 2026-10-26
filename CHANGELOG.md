@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.15.0
+- Proper icons for XLIN's own apps (Settings, Files, Notes, Calculator, Calendar, Tools, Welcome, Power): the dock and launcher show them instead of the orange X. `scripts/make-icons.py` redraws them
+
 ## 0.14.0
 - Own mouse cursor: XLIN (dark, for the light desktop) and XLIN-Dark (white, for the dark desktop), rounded with a soft shadow, accent-blue busy spinner. Follows the theme switch automatically; `xlin cursor 24|32|48|64` changes the size
 - `scripts/make-cursors.py` redraws the cursors (Pillow only)

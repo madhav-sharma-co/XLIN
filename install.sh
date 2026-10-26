@@ -94,6 +94,8 @@ sudo install -m 755 "$SRC/bin/xlin-welcome" /usr/local/bin/xlin-welcome
 sudo install -m 755 "$SRC/bin/xlin-files" /usr/local/bin/xlin-files
 mkdir -p "$HOME/.local/share/applications"
 cp "$SRC/config/applications/dev.xlin.Files.desktop" "$HOME/.local/share/applications/"
+mkdir -p "$HOME/.local/share/icons"
+cp -a "$SRC/assets/cursors/." "$HOME/.local/share/icons/"
 mkdir -p "$XLIN_HOME/wallpapers" "$XLIN_HOME/state"
 echo "$SRC" >"$XLIN_HOME/state/source"
 

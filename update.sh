@@ -41,6 +41,8 @@ done
 
 mkdir -p "$HOME/.local/share/applications"
 cp "$SRC/config/applications/dev.xlin.Files.desktop" "$HOME/.local/share/applications/"
+mkdir -p "$HOME/.local/share/icons"
+cp -a "$SRC/assets/cursors/." "$HOME/.local/share/icons/"
 
 /usr/local/bin/xlin hook || true
 

@@ -166,6 +166,27 @@ cmd_lock() {
   hyprlock -c "$HOME/.config/hypr/xlin-hyprlock.conf"
 }
 
+# ---- mouse cursor: XLIN (light desktop) / XLIN-Dark (dark desktop)
+apply_cursor() {
+  local theme="${1:-$(cat "$STATE/theme" 2>/dev/null || echo light)}" name size
+  [[ "$theme" == dark ]] && name="XLIN-Dark" || name="XLIN"
+  size="$(cat "$STATE/cursor_size" 2>/dev/null || echo 24)"
+  [[ -d "$HOME/.local/share/icons/$name/cursors" ]] || return 0
+  have hyprctl && hyprctl setcursor "$name" "$size" >/dev/null 2>&1 || true
+  if have gsettings; then
+    gsettings set org.gnome.desktop.interface cursor-theme "$name" 2>/dev/null || true
+    gsettings set org.gnome.desktop.interface cursor-size "$size" 2>/dev/null || true
+  fi
+}
+
+cmd_cursor() {
+  case "${1:-}" in
+    "") echo "cursor size: $(cat "$STATE/cursor_size" 2>/dev/null || echo 24)  (change: xlin cursor 24|32|48|64)" ;;
+    24|32|48|64) echo "$1" >"$STATE/cursor_size"; apply_cursor; echo "cursor size: $1" ;;
+    *) echo "usage: xlin cursor [24|32|48|64]"; return 1 ;;
+  esac
+}
+
 reload_all() {
   pkill -SIGUSR2 waybar 2>/dev/null || true
   have swaync-client && swaync-client -rs >/dev/null 2>&1 || true
@@ -194,6 +215,7 @@ cmd_theme() {
   source "$XLIN_HOME/themes/$want.sh"
   have gsettings && gsettings set org.gnome.desktop.interface color-scheme "$C_GTK_SCHEME" 2>/dev/null || true
   reload_all
+  apply_cursor "$want"
   cmd_wallpaper restore
   echo "theme: $want"
 }
@@ -645,13 +667,14 @@ cmd_start() {
   fi
   pgrep -f xlin-dock-watch >/dev/null || setsid xlin-dock-watch >>"$HOME/.cache/xlin/dock.log" 2>&1 &
   cmd_wallpaper restore
+  apply_cursor
   start_extras
   ( sleep 3; cmd_keys_check fix quiet >/dev/null 2>&1 ) &
   ( sleep 4; cmd_welcome --first ) >/dev/null 2>&1 &
 }
 
 # ================================================================= XLIN CLI
-XLIN_VERSION="0.13.1"
+XLIN_VERSION="0.14.0"
 
 if [[ -t 1 ]]; then B=$'\e[1m'; D=$'\e[2m'; R=$'\e[0m'; else B=""; D=""; R=""; fi
 die() { echo "xlin: $*" >&2; return 1; }
@@ -1045,7 +1068,8 @@ EOT
     cp -a "$HOME/.config/kitty/kitty.conf.xlin-backup" "$HOME/.config/kitty/kitty.conf" && echo "restored ~/.config/kitty/kitty.conf"
   fi
   rm -f "$HOME"/.config/kitty/xlin-{theme,font,opacity}.conf
-  rm -f "$HOME/.config/bashrc/99-xlin" "$HOME/.local/share/applications/dev.xlin.Files.desktop"
+  rm -f "$HOME/.config/bashrc/99-xlin" "$HOME/.local/share/applications/dev.xlin.Files.desktop" 
+  rm -rf "$HOME/.local/share/icons/XLIN" "$HOME/.local/share/icons/XLIN-Dark"
   [[ -f "$HOME/.bashrc" ]] && sed -i '/xlin\/shell\.bash/d' "$HOME/.bashrc"
   ((purge)) && rm -rf "$HOME/.config/xlin"
   have hyprctl && hyprctl reload >/dev/null 2>&1
@@ -1304,6 +1328,7 @@ ${B}Apps and panels${R}
 
 ${B}Session${R}
   xlin start | restart | reload            xlin doctor     xlin version
+  xlin cursor [24|32|48|64]                mouse cursor size
   xlin update [check]                      get the newest XLIN from GitHub (check = look only)
   xlin uninstall [--purge]                 remove XLIN and restore your old configs
 
@@ -1330,6 +1355,7 @@ case "${1:-help}" in
   adapt)     cmd_adapt ;;
   hook)      cmd_hook ;;
   update)    shift; cmd_update "${1:-}" ;;
+  cursor)    shift; cmd_cursor "${1:-}" ;;
   uninstall) shift; cmd_uninstall "$@" ;;
   accent)    shift; cmd_accent "${1:-}" ;;
   welcome)   shift; cmd_welcome "${1:-}" ;;

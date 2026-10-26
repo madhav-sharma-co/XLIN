@@ -101,6 +101,13 @@ window.xlin-tools {
   background-image: none; background-color: @C_ACCENT@; color: @C_ON_ACCENT@;
   border-radius: 8px; padding: 8px 18px; border: none; box-shadow: none;
 }
+.wall-thumb {
+  padding: 3px; border-radius: 12px; min-width: 0; min-height: 0;
+  background-image: none; background-color: transparent; border: 2px solid transparent; box-shadow: none;
+}
+.wall-thumb.active { border-color: @C_ACCENT@; }
+.welcome-ok { color: @C_MUTED@; font-size: 12px; }
+.welcome-bad { color: @C_LOCK_FAIL@; font-size: 12px; }
 .welcome-ghost { background-image: none; background-color: transparent; color: @C_MUTED@; border: none; box-shadow: none; }
 .swatch { min-width: 30px; min-height: 30px; padding: 0; border-radius: 15px; background-image: none; box-shadow: none; border: 2px solid transparent; }
 .swatch.active { border-color: @C_INK@; }

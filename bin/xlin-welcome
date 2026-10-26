@@ -16,6 +16,12 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
 from gi.repository import Gdk, Gio, GLib, Gtk  # noqa: E402
 
+try:                       # thumbnails are a bonus: the page still works without them
+    gi.require_version("GdkPixbuf", "2.0")
+    from gi.repository import GdkPixbuf
+except (ValueError, ImportError):
+    GdkPixbuf = None
+
 APP_ID = "dev.xlin.Welcome"
 HOME = os.path.expanduser("~")
 STATE = os.path.join(HOME, ".config/xlin/state")
@@ -27,6 +33,7 @@ FALLBACK_CSS = b"""
 window.xlin-tools { border-radius: 11px; }
 .welcome-title { font-size: 26px; font-weight: 700; }
 .swatch { min-width: 30px; min-height: 30px; padding: 0; border-radius: 15px; }
+.wall-thumb { padding: 3px; }
 """
 
 
@@ -36,6 +43,26 @@ def run(cmd, timeout=30):
         return p.returncode == 0, p.stdout
     except Exception:
         return False, ""
+
+
+def run_msg(cmd, timeout=40):
+    """Like run(), but returns (ok, the message to show the person)."""
+    try:
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        text = (p.stderr.strip() or p.stdout.strip()).splitlines()
+        return p.returncode == 0, (text[-1] if text else "")
+    except Exception as e:
+        return False, str(e)
+
+
+def wallpaper_files():
+    d = os.path.join(HOME, ".config/xlin/wallpapers")
+    try:
+        names = sorted(n for n in os.listdir(d) if n.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))
+                       and n not in ("xlin-light.png", "xlin-dark.png"))
+    except OSError:
+        return []
+    return [os.path.join(d, n) for n in names]
 
 
 def in_thread(fn, done=None):
@@ -79,7 +106,7 @@ class WelcomeWindow(Gtk.ApplicationWindow):
     def __init__(self, app, reload_css):
         super().__init__(application=app, title="Welcome to XLIN")
         self.reload_css = reload_css
-        self.set_default_size(560, 470)
+        self.set_default_size(600, 500)
         self.set_resizable(False)
         self.set_decorated(False)
         self.add_css_class("xlin-tools")
@@ -100,7 +127,7 @@ class WelcomeWindow(Gtk.ApplicationWindow):
         self.stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
         root.append(self.stack)
 
-        self.builders = [self.p_welcome, self.p_look, self.p_basics, self.p_keys]
+        self.builders = [self.p_welcome, self.p_look, self.p_wall, self.p_basics, self.p_keys, self.p_done]
         for i, b in enumerate(self.builders):
             self.stack.add_named(b(), f"p{i}")
         self.index = 0
@@ -166,6 +193,58 @@ class WelcomeWindow(Gtk.ApplicationWindow):
         b.append(dots)
         return b
 
+    def p_wall(self):
+        b = page("Pick a wallpaper", "Click one to set it now. You can change it any time with Super+W.")
+        self.wall_buttons = {}
+        grid = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, max_children_per_line=4, min_children_per_line=4,
+                           column_spacing=6, row_spacing=6, homogeneous=True)
+        grid.set_margin_top(6)
+        current = read_state("wallpaper", "")
+        files = wallpaper_files()
+        for path in files:
+            btn = Gtk.Button()
+            btn.add_css_class("wall-thumb")
+            btn.set_tooltip_text(os.path.basename(path)[5:].rsplit(".", 1)[0].capitalize())
+            pic = Gtk.Picture(can_shrink=True)
+            pic.set_size_request(112, 64)
+            pic.set_content_fit(Gtk.ContentFit.COVER)
+            btn.set_child(pic)
+            if path == current:
+                btn.add_css_class("active")
+            btn.connect("clicked", lambda _b, p=path: self.set_wall(p))
+            self.wall_buttons[path] = btn
+            grid.append(btn)
+            self.load_thumb(pic, path)
+        if files:
+            b.append(grid)
+        else:
+            none = Gtk.Label(label="The built-in wallpapers are missing. Run ./update.sh in the XLIN folder.", xalign=0, wrap=True)
+            none.add_css_class("welcome-bad")
+            b.append(none)
+        own = Gtk.Button(label="Choose your own picture…", halign=Gtk.Align.START, margin_top=10)
+        own.add_css_class("welcome-choice")
+        own.connect("clicked", lambda _b: self.pick_own())
+        b.append(own)
+        self.wall_status = Gtk.Label(label="", xalign=0, wrap=True)
+        self.wall_status.add_css_class("welcome-ok")
+        b.append(self.wall_status)
+        return b
+
+    def p_done(self):
+        b = page("You're all set", "A few things worth knowing:")
+        for key, text in (("Super + Space", "Open the launcher and find any app"),
+                          ("Super + /", "Show every shortcut"),
+                          ("Super + S", "Open Settings (updates are in About)"),
+                          ("Super + U", "Notes, calculator and calendar")):
+            r = Gtk.Box(spacing=14, margin_top=8)
+            k = Gtk.Label(label=key, xalign=0)
+            k.set_size_request(120, -1)
+            k.add_css_class("welcome-keys")
+            r.append(k)
+            r.append(Gtk.Label(label=text, xalign=0))
+            b.append(r)
+        return b
+
     def p_basics(self):
         b = page("Good defaults", "Two things most people like to decide right away.")
         for title, sub, active, cb in (
@@ -186,10 +265,6 @@ class WelcomeWindow(Gtk.ApplicationWindow):
             r.append(text)
             r.append(sw)
             b.append(r)
-        nxt = Gtk.Button(label="Try another wallpaper", halign=Gtk.Align.START, margin_top=16)
-        nxt.add_css_class("welcome-choice")
-        nxt.connect("clicked", lambda _b: in_thread(lambda: run(["xlin", "wallpaper", "next"])))
-        b.append(nxt)
         return b
 
     def p_keys(self):
@@ -206,6 +281,50 @@ class WelcomeWindow(Gtk.ApplicationWindow):
         return b
 
     # ---- actions
+    def load_thumb(self, pic, path):
+        if GdkPixbuf is None:
+            return
+
+        def work():
+            try:
+                pb = GdkPixbuf.Pixbuf.new_from_file_at_scale(path, 224, 128, True)
+            except Exception:
+                return
+            GLib.idle_add(lambda: (pic.set_paintable(Gdk.Texture.new_for_pixbuf(pb)), False)[1])
+        threading.Thread(target=work, daemon=True).start()
+
+    def set_wall(self, path):
+        for p, btn in self.wall_buttons.items():
+            (btn.add_css_class if p == path else btn.remove_css_class)("active")
+        self.wall_status.set_text("Setting the wallpaper…")
+        self.wall_status.remove_css_class("welcome-bad")
+        in_thread(lambda: run_msg(["xlin", "wallpaper", path]), self.wall_done)
+
+    def wall_done(self, res):
+        ok, msg = res
+        self.wall_status.set_text("Wallpaper changed." if ok else (msg or "Could not change the wallpaper."))
+        (self.wall_status.remove_css_class if ok else self.wall_status.add_css_class)("welcome-bad")
+        return False
+
+    def pick_own(self):
+        dlg = Gtk.FileDialog(title="Choose a wallpaper")
+        flt = Gtk.FileFilter()
+        flt.set_name("Pictures")
+        for pat in ("*.png", "*.jpg", "*.jpeg", "*.webp"):
+            flt.add_pattern(pat)
+        store = Gio.ListStore.new(Gtk.FileFilter)
+        store.append(flt)
+        dlg.set_filters(store)
+
+        def done(d, res):
+            try:
+                f = d.open_finish(res)
+            except GLib.Error:
+                return
+            if f and f.get_path():
+                self.set_wall(f.get_path())
+        dlg.open(self, None, done)
+
     def set_mode(self, key):
         for k, btn in self.mode_buttons.items():
             (btn.add_css_class if k == key else btn.remove_css_class)("active")

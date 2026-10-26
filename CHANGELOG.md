@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.12.0
+- XLIN Files: right-click -> Open with... (pick an app, optionally make it the default for that file type)
+- XLIN Files: right-click -> Extract here (zip, tar.*, 7z, rar, iso) and Compress to .zip
+
 ## 0.11.0
 - XLIN Files: USB drives and other removable disks appear under "Drives" in the sidebar; click to mount and open, ⏏ to safely remove (needs udisks2, installed by the installer)
 

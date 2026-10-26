@@ -298,6 +298,136 @@ def confirm(parent, title, text, ok_label, on_ok):
     return win
 
 
+ARCHIVE_EXT = (".zip", ".tar", ".tar.gz", ".tgz", ".tar.xz", ".txz", ".tar.bz2", ".tbz2",
+               ".tar.zst", ".7z", ".rar", ".iso")
+
+
+def is_archive(name):
+    return name.lower().endswith(ARCHIVE_EXT)
+
+
+def archive_stem(name):
+    low = name.lower()
+    for e in sorted(ARCHIVE_EXT, key=len, reverse=True):
+        if low.endswith(e):
+            return name[: -len(e)] or name
+    return name
+
+
+def extract_archive(path):
+    """Extract next to the file into a new folder. Returns (ok, folder_or_error)."""
+    folder = os.path.dirname(path)
+    dest = os.path.join(folder, unique_name(folder, archive_stem(os.path.basename(path))))
+    os.makedirs(dest, exist_ok=True)
+    try:
+        r = subprocess.run(["bsdtar", "-xf", path, "-C", dest], capture_output=True, text=True, timeout=600)
+    except FileNotFoundError:
+        shutil.rmtree(dest, ignore_errors=True)
+        return False, "bsdtar is missing. Install it: sudo pacman -S libarchive"
+    except Exception as e:
+        shutil.rmtree(dest, ignore_errors=True)
+        return False, str(e)
+    if r.returncode != 0:
+        shutil.rmtree(dest, ignore_errors=True)
+        return False, (r.stderr.strip().splitlines() or ["extraction failed"])[-1]
+    return True, dest
+
+
+def compress_paths(paths):
+    """Zip the given paths into one .zip beside the first. Returns (ok, zip_or_error)."""
+    folder = os.path.dirname(paths[0])
+    base = os.path.basename(paths[0]) if len(paths) == 1 else "Archive"
+    out = os.path.join(folder, unique_name(folder, base + ".zip"))
+    cmd = ["bsdtar", "--format", "zip", "-cf", out, "-C", folder] + [os.path.basename(x) for x in paths]
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+    except FileNotFoundError:
+        return False, "bsdtar is missing. Install it: sudo pacman -S libarchive"
+    except Exception as e:
+        return False, str(e)
+    if r.returncode != 0:
+        try:
+            os.remove(out)
+        except OSError:
+            pass
+        return False, (r.stderr.strip().splitlines() or ["compress failed"])[-1]
+    return True, out
+
+
+def apps_for(path):
+    """Apps that can open this file: (default first) list of Gio.AppInfo."""
+    try:
+        info = Gio.File.new_for_path(path).query_info("standard::content-type", 0, None)
+        ctype = info.get_content_type()
+    except Exception:
+        return None, []
+    apps, seen = [], set()
+    try:
+        default = Gio.AppInfo.get_default_for_type(ctype, False)
+        found = ([default] if default else []) + list(Gio.AppInfo.get_all_for_type(ctype))
+    except Exception:
+        found = []
+    for a in found:
+        aid = a.get_id()
+        if aid in seen or not a.should_show():
+            continue
+        seen.add(aid)
+        apps.append(a)
+    return ctype, apps
+
+
+def open_with_dialog(parent, path, on_msg):
+    ctype, apps = apps_for(path)
+    win = Gtk.Window(title="Open with", transient_for=parent, modal=True)
+    win.set_default_size(340, -1)
+    win.set_resizable(False)
+    win.set_decorated(False)
+    win.add_css_class("xlin-tools")
+    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+    for m in ("top", "bottom", "start", "end"):
+        getattr(box, f"set_margin_{m}")(18)
+    win.set_child(box)
+    t = Gtk.Label(label="Open with", xalign=0)
+    t.add_css_class("tool-title")
+    box.append(t)
+    box.append(Gtk.Label(label=os.path.basename(path), xalign=0, ellipsize=Pango.EllipsizeMode.MIDDLE))
+    if not apps:
+        box.append(Gtk.Label(label="No app is installed for this kind of file.", xalign=0, wrap=True))
+    always = Gtk.CheckButton(label="Always use this app for this file type")
+
+    def launch(app):
+        try:
+            if always.get_active() and ctype:
+                app.set_as_default_for_type(ctype)
+            app.launch([Gio.File.new_for_path(path)], None)
+        except GLib.Error as e:
+            on_msg(f"Could not open it: {e.message}")
+        win.close()
+
+    lst = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+    for a in apps[:12]:
+        b = Gtk.Button(halign=Gtk.Align.FILL)
+        b.add_css_class("files-menu-item")
+        row = Gtk.Box(spacing=10)
+        row.append(Gtk.Image.new_from_gicon(a.get_icon() or Gio.ThemedIcon.new("application-x-executable")))
+        row.append(Gtk.Label(label=a.get_display_name(), xalign=0))
+        b.set_child(row)
+        b.connect("clicked", lambda _b, aa=a: launch(aa))
+        lst.append(b)
+    box.append(lst)
+    if apps:
+        box.append(always)
+    cancel = Gtk.Button(label="Cancel", halign=Gtk.Align.END)
+    cancel.add_css_class("welcome-ghost")
+    cancel.connect("clicked", lambda _b: win.close())
+    box.append(cancel)
+    keys = Gtk.EventControllerKey()
+    keys.connect("key-pressed", lambda _c, kv, _k, _s: (win.close(), True)[1] if kv == Gdk.KEY_Escape else False)
+    win.add_controller(keys)
+    win.present()
+    return win
+
+
 def ask_text(parent, title, initial, ok_label, on_ok, select_stem=False):
     win = Gtk.Window(title=title, transient_for=parent, modal=True)
     win.set_default_size(380, -1)
@@ -694,6 +824,34 @@ class FilesWindow(Gtk.ApplicationWindow):
         except GLib.Error as e:
             self.say(f"Could not open it: {e.message}")
 
+    def extract_sel(self):
+        sel = self.selected()
+        if len(sel) != 1:
+            return
+        path = sel[0].path
+        self.say("Extracting ...")
+
+        def work():
+            ok, res = extract_archive(path)
+            GLib.idle_add(self.after_archive, ok, res, "Extracted to " + os.path.basename(res) if ok else res)
+        threading.Thread(target=work, daemon=True).start()
+
+    def compress_sel(self):
+        paths = [r.path for r in self.selected()]
+        if not paths:
+            return
+        self.say("Compressing ...")
+
+        def work():
+            ok, res = compress_paths(paths)
+            GLib.idle_add(self.after_archive, ok, res, "Created " + os.path.basename(res) if ok else res)
+        threading.Thread(target=work, daemon=True).start()
+
+    def after_archive(self, ok, res, msg):
+        self.populate()
+        self.say(msg if ok else "Failed: " + msg)
+        return False
+
     def new_folder(self):
         def make(name):
             try:
@@ -785,6 +943,8 @@ class FilesWindow(Gtk.ApplicationWindow):
         else:
             if one:
                 items.append(("Open", lambda: self.open_path(row.path, row.is_dir)))
+                if not row.is_dir:
+                    items.append(("Open with…", lambda: open_with_dialog(self, row.path, self.say)))
             items += [("Copy", self.copy_sel), ("Cut", self.cut_sel)]
             if self.clip[0]:
                 if one and row.is_dir:
@@ -792,6 +952,9 @@ class FilesWindow(Gtk.ApplicationWindow):
                 items.append(("Paste here", self.paste))
             if one:
                 items.append(("Rename", self.rename))
+            if one and not row.is_dir and is_archive(os.path.basename(row.path)):
+                items.append(("Extract here", self.extract_sel))
+            items.append(("Compress to .zip", self.compress_sel))
             items += [("Move to Trash", self.trash), ("New folder", self.new_folder)]
         pop = Gtk.Popover()
         pop.add_css_class("files-menu")

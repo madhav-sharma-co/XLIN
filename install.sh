@@ -113,11 +113,8 @@ cp "$SRC/config/hypr/xlin.conf" "$HOME/.config/hypr/xlin.conf"
 # ------------------------------------------------------- hyprland.conf hook
 HC="$HOME/.config/hypr/hyprland.conf"
 touch "$HC"
-if ! grep -q 'hypr/xlin.conf' "$HC"; then
-  backup "$HC"
-  printf '\n# XLIN\nsource = ~/.config/hypr/xlin.conf\n' >>"$HC"
-  say "Added XLIN to hyprland.conf"
-fi
+backup "$HC"
+/usr/local/bin/xlin hook      # puts the XLIN line last in hyprland.conf, so the shortcuts always work
 
 # ------------------------------------------------------------------- theme
 say "Applying light theme"

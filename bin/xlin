@@ -475,6 +475,8 @@ cmd_doctor() {
   done
   grep -q 'hypr/xlin.conf' "$HOME/.config/hypr/hyprland.conf" 2>/dev/null \
     && echo "  ok       hyprland.conf loads xlin.conf" || { echo "  MISSING  hyprland.conf does not load xlin.conf"; missing=1; }
+  echo "Shortcuts:"
+  have hyprctl && cmd_keys_check check quiet 2>&1 | sed 's/^/  /' || true
   echo "Summary:"
   echo "  wallpaper backend: $(wall_backend)"
   echo "  theme: $(cat "$STATE/theme" 2>/dev/null || echo none)   accent: $(cat "$STATE/accent" 2>/dev/null || echo blue)"
@@ -644,11 +646,12 @@ cmd_start() {
   pgrep -f xlin-dock-watch >/dev/null || setsid xlin-dock-watch >>"$HOME/.cache/xlin/dock.log" 2>&1 &
   cmd_wallpaper restore
   start_extras
+  ( sleep 3; cmd_keys_check fix quiet >/dev/null 2>&1 ) &
   ( sleep 4; cmd_welcome --first ) >/dev/null 2>&1 &
 }
 
 # ================================================================= XLIN CLI
-XLIN_VERSION="0.9.1"
+XLIN_VERSION="0.9.2"
 
 if [[ -t 1 ]]; then B=$'\e[1m'; D=$'\e[2m'; R=$'\e[0m'; else B=""; D=""; R=""; fi
 die() { echo "xlin: $*" >&2; return 1; }
@@ -1019,7 +1022,7 @@ EOT
   if ((!yes)); then read -rp "Continue? [y/N] " a; [[ "${a,,}" == y* ]] || { echo "cancelled"; return 0; }; fi
 
   local hc="$HOME/.config/hypr/hyprland.conf" f bak
-  [[ -f "$hc" ]] && sed -i '/^# XLIN$/d;/hypr\/xlin\.conf/d' "$hc"
+  [[ -f "$hc" ]] && sed -i '/^# XLIN/d;/hypr\/xlin\.conf/d' "$hc"
   rm -f "$HOME"/.config/hypr/xlin{,-colors,-opacity,-hyprlock,-hypridle}.conf
   pkill -f '[x]lin-dock-watch$' 2>/dev/null; pkill -f '^nwg-dock-hyprland' 2>/dev/null
   pkill -x hypridle 2>/dev/null; pkill -x hyprsunset 2>/dev/null
@@ -1042,6 +1045,78 @@ EOT
   # last step replaces this shell, because it deletes the very script that is running
   exec sudo rm -f /usr/local/bin/xlin /usr/local/bin/xlin-dock-watch /usr/local/bin/xlin-settings \
                   /usr/local/bin/xlin-tools /usr/local/bin/xlin-welcome /usr/local/bin/xlin-files
+}
+
+# ---- keeping the XLIN shortcuts working: xlin keys check | fix, and xlin hook
+# mods|key|command  (the Hyprland binds that start XLIN things; terminal and window keys are not listed)
+keys_expected() {
+  cat <<'EOT'
+SUPER|SPACE|xlin launcher
+SUPER|E|xlin files
+SUPER|S|xlin settings
+SUPER|C|xlin panel
+SUPER|U|xlin tools
+SUPER|N|xlin tools notes
+SUPER SHIFT|N|xlin note
+SUPER|B|xlin power
+SUPER|L|xlin lock
+SUPER|P|xlin session
+SUPER|V|xlin clipboard
+SUPER|D|xlin theme toggle
+SUPER|W|xlin wallpaper next
+SUPER|slash|xlin keys menu
+|Print|xlin screenshot region
+SHIFT|Print|xlin screenshot full
+ALT|Print|xlin screenshot window
+SUPER SHIFT|S|xlin screenshot region
+EOT
+}
+
+modmask_of() {   # "SUPER SHIFT" -> 65
+  local m=0 w
+  for w in $1; do
+    case "$w" in SHIFT) ((m += 1)) ;; CTRL|CONTROL) ((m += 4)) ;; ALT) ((m += 8)) ;; SUPER|MOD4) ((m += 64)) ;; esac
+  done
+  echo "$m"
+}
+
+# xlin keys check: report every XLIN shortcut. xlin keys fix: re-assert the ones another config took over.
+cmd_keys_check() {
+  local fix="${1:-}" quiet="${2:-}" mods key cmd mask bound ok=0 bad=0 binds
+  have hyprctl && have jq || { echo "needs hyprctl and jq"; return 1; }
+  binds="$(hyprctl binds -j 2>/dev/null)" || true
+  [[ -n "$binds" ]] || { echo "Hyprland is not running"; return 1; }
+  while IFS='|' read -r mods key cmd; do
+    mask="$(modmask_of "$mods")"
+    bound="$(jq -r --argjson m "$mask" --arg k "$key" \
+      '[.[] | select(.modmask == $m and ((.key | ascii_downcase) == ($k | ascii_downcase))) | (.dispatcher + " " + .arg)] | join(" ;; ")' <<<"$binds")"
+    if [[ "$bound" == "exec $cmd" ]]; then
+      ((ok++)); [[ -n "$quiet" ]] || printf '  ok       %-14s %s\n' "${mods:+${mods// /+}+}$key" "$cmd"
+    else
+      ((bad++))
+      printf '  %-8s %-14s wanted: %s   found: %s\n' "$([[ $fix == fix ]] && echo fixing || echo PROBLEM)" "${mods:+${mods// /+}+}$key" "$cmd" "${bound:-nothing}"
+      if [[ "$fix" == fix ]]; then
+        hyprctl keyword unbind "${mods// /_},$key" >/dev/null 2>&1
+        hyprctl keyword unbind "$mods,$key" >/dev/null 2>&1
+        hyprctl keyword bind "$mods,$key,exec,$cmd" >/dev/null 2>&1
+      fi
+    fi
+  done < <(keys_expected)
+  echo "shortcuts: $ok ok, $bad $([[ $fix == fix ]] && echo re-set || echo to fix)"
+  [[ $fix == fix ]] || ((bad == 0))
+}
+
+# Make sure hyprland.conf loads XLIN as its LAST line, so nothing below it can take XLIN's keys back.
+cmd_hook() {
+  local hc="$HOME/.config/hypr/hyprland.conf" line='source = ~/.config/hypr/xlin.conf' last n
+  mkdir -p "$(dirname "$hc")"; touch "$hc"
+  last="$(grep -v '^[[:space:]]*$' "$hc" | tail -1)"
+  n="$(grep -c 'hypr/xlin\.conf' "$hc")"
+  if [[ "$last" == "$line" && "$n" -eq 1 ]]; then echo "hyprland.conf: XLIN is already loaded last"; return 0; fi
+  [[ -e "$hc.xlin-bak" ]] || cp -a "$hc" "$hc.xlin-bak"
+  sed -i '/hypr\/xlin\.conf/d;/^# XLIN/d' "$hc"
+  printf '\n# XLIN (keep this line last, so the XLIN shortcuts always win)\n%s\n' "$line" >>"$hc"
+  echo "hyprland.conf: XLIN is now loaded last"
 }
 
 # Shortcut list. Edit config/hypr/xlin.conf to change keys; keep this table in step.
@@ -1077,6 +1152,7 @@ Workspaces|Super+Shift+1..4|Send window to workspace
 Workspaces|Super+Scroll|Next / previous workspace'
 
 cmd_keys() {
+  case "${1:-}" in check|fix) cmd_keys_check "$1" "${2:-}"; return $? ;; esac
   if [[ "${1:-}" == menu ]]; then
     pgrep -x rofi >/dev/null && { pkill -x rofi; return 0; }
     have rofi || { cmd_keys; return 0; }
@@ -1165,7 +1241,7 @@ ${B}System${R}
   xlin clipboard                   clipboard history
   xlin files [folder|default]      XLIN Files (default = use it for "show in folder")
   xlin notes [list|dir]            Notes window (Super+N); xlin note "text" saves a quick note
-  xlin keys                        all keyboard shortcuts (Super+/ shows them as a popup)
+  xlin keys [check|fix]            all keyboard shortcuts (Super+/ shows them); check/fix repairs clashes
   xlin wifi [..]                   Wi-Fi          (xlin wifi help)
   xlin bluetooth [..]   (xlin bt)  Bluetooth      (xlin bt help)
   xlin sound [..]       (volume)   volume         (xlin sound help)
@@ -1209,6 +1285,7 @@ case "${1:-help}" in
   note)      shift; cmd_note "$@" ;;
   notes)     shift; cmd_notes "${1:-}" ;;
   adapt)     cmd_adapt ;;
+  hook)      cmd_hook ;;
   uninstall) shift; cmd_uninstall "$@" ;;
   accent)    shift; cmd_accent "${1:-}" ;;
   welcome)   shift; cmd_welcome "${1:-}" ;;

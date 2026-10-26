@@ -40,6 +40,8 @@ done
 mkdir -p "$HOME/.local/share/applications"
 cp "$SRC/config/applications/dev.xlin.Files.desktop" "$HOME/.local/share/applications/"
 
+/usr/local/bin/xlin hook || true
+
 say "Applying theme and terminal"
 theme="$(cat "$XLIN_HOME/state/theme" 2>/dev/null || echo light)"
 /usr/local/bin/xlin theme "$theme" || true

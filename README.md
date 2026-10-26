@@ -1,7 +1,10 @@
 # XLIN for Hyprland
 
 A calm, clean, iPhone-style desktop for Hyprland on Arch Linux: light and dark themes, glass
-panels, thin 11px corners, and its own apps (Settings, Tools, Welcome, Terminal, Lock screen).
+panels, thin 11px corners, its own mouse cursor, icons and wallpapers, and its own apps
+(Settings, Files, Notes, Tools, Welcome, Terminal, Lock screen).
+
+<!-- Screenshots: put PNGs in docs/img/ and add them here, see docs/SCREENSHOTS.md -->
 
 ## Install (Arch + Hyprland)
 
@@ -14,7 +17,8 @@ panels, thin 11px corners, and its own apps (Settings, Tools, Welcome, Terminal,
 Run it as your normal user, not root. The installer backs up the Waybar and swaync
 configs it replaces.
 
-Update later:
+Update later: open **Settings → About → Update XLIN**, or run `xlin update`
+(it works when XLIN was installed from a git clone, as above). By hand:
 
     cd XLIN && git pull && ./update.sh
 
@@ -34,7 +38,10 @@ Remove everything (your old Waybar, swaync and Kitty configs are put back):
 | Tools           | Calculator and Calendar as small floating windows (Super+U)           |
 | Battery / power | hover for charge, click for power mode; power menu: lock, sleep, log out, restart, power off |
 | Lock screen    | hyprlock with your blurred wallpaper (Super+L), auto-lock when idle   |
-| Files           | XLIN Files (Super+E): browse, search, copy/cut/paste, drag to move, Trash with restore |
+| Files           | XLIN Files (Super+E): browse, search, copy/cut/paste, drag to move, Trash with restore, Open with, zip/extract, USB drives, network folders |
+| Notes           | Quick notes saved as plain .md files (Super+N, Super+Shift+N for a new one) |
+| Look and feel   | XLIN mouse cursor (follows light/dark), app icons, eight built-in wallpapers (Super+W) |
+| Welcome         | First-run tour: theme, accent, wallpaper, dock and shortcuts          |
 | Terminal        | Kitty with the XLIN prompt and welcome card                           |
 | Look            | light / dark, accent colours, window transparency (fullscreen stays solid) |
 | Daily basics    | screenshots, clipboard history, night light, volume/brightness popup  |
@@ -51,6 +58,7 @@ Super+Q Quit window, Super+F Fullscreen, Super+Shift+F Float, Print screenshot.
     xlin status                    one-screen overview
     xlin wifi | bluetooth | sound | brightness | battery
     xlin theme light|dark|toggle   xlin accent teal   xlin opacity 0.85
+    xlin wallpaper next|<image>    xlin cursor 24|32|48|64   xlin update [check]
     xlin screenshot | clipboard | idle | nightlight | lock | session
     xlin doctor | uninstall
 

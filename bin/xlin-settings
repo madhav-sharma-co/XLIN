@@ -463,11 +463,16 @@ def appearance_page(win):
     return box
 
 
+def xlin_version():
+    ok, out = run(["xlin", "version"])
+    return out.replace("xlin", "").strip() if ok and out else "unknown"
+
+
 def about_page(win):
     box = page_box("About", "XLIN desktop")
     c = card()
     box.append(c)
-    c.append(row("XLIN", "Phase 1"))
+    c.append(row("XLIN", f"Version {xlin_version()}"))
     ok, out = run(["hyprctl", "version", "-j"])
     ver = "unknown"
     m = re.search(r'"tag"\s*:\s*"([^"]+)"', out or "")
@@ -476,6 +481,45 @@ def about_page(win):
     c.append(row("Hyprland", ver))
     c.append(row("User", f"{os.environ.get('USER', '?')}@{os.uname().nodename}"))
     c.append(row("Theme", read_state("theme", "light")))
+
+    # ---- updates
+    u = card()
+    box.append(u)
+    status = Gtk.Label(label="Checking for updates...", xalign=0)
+    status.add_css_class("xlin-sub")
+    text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+    text.append(status)
+
+    def check():
+        status.set_text("Checking for updates...")
+
+        def work():
+            ok, out = run(["xlin", "update", "check"], 40)
+            return out or "Could not check for updates"
+
+        def done(msg):
+            status.set_text(msg.splitlines()[-1] if msg else "")
+        in_thread(work, done)
+
+    def run_update():
+        term = next((t for t in ("kitty", "foot", "alacritty", "xterm") if have(t)), None)
+        if term is None:
+            status.set_text("Open a terminal and run: xlin update")
+            return
+        cmd = "xlin update; echo; read -rp 'Done. Press Enter to close.'"
+        args = [term, "-e", "bash", "-c", cmd] if term != "xterm" else [term, "-e", "bash", "-c", cmd]
+        try:
+            subprocess.Popen(args, start_new_session=True)
+            status.set_text("Updating in a terminal window... check again afterwards.")
+        except OSError:
+            status.set_text("Open a terminal and run: xlin update")
+
+    buttons = Gtk.Box(spacing=8)
+    buttons.append(button("Check again", check))
+    buttons.append(button("Update XLIN", run_update))
+    u.append(row("Software update", None, buttons))
+    u.append(row("Status", None, status))
+    check()
     return box
 
 

@@ -95,6 +95,7 @@ sudo install -m 755 "$SRC/bin/xlin-files" /usr/local/bin/xlin-files
 mkdir -p "$HOME/.local/share/applications"
 cp "$SRC/config/applications/dev.xlin.Files.desktop" "$HOME/.local/share/applications/"
 mkdir -p "$XLIN_HOME/wallpapers" "$XLIN_HOME/state"
+echo "$SRC" >"$XLIN_HOME/state/source"
 
 backup() { [[ -e "$1" ]] && cp -a "$1" "$1.bak-$STAMP" && echo "   backed up $1" || true; }
 

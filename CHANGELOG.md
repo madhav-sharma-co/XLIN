@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.10.0
+- `xlin update` and `xlin update check`; Settings -> About shows the version and has an Update XLIN button
+
 ## 0.9.3
 - Fix: the Settings Appearance page did not open (missing accent colour row code)
 - Screenshots: clear "Screenshot taken, saved in Pictures/Screenshots" notification, and a failure notification with the reason

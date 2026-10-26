@@ -651,7 +651,7 @@ cmd_start() {
 }
 
 # ================================================================= XLIN CLI
-XLIN_VERSION="0.9.3"
+XLIN_VERSION="0.10.0"
 
 if [[ -t 1 ]]; then B=$'\e[1m'; D=$'\e[2m'; R=$'\e[0m'; else B=""; D=""; R=""; fi
 die() { echo "xlin: $*" >&2; return 1; }
@@ -1127,6 +1127,31 @@ cmd_hook() {
   echo "hyprland.conf: XLIN is now loaded last"
 }
 
+# ---- updates: xlin update [check]   (needs XLIN installed from a git clone)
+cmd_update() {
+  local src ver n up
+  src="$(cat "$STATE/source" 2>/dev/null || true)"
+  if [[ -z "$src" || ! -d "$src/.git" ]]; then
+    echo "Updates need XLIN installed from its git folder: git clone https://github.com/madhav-sharma-co/XLIN.git && cd XLIN && ./install.sh"
+    return 3
+  fi
+  have git || { echo "git is not installed (sudo pacman -S git)"; return 3; }
+  if [[ "${1:-}" == check ]]; then
+    git -C "$src" fetch -q origin 2>/dev/null || { echo "Could not reach GitHub (are you online?)"; return 2; }
+    n="$(git -C "$src" rev-list --count 'HEAD..@{u}' 2>/dev/null || echo 0)"
+    if [[ "${n:-0}" -gt 0 ]]; then
+      up="$(git -C "$src" show '@{u}:bin/xlin' 2>/dev/null | grep -m1 '^XLIN_VERSION=' | cut -d'"' -f2)"
+      echo "Update available: ${up:-newer version} (you have $XLIN_VERSION)"
+      return 10
+    fi
+    echo "XLIN is up to date ($XLIN_VERSION)"
+    return 0
+  fi
+  echo "Updating XLIN from $src ..."
+  git -C "$src" pull --ff-only || { echo "Could not update: you changed files in $src. Run: git -C $src status"; return 1; }
+  (cd "$src" && ./update.sh)
+}
+
 # Shortcut list. Edit config/hypr/xlin.conf to change keys; keep this table in step.
 KEYS_TABLE='Apps|Super+Space|Launcher
 Apps|Super+Return / Super+T|Terminal
@@ -1270,6 +1295,7 @@ ${B}Apps and panels${R}
 
 ${B}Session${R}
   xlin start | restart | reload            xlin doctor     xlin version
+  xlin update [check]                      get the newest XLIN from GitHub (check = look only)
   xlin uninstall [--purge]                 remove XLIN and restore your old configs
 
 Every command has its own help:  xlin <command> help      Tab completes commands.
@@ -1294,6 +1320,7 @@ case "${1:-help}" in
   notes)     shift; cmd_notes "${1:-}" ;;
   adapt)     cmd_adapt ;;
   hook)      cmd_hook ;;
+  update)    shift; cmd_update "${1:-}" ;;
   uninstall) shift; cmd_uninstall "$@" ;;
   accent)    shift; cmd_accent "${1:-}" ;;
   welcome)   shift; cmd_welcome "${1:-}" ;;

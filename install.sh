@@ -82,6 +82,8 @@ done
 say "Installing XLIN to $XLIN_HOME"
 mkdir -p "$XLIN_HOME" "$HOME/.config/hypr" "$HOME/.config/waybar" "$HOME/.config/swaync"
 cp -r "$SRC/themes" "$SRC/templates" "$XLIN_HOME/"
+mkdir -p "$XLIN_HOME/wallpapers"
+cp "$SRC"/assets/wallpapers/*.jpg "$XLIN_HOME/wallpapers/"
 cp "$SRC/config/shell/xlin.bash" "$XLIN_HOME/shell.bash"
 cp "$SRC/config/kitty/kitty.conf" "$XLIN_HOME/kitty.conf"
 

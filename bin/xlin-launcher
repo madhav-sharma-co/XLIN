@@ -34,6 +34,7 @@ CSS_FILE = os.path.join(HOME, ".config/xlin/tools.css")
 PINS = os.path.join(HOME, ".cache/nwg-dock-pinned")
 RECENT = os.path.join(HOME, ".config/xlin/state/recent")
 COLUMNS = 5
+CELL_W = (600 - 2 * 16 - 2) // COLUMNS
 PIN_MODE = "--pin" in sys.argv
 MSG_NORMAL = "Pinned and recent apps first   ·   Alt+P pin   ·   Alt+U unpin"
 MSG_PIN = "Pick an app to pin to the run bar"
@@ -84,6 +85,7 @@ class Launcher(Gtk.Window):
         LayerShell.set_namespace(self, "xlin-launcher")
         LayerShell.set_layer(self, LayerShell.Layer.OVERLAY)
         LayerShell.set_anchor(self, LayerShell.Edge.BOTTOM, True)
+        LayerShell.set_exclusive_zone(self, -1)      # 78px from the screen edge, whatever bars are there
         LayerShell.set_margin(self, LayerShell.Edge.BOTTOM, 78)
         LayerShell.set_keyboard_mode(self, LayerShell.KeyboardMode.EXCLUSIVE)
 
@@ -94,7 +96,7 @@ class Launcher(Gtk.Window):
         self.cells = []
 
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
-        box.set_size_request(600, -1)
+        box.set_size_request(568, -1)
         for m in ("top", "bottom", "start", "end"):
             getattr(box, f"set_margin_{m}")(16)
         self.set_child(box)
@@ -110,12 +112,12 @@ class Launcher(Gtk.Window):
         msg.add_css_class("launcher-msg")
         box.append(msg)
 
-        self.grid = Gtk.Grid(row_homogeneous=True, column_homogeneous=True, row_spacing=6, column_spacing=6)
+        self.grid = Gtk.Grid(row_homogeneous=True, column_homogeneous=True, row_spacing=6, column_spacing=6,
+                             halign=Gtk.Align.START, valign=Gtk.Align.START)
         self.scroll = Gtk.ScrolledWindow()
         self.scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
-        self.scroll.set_min_content_height(3 * 92 + 2 * 6)
-        self.scroll.set_max_content_height(3 * 92 + 2 * 6)
         self.scroll.set_propagate_natural_height(True)
+        self.cell_h = 0
         self.scroll.set_child(self.grid)
         box.append(self.scroll)
 
@@ -171,8 +173,8 @@ class Launcher(Gtk.Window):
         self.cells = []
         for i, (aid, name, icon) in enumerate(self.shown):
             cell = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+            cell.set_size_request(CELL_W, -1)      # 5 fixed columns even when few apps match
             cell.add_css_class("launcher-item")
-            cell.set_size_request(-1, 92)
             img = Gtk.Image()
             img.set_pixel_size(44)
             img.set_halign(Gtk.Align.CENTER)
@@ -183,18 +185,37 @@ class Launcher(Gtk.Window):
             lab = Gtk.Label(label=name)
             lab.add_css_class("launcher-name")
             lab.set_ellipsize(Pango.EllipsizeMode.END)
-            lab.set_max_width_chars(12)
+            lab.set_max_width_chars(11)
             lab.set_justify(Gtk.Justification.CENTER)
             cell.append(img)
             cell.append(lab)
             click = Gtk.GestureClick(button=1)
             click.connect("released", lambda _g, _n, _x, _y, idx=i: self.activate(idx))
             cell.add_controller(click)
+            motion = Gtk.EventControllerMotion()
+            motion.connect("enter", lambda _c, _x, _y, idx=i: self.hover(idx))
+            cell.add_controller(motion)
             self.grid.attach(cell, i % COLUMNS, i // COLUMNS, 1, 1)
             self.cells.append(cell)
-        # keep the grid 5 columns wide even when few results are shown
         self.sel = 0
         self.mark()
+        self.fix_height()
+
+    def hover(self, idx):
+        if idx != self.sel and 0 <= idx < len(self.cells):
+            self.sel = idx
+            for i, c in enumerate(self.cells):
+                (c.add_css_class if i == idx else c.remove_css_class)("selected")
+
+    def fix_height(self):
+        """Always three rows tall (like the old drawer), whatever the font makes one row."""
+        if not self.cells:
+            return
+        if not self.cell_h:
+            _m, nat, _b, _c = self.cells[0].measure(Gtk.Orientation.VERTICAL, -1)
+            self.cell_h = max(nat, 60)
+            self.scroll.set_min_content_height(3 * self.cell_h + 2 * 6)
+            self.scroll.set_max_content_height(3 * self.cell_h + 2 * 6)
 
     def mark(self):
         for i, c in enumerate(self.cells):
@@ -206,7 +227,8 @@ class Launcher(Gtk.Window):
             self.sel = max(0, min(self.sel, len(self.cells) - 1))
             row = self.sel // COLUMNS
             adj = self.scroll.get_vadjustment()
-            top, bottom = row * 98, row * 98 + 92
+            step = (self.cell_h or 92) + 6
+            top, bottom = row * step, row * step + (self.cell_h or 92)
             if top < adj.get_value():
                 adj.set_value(top)
             elif bottom > adj.get_value() + adj.get_page_size():

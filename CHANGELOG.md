@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.25.1
+- App drawer matched to the old rofi look: DM Sans fonts, exact width and row height, always five columns, highlight follows the mouse, fixed 78px distance from the screen edge
+
 ## 0.25.0
 - The app drawer is now XLIN's own (`xlin-launcher`, GTK + layer-shell) and no longer needs rofi: same look, same place above the Run Bar, same search, pinned/recent first, arrows + Enter, Alt+P pin, Alt+U unpin, Esc or a click outside closes
 - rofi is optional now (installer and `xlin doctor`); it is only a fallback if the drawer cannot start, and is still used by the clipboard and shortcut pickers

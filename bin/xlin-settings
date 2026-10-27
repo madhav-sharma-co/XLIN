@@ -549,6 +549,17 @@ def general_page(win):
     return box
 
 
+def vte_available():
+    """True when XLIN Terminal can start (needs the VTE library: sudo pacman -S vte4)."""
+    try:
+        import gi as _gi
+        _gi.require_version("Vte", "3.91")
+        from gi.repository import Vte  # noqa: F401
+        return True
+    except (ValueError, ImportError):
+        return False
+
+
 def xlin_version():
     ok, out = run(["xlin", "version"])
     return out.replace("xlin", "").strip() if ok and out else "unknown"
@@ -588,17 +599,21 @@ def about_page(win):
         in_thread(work, done)
 
     def run_update():
-        term = next((t for t in ("kitty", "foot", "alacritty", "xterm") if have(t)), None)
-        if term is None:
-            status.set_text("Open a terminal and run: xlin update")
-            return
         cmd = "xlin update; echo; read -rp 'Done. Press Enter to close.'"
-        args = [term, "-e", "bash", "-c", cmd] if term != "xterm" else [term, "-e", "bash", "-c", cmd]
+        if have("xlin-terminal") and vte_available():
+            args = ["xlin-terminal", "-e", "bash", "-c", cmd]          # XLIN's own terminal
+        else:
+            term = next((t for t in ("kitty", "foot", "alacritty", "gnome-terminal", "konsole", "xterm")
+                         if have(t)), None)
+            if term is None:
+                status.set_text("Open a terminal (Super+Return) and run: xlin update")
+                return
+            args = [term, "--", "bash", "-c", cmd] if term == "gnome-terminal" else [term, "-e", "bash", "-c", cmd]
         try:
             subprocess.Popen(args, start_new_session=True)
             status.set_text("Updating in a terminal window... check again afterwards.")
         except OSError:
-            status.set_text("Open a terminal and run: xlin update")
+            status.set_text("Open a terminal (Super+Return) and run: xlin update")
 
     buttons = Gtk.Box(spacing=8)
     buttons.append(button("Check again", check))

@@ -565,7 +565,9 @@ cmd_doctor() {
   chk required hyprctl hyprland;       chk required waybar waybar;        chk required rofi rofi
   chk required swaync swaync;          chk required jq jq;                chk required socat socat
   chk required nmcli networkmanager;   chk required wpctl wireplumber;    chk required brightnessctl brightnessctl
-  chk required magick imagemagick;     chk required python3 python;       chk required kitty kitty
+  if python3 -c "import gi; gi.require_version('Vte','3.91')" >/dev/null 2>&1; then echo "  ok       XLIN Terminal (vte4)"
+  else echo "  missing  XLIN Terminal needs vte4   (sudo pacman -S vte4); another terminal is used meanwhile"; fi
+  chk required magick imagemagick;     chk required python3 python;       chk optional kitty kitty
   b=nwg-dock-hyprland; have "$b" && echo "  ok       $b" || { echo "  MISSING  $b   (AUR: nwg-dock-hyprland)"; missing=1; }
   python3 -c 'import gi; gi.require_version("Gtk","4.0")' 2>/dev/null \
     && echo "  ok       GTK4 for Python" || { echo "  MISSING  GTK4 for Python   (sudo pacman -S gtk4 python-gobject)"; missing=1; }
@@ -801,7 +803,7 @@ cmd_start() {
 }
 
 # ================================================================= XLIN CLI
-XLIN_VERSION="0.23.0"
+XLIN_VERSION="0.23.1"
 
 if [[ -t 1 ]]; then B=$'\e[1m'; D=$'\e[2m'; R=$'\e[0m'; else B=""; D=""; R=""; fi
 die() { echo "xlin: $*" >&2; return 1; }

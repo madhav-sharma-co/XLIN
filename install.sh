@@ -24,7 +24,7 @@ pick_repo() { # first package that exists in the repos
 say "Installing packages"
 core=(hyprland waybar swaync jq socat libnotify brightnessctl networkmanager
       network-manager-applet pipewire wireplumber pavucontrol blueman
-      imagemagick ttf-font-awesome inter-font gtk3 gtk4 python-gobject kitty bluez bluez-utils power-profiles-daemon hyprlock)
+      imagemagick ttf-font-awesome inter-font gtk3 gtk4 python-gobject bluez bluez-utils power-profiles-daemon hyprlock)
 
 pacman_fail() {
   cat <<'EOF'
@@ -77,6 +77,10 @@ fi
 for pkg in vte4 gtk4-layer-shell udisks2 gvfs gvfs-smb grim slurp wl-clipboard cliphist hypridle hyprsunset xdg-desktop-portal-hyprland xdg-desktop-portal-gtk hyprpolkitagent; do
   sudo pacman -S --needed --noconfirm "$pkg" >/dev/null 2>&1 || echo "   (could not install $pkg)"
 done
+
+# XLIN Terminal needs vte4; if that is not possible, install kitty so there is always a terminal
+python3 -c "import gi; gi.require_version('Vte','3.91')" >/dev/null 2>&1 || \
+  sudo pacman -S --needed --noconfirm kitty >/dev/null 2>&1 || echo "   (no terminal could be installed: sudo pacman -S vte4)"
 
 # ------------------------------------------------------------------- files
 say "Installing XLIN to $XLIN_HOME"

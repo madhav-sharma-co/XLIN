@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Screenshot
+GenericName=Screenshot tool
+Comment=Capture an area, window or the whole screen
+Exec=xlin tools screenshot
+Icon=xlin-screenshot
+Terminal=false
+Categories=Utility;
+StartupWMClass=dev.xlin.Screenshot

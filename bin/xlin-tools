@@ -32,8 +32,9 @@ TOOLS = {
     "calculator": ("Calculator", "dev.xlin.Calculator", 300, 420, "Quick sums", "accessories-calculator-symbolic"),
     "calendar":   ("Calendar",   "dev.xlin.Calendar",   340, 430, "Dates and weekends", "x-office-calendar-symbolic"),
     "notes":      ("Notes",      "dev.xlin.Notes",      360, 470, "Quick notes, saved as files", "accessories-text-editor-symbolic"),
+    "screenshot": ("Screenshot", "dev.xlin.Screenshot", 300, 336, "Capture an area, window or screen", "camera-photo-symbolic"),
 }
-MENU_ID, MENU_W, MENU_H = "dev.xlin.Tools", 300, 250
+MENU_ID, MENU_W, MENU_H = "dev.xlin.Tools", 300, 320
 POWER_ID, POWER_W, POWER_H = "dev.xlin.Power", 290, 300
 SESSION_ID, SESSION_W, SESSION_H = "dev.xlin.Session", 200, 282
 # key, glyph, label, xlin command, needs a second click to confirm
@@ -602,9 +603,10 @@ def hypr_json(what):
         return []
 
 
-def place_window(app_id, stagger):
-    """Hyprland: put a floating window under the top bar at the right edge,
-    shifted a little for each tool that is already open, so they do not hide each other."""
+def place_window(app_id, stagger, center=False):
+    """Hyprland: tools that are not the menu open in the middle of the screen (the window rule does that
+    for the first one); each extra tool is shifted a little so they do not hide each other.
+    The menus (Tools, battery, power) stay under the top bar at the right edge."""
     try:
         clients = hypr_json("clients")
         mons = hypr_json("monitors")
@@ -613,12 +615,22 @@ def place_window(app_id, stagger):
                    next((m for m in mons if m.get("focused")), mons[0]))
         n = 0
         if stagger:
-            n = sum(1 for c in clients if c.get("class") in ALL_IDS and c.get("class") != MENU_ID
+            tool_ids = {t[1] for t in TOOLS.values()}
+            n = sum(1 for c in clients if c.get("class") in tool_ids
                     and c.get("address") != me.get("address"))
         scale = mon.get("scale") or 1
-        top = (mon.get("reserved") or [0, 0, 0, 0])[1]
-        x = int(mon["x"] + mon["width"] / scale - me["size"][0] - 12 - 26 * n)
-        y = int(mon["y"] + top + 8 + 26 * n)
+        reserved = mon.get("reserved") or [0, 0, 0, 0]
+        top = reserved[1]
+        if center:
+            if n == 0:
+                return False          # the window rule already centred it: no jump, no animation
+            area_w = mon["width"] / scale
+            area_h = mon["height"] / scale - top - reserved[3]
+            x = int(mon["x"] + (area_w - me["size"][0]) / 2 + 26 * n)
+            y = int(mon["y"] + top + (area_h - me["size"][1]) / 2 + 26 * n)
+        else:
+            x = int(mon["x"] + mon["width"] / scale - me["size"][0] - 12 - 26 * n)
+            y = int(mon["y"] + top + 8 + 26 * n)
         if abs(me["at"][0] - x) <= 6 and abs(me["at"][1] - y) <= 6:
             return False   # the window rule already opened it there: no jump, no animation
         subprocess.run(["hyprctl", "dispatch", "movewindowpixel",
@@ -690,6 +702,76 @@ def profile_available():
 
 
 # -------------------------------------------------------------- windows
+# ------------------------------------------------------------ screenshot
+class ScreenshotView(Gtk.Box):
+    """Pick what to capture; the window closes first so it is not in the picture."""
+
+    def __init__(self):
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        self.window = None
+        self.delay = 0
+        for mode, label, sub, icon in (
+                ("region", "Select an area", "Drag a rectangle", "view-fullscreen-symbolic"),
+                ("window", "A window", "Click the window you want", "window-new-symbolic"),
+                ("full", "The whole screen", "Everything you see", "video-display-symbolic")):
+            row = Gtk.Button()
+            row.add_css_class("tools-item")
+            box = Gtk.Box(spacing=12)
+            img = Gtk.Image.new_from_icon_name(icon)
+            img.set_pixel_size(22)
+            box.append(img)
+            text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
+            a = Gtk.Label(label=label, xalign=0)
+            b = Gtk.Label(label=sub, xalign=0)
+            b.add_css_class("tools-sub")
+            text.append(a)
+            text.append(b)
+            box.append(text)
+            row.set_child(box)
+            row.connect("clicked", lambda _b, m=mode: self.capture(m))
+            self.append(row)
+
+        d = Gtk.Box(spacing=6, margin_top=6)
+        lab = Gtk.Label(label="Delay", xalign=0, hexpand=True)
+        lab.add_css_class("tools-sub")
+        d.append(lab)
+        first = None
+        for secs, text in ((0, "None"), (3, "3 s"), (5, "5 s")):
+            t = Gtk.ToggleButton(label=text)
+            t.add_css_class("note-new")
+            if first is None:
+                first = t
+                t.set_active(True)
+            else:
+                t.set_group(first)
+            t.connect("toggled", lambda b, s=secs: b.get_active() and setattr(self, "delay", s))
+            d.append(t)
+        self.append(d)
+
+        folder = Gtk.Button(label="Open the Screenshots folder", margin_top=4)
+        folder.add_css_class("welcome-ghost")
+        folder.connect("clicked", lambda _b: self.open_folder())
+        self.append(folder)
+
+    def capture(self, mode):
+        wait = self.delay + 0.5           # 0.5 s so this window is gone before the picture is taken
+        subprocess.Popen(["sh", "-c", f"sleep {wait}; exec xlin screenshot {mode}"], start_new_session=True,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if self.window is not None:
+            self.window.close()
+
+    def open_folder(self):
+        folder = os.path.expanduser("~/Pictures/Screenshots")
+        os.makedirs(folder, exist_ok=True)
+        subprocess.Popen(["xlin", "files", folder], start_new_session=True,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if self.window is not None:
+            self.window.close()
+
+    def on_key(self, keyval):
+        return False
+
+
 class ToolWindow(Gtk.ApplicationWindow):
     """Base: borderless window with a drag strip. Subclasses fill self.body."""
 
@@ -967,7 +1049,9 @@ class FloatingTool(ToolWindow):
     def __init__(self, app, key):
         label, _id, w, h, _sub, _icon = TOOLS[key]
         super().__init__(app, label, w, h, with_close=True)
-        self.tool = {"calculator": Calculator, "calendar": CalendarView, "notes": NotesView}[key]()
+        self.tool = {"calculator": Calculator, "calendar": CalendarView, "notes": NotesView,
+                     "screenshot": ScreenshotView}[key]()
+        self.tool.window = self
         self.connect("close-request", lambda *_: (getattr(self.tool, "flush", lambda: None)(), False)[1])
         self.body.append(self.tool)
         keys = Gtk.EventControllerKey()
@@ -1026,8 +1110,8 @@ class ToolsApp(Gtk.Application):
         self.win.present()
         app_id = self.get_application_id()
         stagger = self.mode in TOOLS
-        GLib.timeout_add(120, place_window, app_id, stagger)
-        GLib.timeout_add(400, place_window, app_id, stagger)  # again once Hyprland settled the size
+        GLib.timeout_add(120, place_window, app_id, stagger, stagger)
+        GLib.timeout_add(400, place_window, app_id, stagger, stagger)  # again once Hyprland settled the size
 
 
 if __name__ == "__main__":

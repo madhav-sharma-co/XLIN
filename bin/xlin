@@ -800,7 +800,7 @@ cmd_start() {
 }
 
 # ================================================================= XLIN CLI
-XLIN_VERSION="0.21.1"
+XLIN_VERSION="0.22.0"
 
 if [[ -t 1 ]]; then B=$'\e[1m'; D=$'\e[2m'; R=$'\e[0m'; else B=""; D=""; R=""; fi
 die() { echo "xlin: $*" >&2; return 1; }
@@ -1492,7 +1492,7 @@ ${B}Look and feel${R}              (xlin help theme)
 ${B}Apps and panels${R}
   xlin launcher    xlin settings [page]    xlin panel    xlin power    xlin lock
   xlin session (power menu)   xlin sleep | logout | poweroff | reboot
-  xlin tools [calculator|calendar|notes]   xlin files    xlin pin|unpin <app>
+  xlin tools [calculator|calendar|notes|screenshot]   xlin files    xlin pin|unpin <app>
 
 ${B}Session${R}
   xlin start | restart | reload            xlin doctor     xlin version

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.22.0
+- Calculator, Calendar and Notes now open in the middle of the screen (the Tools menu itself stays under the top bar); extra tools open a little offset so they do not hide each other
+- New tool in the Tools menu: Screenshot (select an area, a window or the whole screen, with an optional 3 or 5 second delay, and a button for the Screenshots folder)
+
 ## 0.21.1
 - Fix: copies and new zip files were numbered after the extension ("Archive.zip 2"); now "Archive 2.zip"
 - Fix: Files restore from Trash gives a clear message when the trash record is missing

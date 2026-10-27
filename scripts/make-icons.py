@@ -81,6 +81,13 @@ def terminal():
             '<rect x="58" y="80" width="26" height="6" rx="3" fill="#fff" fill-opacity=".85"/>')
 
 
+def screenshot():
+    corner = lambda d: f'<path d="{d}" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>'
+    return (corner("M30 52V38a8 8 0 0 1 8-8h14") + corner("M76 30h14a8 8 0 0 1 8 8v14")
+            + corner("M98 76v14a8 8 0 0 1-8 8H76") + corner("M52 98H38a8 8 0 0 1-8-8V76")
+            + '<circle cx="64" cy="64" r="9" fill="#fff"/>')
+
+
 def power(color):
     return (f'<path d="M64 26v36" stroke="#fff" stroke-width="10" stroke-linecap="round" fill="none"/>'
             f'<path d="M44 40a34 34 0 1 0 40 0" stroke="#fff" stroke-width="10" stroke-linecap="round" fill="none"/>')
@@ -96,6 +103,7 @@ ICONS = {
     "xlin-welcome": ("#ff8fb1", "#ff8a3d", sparkle()),
     "xlin-monitor": ("#5ee0a0", "#16a05f", monitor()),
     "xlin-terminal": ("#5b6272", "#23262f", terminal()),
+    "xlin-screenshot": ("#ff9ec0", "#c24eea", screenshot()),
     "xlin-power": ("#ff6b5e", "#d62f2f", power("#d62f2f")),
 }
 

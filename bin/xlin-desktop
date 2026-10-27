@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """XLIN Desktop - the layer between your wallpaper and your windows.
 
-Right-click the desktop for a menu: add an app shortcut, show widgets (clock, calendar, system),
-change the wallpaper, open Terminal / Files / Settings. Shortcuts and widgets can be dragged;
-double-click a shortcut to open it, right-click it to remove it.
+Right-click the desktop for a menu: add an app shortcut, widgets, icon size, arrange icons, new folder,
+wallpaper, Terminal / Files / Settings. Files and folders in ~/Desktop show up as icons too.
+Drag icons and widgets anywhere (icons snap to a grid). Double-click an icon to open it,
+right-click it for Open / Remove / Move to Trash.
 Needs gtk4-layer-shell (sudo pacman -S gtk4-layer-shell). Started by `xlin start`; `xlin desktop`.
 """
 import glob
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -39,27 +41,47 @@ HOME = os.path.expanduser("~")
 CONFIG = os.path.join(HOME, ".config/xlin/desktop.json")
 STATE = os.path.join(HOME, ".config/xlin/state")
 CSS_FILE = os.path.join(HOME, ".config/xlin/tools.css")
-CELL_W, CELL_H, MARGIN_X, MARGIN_Y = 100, 108, 36, 66
+NOTES_DIR = os.path.join(HOME, ".local/share/xlin/notes")
+MARGIN_X, MARGIN_Y, MIN_Y = 36, 66, 40
+# name: (icon pixels, cell width, cell height)
+ICON_SIZES = {"small": (40, 84, 92), "medium": (52, 100, 108), "large": (68, 120, 130)}
 DEFAULT = {
     "icons": [{"id": "dev.xlin.Files.desktop", "x": 0, "y": 0}, {"id": "dev.xlin.Terminal.desktop", "x": 0, "y": 1}],
-    "widgets": {"clock": {"on": True, "x": 0, "y": 0}, "calendar": {"on": False, "x": 0, "y": 0},
-                "system": {"on": False, "x": 0, "y": 0}},
+    "files": {},
+    "icon_size": "medium",
+    "show_icons": True,
+    "todo": [],
+    "widgets": {},
 }
-WIDGET_NAMES = (("clock", "Clock"), ("calendar", "Calendar"), ("system", "System"))
+WIDGET_NAMES = (("clock", "Clock"), ("calendar", "Calendar"), ("system", "System"), ("battery", "Battery"),
+                ("media", "Media player"), ("notes", "Notes"), ("todo", "To-do list"), ("timer", "Timer"))
+WIDGET_DEFAULT_ON = {"clock"}
 
 
 # ------------------------------------------------------------- settings
 def load_config():
+    cfg = None
     try:
         with open(CONFIG) as f:
             data = json.load(f)
-        if isinstance(data, dict) and "icons" in data and "widgets" in data:
-            for k, v in DEFAULT["widgets"].items():
-                data["widgets"].setdefault(k, dict(v))
-            return data
+        if isinstance(data, dict) and isinstance(data.get("icons"), list):
+            cfg = data
     except (OSError, ValueError):
         pass
-    return json.loads(json.dumps(DEFAULT))
+    if cfg is None:
+        cfg = json.loads(json.dumps(DEFAULT))
+    for k, v in DEFAULT.items():
+        cfg.setdefault(k, json.loads(json.dumps(v)))
+    if not isinstance(cfg["widgets"], dict):
+        cfg["widgets"] = {}
+    for key, _n in WIDGET_NAMES:
+        w = cfg["widgets"].setdefault(key, {})
+        w.setdefault("on", key in WIDGET_DEFAULT_ON)
+        w.setdefault("x", 0)
+        w.setdefault("y", 0)
+    if cfg["icon_size"] not in ICON_SIZES:
+        cfg["icon_size"] = "medium"
+    return cfg
 
 
 def save_config(cfg):
@@ -84,18 +106,28 @@ def theme_name():
 def desktop_css():
     dark = theme_name() == "dark"
     ink = "#f2f4fa" if dark else "#182035"
-    card = "rgba(28,30,38,.58)" if dark else "rgba(255,255,255,.62)"
+    card = "rgba(28,30,38,.62)" if dark else "rgba(255,255,255,.66)"
     shadow = "0 1px 3px rgba(0,0,0,.65)" if dark else "0 1px 2px rgba(255,255,255,.6)"
     return f"""
     window.xlin-desktop {{ background: transparent; }}
     .desk-label {{ color: {ink}; text-shadow: {shadow}; font-size: 12px; }}
-    .desk-icon {{ padding: 8px 6px; border-radius: 12px; }}
+    .desk-icon {{ padding: 8px 6px; border-radius: 12px; border: 1px solid transparent; }}
     .desk-icon:hover {{ background-color: alpha({ink}, .10); }}
+    .desk-icon.selected {{ background-color: alpha({ink}, .20); border-color: alpha({ink}, .30); }}
+    .dragging {{ opacity: .85; box-shadow: 0 14px 34px rgba(0,0,0,.35); }}
     .desk-card {{ background-color: {card}; border-radius: 18px; padding: 14px 18px; color: {ink}; }}
     .desk-card label {{ color: {ink}; }}
+    .desk-card button {{ background-image: none; background-color: alpha({ink}, .10); color: {ink};
+        border: none; box-shadow: none; border-radius: 8px; min-height: 0; padding: 3px 10px; }}
+    .desk-card button:hover {{ background-color: alpha({ink}, .20); }}
+    .desk-card entry {{ background-color: alpha({ink}, .08); color: {ink}; border: none; border-radius: 8px;
+        min-height: 0; padding: 4px 8px; box-shadow: none; }}
     .desk-time {{ font-size: 56px; font-weight: 300; }}
     .desk-date {{ font-size: 15px; opacity: .8; }}
+    .desk-big {{ font-size: 34px; font-weight: 300; }}
     .desk-title {{ font-size: 11px; opacity: .6; }}
+    .desk-dim {{ opacity: .65; font-size: 12px; }}
+    .desk-done {{ opacity: .45; text-decoration: line-through; }}
     .desk-card calendar {{ background: transparent; color: {ink}; border: none; }}
     .desk-card levelbar block.filled {{ background-color: {ink}; border-radius: 4px; }}
     .desk-card levelbar block.empty {{ background-color: alpha({ink}, .18); border-radius: 4px; }}
@@ -107,6 +139,14 @@ def run(cmd):
         subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
     except OSError:
         pass
+
+
+def run_out(cmd, timeout=2):
+    try:
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        return p.returncode == 0, p.stdout.strip()
+    except Exception:
+        return False, ""
 
 
 def cpu_times():
@@ -132,6 +172,52 @@ def disk_frac():
     return 1 - (s.f_bavail / s.f_blocks) if s.f_blocks else 0
 
 
+def battery():
+    """(percent, status) or None."""
+    base = "/sys/class/power_supply"
+    try:
+        names = sorted(n for n in os.listdir(base) if n.startswith("BAT"))
+        if not names:
+            return None
+        with open(os.path.join(base, names[0], "capacity")) as f:
+            cap = int(f.read().strip())
+        with open(os.path.join(base, names[0], "status")) as f:
+            st = f.read().strip()
+        return cap, st
+    except (OSError, ValueError):
+        return None
+
+
+def recent_notes(limit=3):
+    out = []
+    try:
+        files = [os.path.join(NOTES_DIR, n) for n in os.listdir(NOTES_DIR) if n.endswith(".md")]
+        files.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+        for p in files[:limit]:
+            with open(p, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip().lstrip("#").strip()
+                    if line:
+                        out.append(line[:60])
+                        break
+    except OSError:
+        pass
+    return out
+
+
+def desktop_dir():
+    p = GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_DESKTOP)
+    return p if p and os.path.isdir(p) and p != HOME else None
+
+
+def unique_path(folder, base):
+    path, i = os.path.join(folder, base), 2
+    while os.path.lexists(path):
+        path = os.path.join(folder, f"{base} {i}")
+        i += 1
+    return path
+
+
 # --------------------------------------------------------------- the desktop
 class DesktopWindow(Gtk.Window):
     def __init__(self, app):
@@ -154,31 +240,39 @@ class DesktopWindow(Gtk.Window):
         self.theme = None
         self.fixed = Gtk.Fixed()
         self.set_child(self.fixed)
-        self.icon_widgets = {}
+        self.items = {}             # key -> dict(box, img, store, ...)
+        self.selected = None
+        self.drag_targets = {}      # widget -> (handle widget, on_drop)
+        self.anims = {}
         self.widget_boxes = {}
+        self.refs = {}              # per-widget labels and bars
         self.prev_cpu = cpu_times()
+        self.ticks = 0
+        self.timer = {"left": 25 * 60, "total": 25 * 60, "running": False, "end": 0.0}
+        self.media_text = ("", "", "")
 
         right = Gtk.GestureClick(button=3)
         right.connect("pressed", self.on_desktop_menu)
         self.fixed.add_controller(right)
 
+        drag = Gtk.GestureDrag(button=1)
+        self.drag_state = {}
+        drag.connect("drag-begin", self.on_drag_begin)
+        drag.connect("drag-update", self.on_drag_update)
+        drag.connect("drag-end", self.on_drag_end)
+        self.fixed.add_controller(drag)
+
         self.refresh_theme()
         for item in list(self.cfg["icons"]):
-            self.add_icon_widget(item)
+            self.add_app_icon(item)
+        self.refresh_files()
         for key, _n in WIDGET_NAMES:
             self.sync_widget(key)
+        self.apply_icon_visibility()
         GLib.timeout_add_seconds(1, self.tick)
+        GLib.timeout_add_seconds(3, self.refresh_files)
 
-    # ---- helpers
-    def refresh_theme(self):
-        name = theme_name()
-        if name != self.theme:
-            self.theme = name
-            try:
-                self.css.load_from_data(desktop_css().encode())
-            except Exception:
-                pass
-
+    # ---- geometry
     def screen_size(self):
         w, h = self.get_width(), self.get_height()
         if w < 100 or h < 100:
@@ -189,56 +283,120 @@ class DesktopWindow(Gtk.Window):
                 w, h = 1920, 1080
         return w, h
 
+    def metrics(self):
+        return ICON_SIZES[self.cfg["icon_size"]]
+
     def grid_pos(self, gx, gy):
-        return MARGIN_X + gx * CELL_W, MARGIN_Y + gy * CELL_H
+        _px, cw, ch = self.metrics()
+        return MARGIN_X + gx * cw, MARGIN_Y + gy * ch
 
     def snap(self, x, y):
+        _px, cw, ch = self.metrics()
         w, h = self.screen_size()
-        gx = max(0, min(int((w - MARGIN_X) // CELL_W) - 1, round((x - MARGIN_X) / CELL_W)))
-        gy = max(0, min(int((h - MARGIN_Y) // CELL_H) - 1, round((y - MARGIN_Y) / CELL_H)))
+        gx = max(0, min(int((w - MARGIN_X) // cw) - 1, round((x - MARGIN_X) / cw)))
+        gy = max(0, min(int((h - MARGIN_Y) // ch) - 1, round((y - MARGIN_Y) / ch)))
         return gx, gy
 
+    def rows(self):
+        _px, _cw, ch = self.metrics()
+        return max(1, int((self.screen_size()[1] - MARGIN_Y) // ch))
+
+    def occupied(self, skip=None):
+        return {(it["store"]["x"], it["store"]["y"]) for k, it in self.items.items() if k != skip}
+
     def free_cell(self):
-        used = {(i["x"], i["y"]) for i in self.cfg["icons"]}
-        rows = max(1, int((self.screen_size()[1] - MARGIN_Y) // CELL_H))
-        for gx in range(0, 30):
+        used = self.occupied()
+        rows = self.rows()
+        for gx in range(0, 40):
             for gy in range(rows):
                 if (gx, gy) not in used:
                     return gx, gy
         return 0, 0
 
-    # ---- shortcut icons
-    def add_icon_widget(self, item):
-        app = Gio.DesktopAppInfo.new(item["id"])
-        if app is None:
-            return False
+    def refresh_theme(self):
+        name = theme_name()
+        if name != self.theme:
+            self.theme = name
+            try:
+                self.css.load_from_data(desktop_css().encode())
+            except Exception:
+                pass
+
+    # ---- one icon on the desktop
+    def make_icon(self, key, title, gicon, store, activate, menu_items):
+        px, cw, ch = self.metrics()
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         box.add_css_class("desk-icon")
-        box.set_size_request(CELL_W - 12, CELL_H - 8)
+        box.set_size_request(cw - 12, ch - 8)
         img = Gtk.Image()
-        img.set_pixel_size(52)
-        gicon = app.get_icon()
-        if gicon:
+        img.set_pixel_size(px)
+        if gicon is not None:
             img.set_from_gicon(gicon)
         else:
             img.set_from_icon_name("application-x-executable")
-        label = Gtk.Label(label=app.get_display_name())
+        label = Gtk.Label(label=title)
         label.add_css_class("desk-label")
         label.set_ellipsize(Pango.EllipsizeMode.END)
-        label.set_max_width_chars(12)
+        label.set_max_width_chars(max(10, cw // 8))
         box.append(img)
         box.append(label)
-        px, py = self.grid_pos(item["x"], item["y"])
-        self.fixed.put(box, px, py)
-        self.icon_widgets[item["id"]] = box
-        self.make_draggable(box, box, lambda x, y, it=item: self.drop_icon(it, x, y))
+        x, y = self.grid_pos(store["x"], store["y"])
+        self.fixed.put(box, x, y)
+        item = {"key": key, "box": box, "img": img, "store": store}
+        self.items[key] = item
+        self.drag_targets[box] = (box, lambda nx, ny, it=item: self.drop_icon(it, nx, ny))
         dbl = Gtk.GestureClick(button=1)
-        dbl.connect("released", lambda g, n, _x, _y, a=app: n == 2 and self.launch(a))
+        dbl.connect("released", lambda g, n, _x, _y: n == 2 and activate())
         box.add_controller(dbl)
         rc = Gtk.GestureClick(button=3)
-        rc.connect("pressed", lambda g, _n, x, y, it=item, a=app, b=box: self.icon_menu(g, b, x, y, it, a))
+        rc.connect("pressed", lambda g, _n, ex, ey, it=item: self.icon_menu(g, it, ex, ey, menu_items))
         box.add_controller(rc)
+        return item
+
+    def add_app_icon(self, item):
+        app = Gio.DesktopAppInfo.new(item["id"])
+        if app is None:
+            return False
+        key = "app:" + item["id"]
+        self.make_icon(key, app.get_display_name(), app.get_icon(), item,
+                       lambda a=app: self.launch(a),
+                       lambda it=item, a=app: [("Open", lambda: self.launch(a)),
+                                               ("Remove shortcut", lambda: self.remove_shortcut(it))])
         return True
+
+    def add_file_icon(self, name, path):
+        store = self.cfg["files"].get(name)
+        if store is None:
+            gx, gy = self.free_cell()
+            store = {"x": gx, "y": gy}
+            self.cfg["files"][name] = store
+        is_dir = os.path.isdir(path)
+        gicon = Gio.ThemedIcon.new("folder")
+        if not is_dir:
+            try:
+                info = Gio.File.new_for_path(path).query_info("standard::icon", 0, None)
+                gicon = info.get_icon() or Gio.ThemedIcon.new("text-x-generic")
+            except GLib.Error:
+                gicon = Gio.ThemedIcon.new("text-x-generic")
+        self.make_icon("file:" + name, name, gicon, store, lambda p=path, d=is_dir: self.open_path(p, d),
+                       lambda p=path, d=is_dir: [("Open", lambda: self.open_path(p, d)),
+                                                 ("Move to Trash", lambda: self.trash_path(p))])
+
+    def open_path(self, path, is_dir):
+        if is_dir:
+            run(["xlin", "files", path])
+            return
+        try:
+            Gio.AppInfo.launch_default_for_uri(Gio.File.new_for_path(path).get_uri(), None)
+        except GLib.Error:
+            pass
+
+    def trash_path(self, path):
+        try:
+            Gio.File.new_for_path(path).trash(None)
+        except GLib.Error:
+            pass
+        self.refresh_files()
 
     def launch(self, app):
         try:
@@ -246,14 +404,143 @@ class DesktopWindow(Gtk.Window):
         except GLib.Error:
             pass
 
+    def remove_item_widget(self, key):
+        it = self.items.pop(key, None)
+        if it is not None:
+            self.drag_targets.pop(it["box"], None)
+            if self.selected is it:
+                self.selected = None
+            self.fixed.remove(it["box"])
+
+    def refresh_files(self):
+        d = desktop_dir()
+        names = set()
+        if d:
+            try:
+                names = {n for n in os.listdir(d) if not n.startswith(".")}
+            except OSError:
+                names = set()
+        have = {k[5:] for k in self.items if k.startswith("file:")}
+        for n in sorted(names - have):
+            self.add_file_icon(n, os.path.join(d, n))
+        for n in have - names:
+            self.remove_item_widget("file:" + n)
+            self.cfg["files"].pop(n, None)
+        if names != have:
+            save_config(self.cfg)
+            self.apply_icon_visibility()
+        return True
+
+    def apply_icon_visibility(self):
+        show = self.cfg.get("show_icons", True)
+        for it in self.items.values():
+            it["box"].set_visible(show)
+
+    # ---- moving things (one gesture on the fixed parent, so the numbers never shift under the finger)
+    def target_at(self, x, y):
+        picked = self.fixed.pick(x, y, Gtk.PickFlags.DEFAULT)
+        w = picked
+        while w is not None and w is not self.fixed and w not in self.drag_targets:
+            w = w.get_parent()
+        if w is None or w is self.fixed:
+            return None, picked
+        return w, picked
+
+    def on_drag_begin(self, _g, x, y):
+        w, picked = self.target_at(x, y)
+        self.drag_state = {}
+        # a click on an icon selects it, a click on empty desktop clears the selection
+        self.select(next((it for it in self.items.values() if it["box"] is w), None))
+        if w is None:
+            return
+        handle, _drop = self.drag_targets[w]
+        if handle is not w:          # widgets can only be dragged by their title
+            p = picked
+            while p is not None and p is not w and p is not handle:
+                p = p.get_parent()
+            if p is not handle:
+                return
+        if w in self.anims:
+            GLib.source_remove(self.anims.pop(w))
+        ox, oy = self.fixed.get_child_position(w)
+        self.drag_state = {"w": w, "o": (ox, oy), "moved": False}
+
+    def on_drag_update(self, _g, dx, dy):
+        st = self.drag_state
+        if not st:
+            return
+        if not st["moved"]:
+            if abs(dx) + abs(dy) < 5:
+                return
+            st["moved"] = True
+            st["w"].add_css_class("dragging")
+        sw, sh = self.screen_size()
+        w = st["w"]
+        x = max(0, min(sw - 40, st["o"][0] + dx))
+        y = max(MIN_Y, min(sh - 40, st["o"][1] + dy))
+        self.fixed.move(w, x, y)
+
+    def on_drag_end(self, _g, _dx, _dy):
+        st = self.drag_state
+        self.drag_state = {}
+        if not st or not st["moved"]:
+            return
+        w = st["w"]
+        w.remove_css_class("dragging")
+        x, y = self.fixed.get_child_position(w)
+        self.drag_targets[w][1](x, y)
+
+    def select(self, item):
+        if self.selected is item:
+            return
+        if self.selected is not None:
+            self.selected["box"].remove_css_class("selected")
+        self.selected = item
+        if item is not None:
+            item["box"].add_css_class("selected")
+
+    def animate_to(self, w, x1, y1, ms=150):
+        if w in self.anims:
+            GLib.source_remove(self.anims.pop(w))
+        x0, y0 = self.fixed.get_child_position(w)
+        t0 = time.monotonic()
+
+        def step():
+            t = (time.monotonic() - t0) * 1000.0 / ms
+            if t >= 1:
+                self.fixed.move(w, x1, y1)
+                self.anims.pop(w, None)
+                return False
+            e = 1 - (1 - t) ** 3                       # ease out
+            self.fixed.move(w, x0 + (x1 - x0) * e, y0 + (y1 - y0) * e)
+            return True
+        self.anims[w] = GLib.timeout_add(16, step)
+
     def drop_icon(self, item, x, y):
         gx, gy = self.snap(x, y)
-        for other in self.cfg["icons"]:          # cell taken: stay where we were
-            if other is not item and (other["x"], other["y"]) == (gx, gy):
-                gx, gy = item["x"], item["y"]
-        item["x"], item["y"] = gx, gy
+        if (gx, gy) in self.occupied(skip=item["key"]):      # cell taken: go back to where it was
+            gx, gy = item["store"]["x"], item["store"]["y"]
+        item["store"]["x"], item["store"]["y"] = gx, gy
         px, py = self.grid_pos(gx, gy)
-        self.fixed.move(self.icon_widgets[item["id"]], px, py)
+        self.animate_to(item["box"], px, py)
+        save_config(self.cfg)
+
+    def arrange(self):
+        rows = self.rows()
+        keys = sorted(self.items, key=lambda k: (k.startswith("file:"), k))
+        for i, k in enumerate(keys):
+            it = self.items[k]
+            it["store"]["x"], it["store"]["y"] = i // rows, i % rows
+            self.animate_to(it["box"], *self.grid_pos(it["store"]["x"], it["store"]["y"]))
+        save_config(self.cfg)
+
+    def set_icon_size(self, name):
+        self.cfg["icon_size"] = name
+        px, cw, ch = self.metrics()
+        for it in self.items.values():
+            it["img"].set_pixel_size(px)
+            it["box"].set_size_request(cw - 12, ch - 8)
+            self.fixed.move(it["box"], *self.grid_pos(it["store"]["x"], it["store"]["y"]))
         save_config(self.cfg)
 
     def add_shortcut(self, app_id):
@@ -261,40 +548,25 @@ class DesktopWindow(Gtk.Window):
             return
         gx, gy = self.free_cell()
         item = {"id": app_id, "x": gx, "y": gy}
-        if self.add_icon_widget(item):
+        if self.add_app_icon(item):
             self.cfg["icons"].append(item)
             save_config(self.cfg)
 
     def remove_shortcut(self, item):
-        w = self.icon_widgets.pop(item["id"], None)
-        if w is not None:
-            self.fixed.remove(w)
+        self.remove_item_widget("app:" + item["id"])
         self.cfg["icons"] = [i for i in self.cfg["icons"] if i["id"] != item["id"]]
         save_config(self.cfg)
 
-    # ---- dragging (icons and widgets)
-    def make_draggable(self, handle, target, on_drop):
-        drag = Gtk.GestureDrag(button=1)
-        state = {}
-
-        def begin(_g, _x, _y):
-            x, y = self.fixed.get_child_position(target)
-            state["o"] = (x, y)
-
-        def update(_g, dx, dy):
-            if "o" in state and abs(dx) + abs(dy) > 4:
-                self.fixed.move(target, max(0, state["o"][0] + dx), max(30, state["o"][1] + dy))
-                state["moved"] = True
-
-        def end(_g, dx, dy):
-            if state.pop("moved", False):
-                x, y = self.fixed.get_child_position(target)
-                on_drop(x, y)
-            state.clear()
-        drag.connect("drag-begin", begin)
-        drag.connect("drag-update", update)
-        drag.connect("drag-end", end)
-        handle.add_controller(drag)
+    def new_folder(self):
+        d = desktop_dir()
+        if d is None:
+            d = os.path.join(HOME, "Desktop")
+            os.makedirs(d, exist_ok=True)
+        try:
+            os.makedirs(unique_path(d, "New folder"))
+        except OSError:
+            return
+        self.refresh_files()
 
     # ---- widgets
     def sync_widget(self, key):
@@ -302,42 +574,47 @@ class DesktopWindow(Gtk.Window):
         box = self.widget_boxes.get(key)
         if conf["on"] and box is None:
             box = self.build_widget(key)
-            x, y = conf.get("x", 0), conf.get("y", 0)
-            if not x and not y:
-                x, y = self.default_widget_pos(key)
-                conf["x"], conf["y"] = x, y
-            self.fixed.put(box, x, y)
+            if not conf["x"] and not conf["y"]:
+                conf["x"], conf["y"] = self.default_widget_pos()
+            self.fixed.put(box, conf["x"], conf["y"])
             self.widget_boxes[key] = box
+            self.tick(force=True)
         elif not conf["on"] and box is not None:
+            self.drag_targets.pop(box, None)
             self.fixed.remove(box)
             del self.widget_boxes[key]
+            self.refs.pop(key, None)
 
-    def default_widget_pos(self, key):
+    def default_widget_pos(self):
         w = self.screen_size()[0]
-        return {"clock": (w - 420, 90), "calendar": (w - 420, 250), "system": (w - 420, 520)}.get(key, (200, 100))
+        n = sum(1 for c in self.cfg["widgets"].values() if c["on"] and (c["x"] or c["y"]))
+        return max(40, w - 420 - 34 * (n % 6)), 90 + 34 * (n % 6)
 
-    def build_widget(self, key):
+    def card(self, key, title=None):
         card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         card.add_css_class("desk-card")
         handle = card
+        if title:
+            t = Gtk.Label(label=title, xalign=0)
+            t.add_css_class("desk-title")
+            card.append(t)
+            handle = t
+        return card, handle
+
+    def build_widget(self, key):
+        refs = self.refs[key] = {}
+        card, handle = self.card(key, None if key == "clock" else dict(WIDGET_NAMES)[key])
         if key == "clock":
-            self.time_l = Gtk.Label(label="", xalign=0)
-            self.time_l.add_css_class("desk-time")
-            self.date_l = Gtk.Label(label="", xalign=0)
-            self.date_l.add_css_class("desk-date")
-            card.append(self.time_l)
-            card.append(self.date_l)
+            refs["time"] = Gtk.Label(label="", xalign=0)
+            refs["time"].add_css_class("desk-time")
+            refs["date"] = Gtk.Label(label="", xalign=0)
+            refs["date"].add_css_class("desk-date")
+            card.append(refs["time"])
+            card.append(refs["date"])
         elif key == "calendar":
-            title = Gtk.Label(label="Calendar", xalign=0)
-            title.add_css_class("desk-title")
-            card.append(title)
             card.append(Gtk.Calendar())
-            handle = title
-        else:
-            title = Gtk.Label(label="System", xalign=0)
-            title.add_css_class("desk-title")
-            card.append(title)
-            self.bars = {}
+        elif key == "system":
+            refs["bars"] = {}
             for name in ("Processor", "Memory", "Disk"):
                 row = Gtk.Box(spacing=10)
                 lab = Gtk.Label(label=name, xalign=0)
@@ -347,13 +624,78 @@ class DesktopWindow(Gtk.Window):
                 row.append(lab)
                 row.append(bar)
                 card.append(row)
-                self.bars[name] = bar
-            handle = title
-        self.make_draggable(handle, card, lambda x, y, k=key: self.drop_widget(k, x, y))
+                refs["bars"][name] = bar
+        elif key == "battery":
+            refs["pct"] = Gtk.Label(label="", xalign=0)
+            refs["pct"].add_css_class("desk-big")
+            refs["status"] = Gtk.Label(label="", xalign=0)
+            refs["status"].add_css_class("desk-dim")
+            refs["bar"] = Gtk.LevelBar(min_value=0, max_value=100)
+            refs["bar"].set_size_request(200, -1)
+            for w in (refs["pct"], refs["bar"], refs["status"]):
+                card.append(w)
+        elif key == "media":
+            refs["title"] = Gtk.Label(label="Nothing playing", xalign=0)
+            refs["title"].set_ellipsize(Pango.EllipsizeMode.END)
+            refs["title"].set_max_width_chars(26)
+            refs["artist"] = Gtk.Label(label="", xalign=0)
+            refs["artist"].add_css_class("desk-dim")
+            refs["artist"].set_ellipsize(Pango.EllipsizeMode.END)
+            refs["artist"].set_max_width_chars(30)
+            card.append(refs["title"])
+            card.append(refs["artist"])
+            row = Gtk.Box(spacing=6, margin_top=4)
+            for label, cmd in (("⏮", "previous"), ("⏯", "play-pause"), ("⏭", "next")):
+                b = Gtk.Button(label=label)
+                b.connect("clicked", lambda _b, c=cmd: run(["playerctl", c]))
+                row.append(b)
+            card.append(row)
+        elif key == "notes":
+            refs["list"] = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+            card.append(refs["list"])
+            entry = Gtk.Entry()
+            entry.set_placeholder_text("Quick note, press Enter")
+            entry.set_size_request(230, -1)
+            entry.connect("activate", self.quick_note)
+            card.append(entry)
+            more = Gtk.Button(label="Open Notes", halign=Gtk.Align.START)
+            more.connect("clicked", lambda _b: run(["xlin", "tools", "notes"]))
+            card.append(more)
+            refs["sig"] = None
+        elif key == "todo":
+            refs["list"] = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+            card.append(refs["list"])
+            entry = Gtk.Entry()
+            entry.set_placeholder_text("Add a task, press Enter")
+            entry.set_size_request(230, -1)
+            entry.connect("activate", self.add_todo)
+            card.append(entry)
+            clear = Gtk.Button(label="Clear done", halign=Gtk.Align.START)
+            clear.connect("clicked", lambda _b: self.clear_todo())
+            card.append(clear)
+            self.render_todo()
+        elif key == "timer":
+            refs["time"] = Gtk.Label(label="25:00", xalign=0)
+            refs["time"].add_css_class("desk-big")
+            card.append(refs["time"])
+            presets = Gtk.Box(spacing=6)
+            for mins in (5, 15, 25, 50):
+                b = Gtk.Button(label=f"{mins}")
+                b.connect("clicked", lambda _b, m=mins: self.timer_set(m))
+                presets.append(b)
+            card.append(presets)
+            row = Gtk.Box(spacing=6)
+            refs["start"] = Gtk.Button(label="Start")
+            refs["start"].connect("clicked", lambda _b: self.timer_toggle())
+            reset = Gtk.Button(label="Reset")
+            reset.connect("clicked", lambda _b: self.timer_set(self.timer["total"] // 60))
+            row.append(refs["start"])
+            row.append(reset)
+            card.append(row)
+        self.drag_targets[card] = (handle, lambda x, y, k=key: self.drop_widget(k, x, y))
         rc = Gtk.GestureClick(button=3)
         rc.connect("pressed", lambda g, _n, x, y, k=key, c=card: self.widget_menu(g, c, x, y, k))
         card.add_controller(rc)
-        self.tick()
         return card
 
     def drop_widget(self, key, x, y):
@@ -365,19 +707,148 @@ class DesktopWindow(Gtk.Window):
         self.sync_widget(key)
         save_config(self.cfg)
 
-    def tick(self):
+    # ---- widget actions
+    def quick_note(self, entry):
+        text = entry.get_text().strip()
+        if text:
+            run(["xlin", "note", text])
+            entry.set_text("")
+            GLib.timeout_add(600, lambda: (self.tick(force=True), False)[1])
+
+    def add_todo(self, entry):
+        text = entry.get_text().strip()
+        if text:
+            self.cfg["todo"].append({"t": text[:120], "done": False})
+            entry.set_text("")
+            save_config(self.cfg)
+            self.render_todo()
+
+    def clear_todo(self):
+        self.cfg["todo"] = [t for t in self.cfg["todo"] if not t["done"]]
+        save_config(self.cfg)
+        self.render_todo()
+
+    def toggle_todo(self, idx, done):
+        if 0 <= idx < len(self.cfg["todo"]):
+            self.cfg["todo"][idx]["done"] = done
+            save_config(self.cfg)
+            self.render_todo()
+
+    def render_todo(self):
+        box = self.refs.get("todo", {}).get("list")
+        if box is None:
+            return
+        while (c := box.get_first_child()) is not None:
+            box.remove(c)
+        if not self.cfg["todo"]:
+            e = Gtk.Label(label="Nothing to do", xalign=0)
+            e.add_css_class("desk-dim")
+            box.append(e)
+        for i, t in enumerate(self.cfg["todo"][:12]):
+            cb = Gtk.CheckButton(label=t["t"])
+            cb.set_active(t["done"])
+            if t["done"]:
+                cb.add_css_class("desk-done")
+            cb.connect("toggled", lambda b, idx=i: self.toggle_todo(idx, b.get_active()))
+            box.append(cb)
+
+    def timer_set(self, minutes):
+        self.timer.update(total=minutes * 60, left=minutes * 60, running=False)
+        self.draw_timer()
+
+    def timer_toggle(self):
+        t = self.timer
+        if t["running"]:
+            t["left"] = max(0, int(t["end"] - time.monotonic()))
+            t["running"] = False
+        else:
+            if t["left"] <= 0:
+                t["left"] = t["total"]
+            t["end"] = time.monotonic() + t["left"]
+            t["running"] = True
+        self.draw_timer()
+
+    def draw_timer(self):
+        r = self.refs.get("timer")
+        if not r:
+            return
+        t = self.timer
+        left = max(0, int(t["end"] - time.monotonic() + 0.999)) if t["running"] else t["left"]
+        r["time"].set_text(f"{left // 60:02d}:{left % 60:02d}")
+        r["start"].set_label("Pause" if t["running"] else "Start")
+
+    def poll_media(self):
+        def work():
+            ok, out = run_out(["playerctl", "metadata", "--format", "{{status}}|{{title}}|{{artist}}"])
+            if not ok or "|" not in out:
+                res = ("", "Nothing playing", "")
+            else:
+                st, title, artist = (out.split("|", 2) + ["", ""])[:3]
+                res = (st, title or "Unknown", artist)
+            GLib.idle_add(self.show_media, res)
+        if shutil.which("playerctl"):
+            import threading
+            threading.Thread(target=work, daemon=True).start()
+        else:
+            self.show_media(("", "Install playerctl for media controls", "sudo pacman -S playerctl"))
+
+    def show_media(self, res):
+        r = self.refs.get("media")
+        if r:
+            r["title"].set_text(res[1])
+            r["artist"].set_text(res[2] if res[0] != "Paused" else (res[2] + "  (paused)").strip())
+        return False
+
+    # ---- one tick per second
+    def tick(self, force=False):
         self.refresh_theme()
-        if "clock" in self.widget_boxes:
+        self.ticks += 1
+        w = self.widget_boxes
+        if "clock" in w:
             now = time.localtime()
-            self.time_l.set_text(time.strftime("%H:%M", now))
-            self.date_l.set_text(time.strftime("%A, %d %B", now))
-        if "system" in self.widget_boxes:
+            self.refs["clock"]["time"].set_text(time.strftime("%H:%M", now))
+            self.refs["clock"]["date"].set_text(time.strftime("%A, %d %B", now))
+        if "system" in w:
             busy, total = cpu_times()
             pb, pt = self.prev_cpu
             self.prev_cpu = (busy, total)
-            self.bars["Processor"].set_value((busy - pb) / max(1, total - pt))
-            self.bars["Memory"].set_value(mem_frac())
-            self.bars["Disk"].set_value(disk_frac())
+            bars = self.refs["system"]["bars"]
+            bars["Processor"].set_value((busy - pb) / max(1, total - pt))
+            bars["Memory"].set_value(mem_frac())
+            bars["Disk"].set_value(disk_frac())
+        if "battery" in w and (force or self.ticks % 10 == 0):
+            b = battery()
+            r = self.refs["battery"]
+            if b is None:
+                r["pct"].set_text("No battery")
+                r["status"].set_text("This computer runs on mains power")
+                r["bar"].set_value(0)
+            else:
+                r["pct"].set_text(f"{b[0]}%")
+                r["bar"].set_value(b[0])
+                r["status"].set_text({"Charging": "Charging", "Full": "Fully charged"}.get(b[1], "On battery"))
+        if "media" in w and (force or self.ticks % 2 == 0):
+            self.poll_media()
+        if "notes" in w and (force or self.ticks % 5 == 0):
+            notes = recent_notes()
+            r = self.refs["notes"]
+            if notes != r.get("sig"):
+                r["sig"] = notes
+                while (c := r["list"].get_first_child()) is not None:
+                    r["list"].remove(c)
+                for line in notes or ["No notes yet"]:
+                    lab = Gtk.Label(label=line, xalign=0)
+                    lab.set_ellipsize(Pango.EllipsizeMode.END)
+                    lab.set_max_width_chars(30)
+                    if not notes:
+                        lab.add_css_class("desk-dim")
+                    r["list"].append(lab)
+        if "timer" in w:
+            t = self.timer
+            if t["running"] and time.monotonic() >= t["end"]:
+                t.update(running=False, left=0)
+                run(["notify-send", "-a", "XLIN", "Timer finished", "Time is up"])
+            self.draw_timer()
         return True
 
     # ---- menus
@@ -390,7 +861,7 @@ class DesktopWindow(Gtk.Window):
         rect.x, rect.y, rect.width, rect.height = int(x), int(y), 1, 1
         pop.set_pointing_to(rect)
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        box.set_size_request(210, -1)
+        box.set_size_request(220, -1)
         build(box, pop)
         pop.set_child(box)
         pop.connect("closed", lambda p: GLib.idle_add(p.unparent))
@@ -411,13 +882,26 @@ class DesktopWindow(Gtk.Window):
         box.append(h)
 
     def on_desktop_menu(self, gesture, _n, x, y):
+        w, _picked = self.target_at(x, y)
+        if w is not None:                    # right-click on an icon or widget has its own menu
+            return
+
         def build(box, pop):
             self.item(box, pop, "Add app shortcut…", self.choose_app)
+            self.item(box, pop, "New folder", self.new_folder)
             box.append(Gtk.Separator())
             self.header(box, "Widgets")
             for key, name in WIDGET_NAMES:
                 on = self.cfg["widgets"][key]["on"]
                 self.item(box, pop, ("✓  " if on else "     ") + name, lambda k=key: self.toggle_widget(k))
+            box.append(Gtk.Separator())
+            self.header(box, "View")
+            show = self.cfg.get("show_icons", True)
+            self.item(box, pop, ("✓  " if show else "     ") + "Show desktop icons", self.toggle_icons)
+            for name, label in (("small", "Small icons"), ("medium", "Medium icons"), ("large", "Large icons")):
+                self.item(box, pop, ("✓  " if self.cfg["icon_size"] == name else "     ") + label,
+                          lambda n=name: self.set_icon_size(n))
+            self.item(box, pop, "Arrange icons", self.arrange)
             box.append(Gtk.Separator())
             self.header(box, "Wallpaper")
             self.item(box, pop, "Next wallpaper", lambda: run(["xlin", "wallpaper", "next"]))
@@ -428,13 +912,19 @@ class DesktopWindow(Gtk.Window):
             self.item(box, pop, "Settings", lambda: run(["xlin", "settings"]))
         self.popup(self.fixed, x, y, build)
 
-    def icon_menu(self, gesture, widget, x, y, item, app):
+    def toggle_icons(self):
+        self.cfg["show_icons"] = not self.cfg.get("show_icons", True)
+        self.apply_icon_visibility()
+        save_config(self.cfg)
+
+    def icon_menu(self, gesture, item, x, y, menu_items):
         gesture.set_state(Gtk.EventSequenceState.CLAIMED)
+        self.select(item)
 
         def build(box, pop):
-            self.item(box, pop, "Open", lambda: self.launch(app))
-            self.item(box, pop, "Remove shortcut", lambda: self.remove_shortcut(item))
-        self.popup(widget, x, y, build)
+            for label, fn in menu_items():
+                self.item(box, pop, label, fn)
+        self.popup(item["box"], x, y, build)
 
     def widget_menu(self, gesture, card, x, y, key):
         gesture.set_state(Gtk.EventSequenceState.CLAIMED)

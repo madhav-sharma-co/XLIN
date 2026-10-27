@@ -39,7 +39,7 @@ Remove everything (your old Waybar, swaync and Kitty configs are put back):
 | Battery / power | hover for charge, click for power mode; power menu: lock, sleep, log out, restart, power off |
 | Lock screen    | hyprlock with your blurred wallpaper (Super+L), auto-lock when idle   |
 | Files           | XLIN Files (Super+E): browse, search, copy/cut/paste, drag to move, Trash with restore, Open with, zip/extract, USB drives, network folders |
-| Desktop         | Right-click the desktop: add app shortcuts, widgets (clock, calendar, system), change wallpaper. Drag to arrange; `xlin desktop off` hides it |
+| Desktop         | Right-click the desktop: add app shortcuts, widgets (clock, calendar, system, battery, media, notes, to-do, timer), new folder, icon size, change wallpaper. Files in ~/Desktop show up too. Drag to arrange; `xlin desktop off` hides it |
 | System Monitor  | CPU, memory, disk, network and your apps; end a stuck app (Super+M) |
 | Notes           | Quick notes saved as plain .md files (Super+N, Super+Shift+N for a new one) |
 | Look and feel   | XLIN mouse cursor (follows light/dark), app icons, eight built-in wallpapers (Super+W) |

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.24.0
+- Desktop: icons and widgets now drag smoothly (one gesture on the whole desktop, so the pointer no longer jitters), lift with a shadow while moving, are kept on screen and glide into their grid cell when dropped
+- New widgets: Battery, Media player (needs playerctl), Notes (shows recent notes, add a quick note), To-do list, Timer (with notification)
+- Files and folders in ~/Desktop now appear as icons (double-click to open, right-click to Move to Trash)
+- Desktop menu: New folder, Show desktop icons, Small / Medium / Large icons, Arrange icons; click an icon to select it
+
 ## 0.23.1
 - Fix: Settings -> About -> Update XLIN did nothing when Kitty was not installed. It now opens XLIN Terminal (and falls back to foot, alacritty, gnome-terminal, konsole or xterm)
 - Kitty is no longer required: the installer only installs it if XLIN Terminal cannot run, and `xlin doctor` checks XLIN Terminal instead

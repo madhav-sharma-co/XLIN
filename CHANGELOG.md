@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.21.0
+- Terminal: search the scrollback (Ctrl+Shift+F), Ctrl+click links, a + button and x on tabs, Ctrl+scroll to zoom, drop files to paste their paths, Ctrl+Shift+N for a new window in the same folder
+
 ## 0.20.0
 - Right-click the desktop for a menu: Add app shortcut, Widgets (clock, calendar, system), Next wallpaper / Choose picture, Terminal, Files, Settings
 - Desktop shortcut icons (double-click to open, right-click to remove) and widgets, drag to arrange; positions are remembered in ~/.config/xlin/desktop.json

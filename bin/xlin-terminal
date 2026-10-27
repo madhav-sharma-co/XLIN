@@ -3,13 +3,17 @@
 
 Usage: xlin-terminal [-d folder] [-e command ...]
 
-Keys: Ctrl+Shift+T new tab | Ctrl+Shift+W close tab | Ctrl+Tab / Ctrl+Shift+Tab next / previous tab
-      Alt+1..9 go to tab | Ctrl+Shift+C copy | Ctrl+Shift+V paste | Ctrl+= / Ctrl+- / Ctrl+0 text size
-      Right-click for copy / paste / new tab. Colours and font come from `xlin theme` and `xlin terminal font`.
+Keys: Ctrl+Shift+T new tab | Ctrl+Shift+W close tab | Ctrl+Shift+N new window
+      Ctrl+Tab / Ctrl+Shift+Tab next / previous tab | Alt+1..9 go to tab
+      Ctrl+Shift+C copy | Ctrl+Shift+V paste | Ctrl+Shift+F search the scrollback (Enter next, Shift+Enter previous)
+      Ctrl+= / Ctrl+- / Ctrl+0 or Ctrl+scroll: text size | Ctrl+click a link to open it
+      Drop files on the window to paste their paths. Right-click for copy / paste / tabs.
+      Colours and font come from `xlin theme` and `xlin terminal font`.
 """
 import os
 import re
 import shlex
+import subprocess
 import sys
 
 import gi
@@ -23,6 +27,10 @@ APP_ID = "dev.xlin.Terminal"
 HOME = os.path.expanduser("~")
 KITTY_DIR = os.path.join(HOME, ".config/kitty")
 CSS_FILE = os.path.join(HOME, ".config/xlin/tools.css")
+
+URL_RE = r'''(?:https?|ftp)://[^\s<>"']+[^\s<>"'.,;:!?)\]}]'''
+PCRE_MATCH = 0x40080400       # MULTILINE | UTF | NO_UTF_CHECK
+PCRE_SEARCH = 0x40080408      # same, ignoring case
 
 DEFAULT_THEME = {"foreground": "#182035", "background": "#f4f7fb", "cursor": "#182035",
                  "selection_foreground": "#182035", "selection_background": "#dbe5f5"}
@@ -102,7 +110,25 @@ class TermWindow(Gtk.ApplicationWindow):
         self.nb.set_scrollable(True)
         self.nb.set_show_border(False)
         self.nb.connect("switch-page", self.on_switch)
-        self.set_child(self.nb)
+        plus = Gtk.Button(icon_name="list-add-symbolic")
+        plus.add_css_class("term-plus")
+        plus.set_tooltip_text("New tab (Ctrl+Shift+T)")
+        plus.connect("clicked", lambda _b: self.new_tab())
+        self.nb.set_action_widget(plus, Gtk.PackType.END)
+
+        root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        root.append(self.nb)
+        self.build_search(root)
+        self.set_child(root)
+
+        scroll = Gtk.EventControllerScroll(flags=Gtk.EventControllerScrollFlags.VERTICAL)
+        scroll.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        scroll.connect("scroll", self.on_scroll)
+        self.add_controller(scroll)
+
+        drop = Gtk.DropTarget.new(Gdk.FileList, Gdk.DragAction.COPY)
+        drop.connect("drop", self.on_drop)
+        self.add_controller(drop)
 
         keys = Gtk.EventControllerKey()
         keys.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
@@ -122,6 +148,13 @@ class TermWindow(Gtk.ApplicationWindow):
         window.xlin-terminal notebook > header {{ background-color: {bg}; border: none; padding: 2px 8px; }}
         window.xlin-terminal notebook > header tab {{ background: transparent; color: {fg}; opacity: .55;
             border-radius: 8px; padding: 3px 12px; margin: 3px 2px; min-height: 0; border: none; }}
+        .term-plus {{ background: transparent; color: {fg}; border: none; box-shadow: none; min-height: 0; min-width: 0;
+            padding: 3px 8px; opacity: .6; }}
+        .term-plus:hover, .term-close:hover {{ opacity: 1; }}
+        .term-close {{ background: transparent; border: none; box-shadow: none; min-height: 0; min-width: 0;
+            padding: 0 4px; color: {fg}; opacity: .45; }}
+        .term-search {{ background-color: {bg}; padding: 6px 12px; }}
+        .term-search entry {{ min-height: 0; }}
         window.xlin-terminal notebook > header tab:checked {{ opacity: 1; background-color: {self.theme['selection_background']}; }}
         """
         try:
@@ -186,6 +219,13 @@ class TermWindow(Gtk.ApplicationWindow):
         label.set_ellipsize(Pango.EllipsizeMode.END)
         label.set_max_width_chars(22)
         t.tab_label = label
+        tab = Gtk.Box(spacing=4)
+        tab.append(label)
+        close = Gtk.Button(icon_name="window-close-symbolic")
+        close.add_css_class("term-close")
+        close.connect("clicked", lambda _b, term=t: self.on_exit(term))
+        tab.append(close)
+        self.add_links(t)
 
         t.connect("child-exited", lambda term, _st: self.on_exit(term))
         t.connect("window-title-changed", lambda term: self.on_title(term))
@@ -194,7 +234,7 @@ class TermWindow(Gtk.ApplicationWindow):
         t.add_controller(click)
 
         self.terms.append(t)
-        self.nb.append_page(box, label)
+        self.nb.append_page(box, tab)
         self.nb.set_tab_reorderable(box, True)
         self.nb.set_show_tabs(len(self.terms) > 1)
         self.nb.set_current_page(len(self.terms) - 1)
@@ -244,6 +284,116 @@ class TermWindow(Gtk.ApplicationWindow):
         if t is not None:
             self.on_exit(t)
 
+    # ---- links
+    def add_links(self, t):
+        try:
+            rx = Vte.Regex.new_for_match(URL_RE, -1, PCRE_MATCH)
+            tag = t.match_add_regex(rx, 0)
+            t.match_set_cursor_name(tag, "pointer")
+        except Exception:
+            return
+        click = Gtk.GestureClick(button=1)
+        click.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+
+        def pressed(g, _n, x, y, term=t):
+            if not (g.get_current_event_state() & Gdk.ModifierType.CONTROL_MASK):
+                return
+            try:
+                url = term.check_match_at(x, y)[0]
+            except Exception:
+                return
+            if url:
+                g.set_state(Gtk.EventSequenceState.CLAIMED)
+                try:
+                    Gio.AppInfo.launch_default_for_uri(url, None)
+                except GLib.Error:
+                    pass
+        click.connect("pressed", pressed)
+        t.add_controller(click)
+
+    # ---- search the scrollback
+    def build_search(self, root):
+        self.search_rev = Gtk.Revealer(transition_type=Gtk.RevealerTransitionType.SLIDE_UP)
+        bar = Gtk.Box(spacing=6)
+        bar.add_css_class("term-search")
+        self.search_entry = Gtk.SearchEntry(hexpand=True)
+        self.search_entry.set_placeholder_text("Search the scrollback")
+        self.search_entry.connect("search-changed", lambda e: self.search_set(e.get_text()))
+        self.search_entry.connect("activate", lambda _e: self.search_step(False))
+        self.search_entry.connect("stop-search", lambda _e: self.hide_search())
+        prev = Gtk.Button(icon_name="go-up-symbolic")
+        nxt = Gtk.Button(icon_name="go-down-symbolic")
+        done = Gtk.Button(icon_name="window-close-symbolic")
+        for b in (prev, nxt, done):
+            b.add_css_class("term-close")
+        prev.connect("clicked", lambda _b: self.search_step(True))
+        nxt.connect("clicked", lambda _b: self.search_step(False))
+        done.connect("clicked", lambda _b: self.hide_search())
+        for w in (self.search_entry, prev, nxt, done):
+            bar.append(w)
+        self.search_rev.set_child(bar)
+        root.append(self.search_rev)
+        sk = Gtk.EventControllerKey()
+        sk.connect("key-pressed", self.on_search_key)
+        self.search_entry.add_controller(sk)
+
+    def show_search(self):
+        self.search_rev.set_reveal_child(True)
+        self.search_entry.grab_focus()
+        self.search_set(self.search_entry.get_text())
+
+    def hide_search(self):
+        self.search_rev.set_reveal_child(False)
+        t = self.current()
+        if t is not None:
+            t.search_set_regex(None, 0)
+            t.grab_focus()
+
+    def search_set(self, text):
+        t = self.current()
+        if t is None:
+            return
+        if not text:
+            t.search_set_regex(None, 0)
+            return
+        try:
+            rx = Vte.Regex.new_for_search(GLib.regex_escape_string(text, -1), -1, PCRE_SEARCH)
+            t.search_set_regex(rx, 0)
+            t.search_set_wrap_around(True)
+            t.search_find_previous()      # jump to the newest match first
+        except Exception:
+            pass
+
+    def search_step(self, backwards):
+        t = self.current()
+        if t is not None:
+            (t.search_find_previous if backwards else t.search_find_next)()
+
+    def on_search_key(self, _c, keyval, _code, state):
+        if keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter) and state & Gdk.ModifierType.SHIFT_MASK:
+            self.search_step(True)
+            return True
+        return False
+
+    # ---- scroll zoom and file drops
+    def on_scroll(self, ctrl, _dx, dy):
+        if ctrl.get_current_event_state() & Gdk.ModifierType.CONTROL_MASK:
+            self.zoom(-0.1 if dy > 0 else 0.1)
+            return True
+        return False
+
+    def on_drop(self, _target, value, _x, _y):
+        t = self.current()
+        try:
+            paths = [f.get_path() for f in value.get_files() if f.get_path()]
+        except Exception:
+            return False
+        if t is None or not paths:
+            return False
+        t.feed_child((" ".join(shlex.quote(p) for p in paths) + " ").encode())
+        t.grab_focus()
+        return True
+
     # ---- keys and menu
     def on_key(self, _c, keyval, _code, state):
         ctrl = bool(state & Gdk.ModifierType.CONTROL_MASK)
@@ -255,6 +405,11 @@ class TermWindow(Gtk.ApplicationWindow):
             self.new_tab()
         elif ctrl and shift and k == Gdk.KEY_w:
             self.close_tab()
+        elif ctrl and shift and k == Gdk.KEY_f:
+            self.show_search()
+        elif ctrl and shift and k == Gdk.KEY_n:
+            subprocess.Popen(["xlin", "term", "-d", self.cwd_of(t) or HOME] if t else ["xlin", "term"],
+                             start_new_session=True)
         elif ctrl and shift and k == Gdk.KEY_c and t:
             t.copy_clipboard()
         elif ctrl and shift and k == Gdk.KEY_v and t:

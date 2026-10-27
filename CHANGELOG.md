@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.21.1
+- Fix: copies and new zip files were numbered after the extension ("Archive.zip 2"); now "Archive 2.zip"
+- Fix: Files restore from Trash gives a clear message when the trash record is missing
+- Fix: if ImageMagick is missing, the theme wallpaper and the lock screen fall back to a built-in wallpaper instead of a missing file
+- Fix: the installer no longer fails when the optional terminal / desktop packages (vte4, gtk4-layer-shell) or the USB / network packages are unavailable; they install one by one
+
 ## 0.21.0
 - Terminal: search the scrollback (Ctrl+Shift+F), Ctrl+click links, a + button and x on tabs, Ctrl+scroll to zoom, drop files to paste their paths, Ctrl+Shift+N for a new window in the same folder
 

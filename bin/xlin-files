@@ -82,11 +82,11 @@ def list_dir(path, hidden=False):
     return out
 
 
-def unique_name(folder, base):
-    """'New folder', then 'New folder 2', 'New folder 3'..."""
-    name, i = base, 2
-    while os.path.exists(os.path.join(folder, name)):
-        name = f"{base} {i}"
+def unique_name(folder, base, ext=""):
+    """'New folder', then 'New folder 2', 'New folder 3'...  (ext, e.g. '.zip', goes after the number)"""
+    name, i = base + ext, 2
+    while os.path.lexists(os.path.join(folder, name)):
+        name = f"{base} {i}{ext}"
         i += 1
     return name
 
@@ -238,6 +238,8 @@ def restore_from_trash(item):
     info = trash_info_path(item)
     try:
         orig = None
+        if not os.path.exists(info):
+            return "its original location is unknown (no trash record)"
         with open(info, encoding="utf-8") as f:
             for line in f:
                 if line.startswith("Path="):
@@ -337,7 +339,7 @@ def compress_paths(paths):
     """Zip the given paths into one .zip beside the first. Returns (ok, zip_or_error)."""
     folder = os.path.dirname(paths[0])
     base = os.path.basename(paths[0]) if len(paths) == 1 else "Archive"
-    out = os.path.join(folder, unique_name(folder, base + ".zip"))
+    out = os.path.join(folder, unique_name(folder, base, ".zip"))
     cmd = ["bsdtar", "--format", "zip", "-cf", out, "-C", folder] + [os.path.basename(x) for x in paths]
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)

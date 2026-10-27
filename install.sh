@@ -22,7 +22,7 @@ pick_repo() { # first package that exists in the repos
 }
 
 say "Installing packages"
-core=(gtk4-layer-shell vte4 udisks2 gvfs gvfs-smb hyprland waybar swaync jq socat libnotify brightnessctl networkmanager
+core=(hyprland waybar swaync jq socat libnotify brightnessctl networkmanager
       network-manager-applet pipewire wireplumber pavucontrol blueman
       imagemagick ttf-font-awesome inter-font gtk3 gtk4 python-gobject kitty bluez bluez-utils power-profiles-daemon hyprlock)
 
@@ -74,7 +74,7 @@ fi
 # the name to a huge "all Google fonts" package.
 
 # Daily-use extras: screenshots, clipboard history, auto-lock, night light, screen-share portal
-for pkg in grim slurp wl-clipboard cliphist hypridle hyprsunset xdg-desktop-portal-hyprland xdg-desktop-portal-gtk hyprpolkitagent; do
+for pkg in vte4 gtk4-layer-shell udisks2 gvfs gvfs-smb grim slurp wl-clipboard cliphist hypridle hyprsunset xdg-desktop-portal-hyprland xdg-desktop-portal-gtk hyprpolkitagent; do
   sudo pacman -S --needed --noconfirm "$pkg" >/dev/null 2>&1 || echo "   (could not install $pkg)"
 done
 

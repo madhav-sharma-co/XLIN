@@ -153,7 +153,7 @@ lock_wallpaper_patch() {
   esac
   if [[ -z "$wall" ]]; then
     wall_generate
-    wall="$WALLS/xlin-$theme.png"
+    wall="$(wall_default "$theme")"
   fi
   sed -i "s|@WALLPAPER@|$wall|g" "$f"
 }
@@ -271,6 +271,15 @@ wall_generate() {
   done
 }
 
+# The wallpaper that follows the theme: the generated gradient, or a built-in one if ImageMagick is missing
+wall_default() {
+  local theme="$1" f
+  f="$WALLS/xlin-$theme.png"
+  [[ -f "$f" ]] && { echo "$f"; return; }
+  [[ "$theme" == dark ]] && f="$WALLS/xlin-midnight.jpg" || f="$WALLS/xlin-dawn.jpg"
+  echo "$f"
+}
+
 cmd_wallpaper() {
   local arg="${1:-next}" theme list cur next
   theme="$(cat "$STATE/theme" 2>/dev/null || echo light)"
@@ -281,11 +290,11 @@ cmd_wallpaper() {
         # while the user picked a custom wallpaper, keep it; otherwise follow the theme
         cur="$(cat "$STATE/wallpaper")"
         case "$cur" in
-          "$WALLS"/xlin-light.png|"$WALLS"/xlin-dark.png) wall_set "$WALLS/xlin-$theme.png" ;;
+          "$WALLS"/xlin-light.png|"$WALLS"/xlin-dark.png) wall_set "$(wall_default "$theme")" ;;
           *) wall_set "$cur" ;;
         esac
       else
-        wall_set "$WALLS/xlin-$theme.png"
+        wall_set "$(wall_default "$theme")"
       fi
       ;;
     next)
@@ -791,7 +800,7 @@ cmd_start() {
 }
 
 # ================================================================= XLIN CLI
-XLIN_VERSION="0.21.0"
+XLIN_VERSION="0.21.1"
 
 if [[ -t 1 ]]; then B=$'\e[1m'; D=$'\e[2m'; R=$'\e[0m'; else B=""; D=""; R=""; fi
 die() { echo "xlin: $*" >&2; return 1; }

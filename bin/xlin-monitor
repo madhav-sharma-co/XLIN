@@ -16,6 +16,9 @@ import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
 from gi.repository import Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
+import os as _os
+sys.path[:0] = ["/usr/local/lib/xlin", _os.path.join(_os.path.dirname(_os.path.realpath(__file__)), "..", "lib")]
+import xlin_ui  # noqa: E402
 
 APP_ID = "dev.xlin.Monitor"
 HOME = os.path.expanduser("~")
@@ -140,6 +143,7 @@ class MonitorWindow(Gtk.ApplicationWindow):
         super().__init__(application=app, title="System Monitor")
         self.set_default_size(760, 600)
         self.add_css_class("xlin-tools")
+        xlin_ui.titlebar(self, "System Monitor")
         self.ncpu = os.cpu_count() or 1
         self.prev_cpu = cpu_times()
         self.prev_net = net_bytes()
@@ -153,10 +157,6 @@ class MonitorWindow(Gtk.ApplicationWindow):
         for m in ("top", "bottom", "start", "end"):
             getattr(root, f"set_margin_{m}")(16)
         self.set_child(root)
-
-        title = Gtk.Label(label="System Monitor", xalign=0)
-        title.add_css_class("tool-title")
-        root.append(title)
 
         cards = Gtk.Box(spacing=10, homogeneous=True)
         self.c_cpu, self.c_mem = Card("Processor"), Card("Memory")

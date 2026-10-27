@@ -15,6 +15,9 @@ import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
 from gi.repository import Gdk, Gio, GLib, Gtk  # noqa: E402
+import os as _os
+sys.path[:0] = ["/usr/local/lib/xlin", _os.path.join(_os.path.dirname(_os.path.realpath(__file__)), "..", "lib")]
+import xlin_ui  # noqa: E402
 
 try:                       # thumbnails are a bonus: the page still works without them
     gi.require_version("GdkPixbuf", "2.0")
@@ -117,8 +120,11 @@ class WelcomeWindow(Gtk.ApplicationWindow):
         self.set_child(root)
 
         handle = Gtk.WindowHandle()          # hold the top strip to move the window
-        strip = Gtk.Label(label="XLIN", xalign=0)
-        strip.add_css_class("tool-title")
+        strip = Gtk.Box(spacing=8)
+        name = Gtk.Label(label="XLIN", xalign=0, hexpand=True)
+        name.add_css_class("tool-title")
+        strip.append(name)
+        strip.append(xlin_ui.controls(self))
         handle.set_child(strip)
         root.append(handle)
 

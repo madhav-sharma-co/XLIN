@@ -6,6 +6,19 @@ window.xlin-tools {
   border-radius: 11px;
 }
 
+/* the three window buttons: hide, fullscreen, close */
+.win-btn {
+  min-width: 26px; min-height: 26px; padding: 0;
+  border-radius: 13px;
+  background-image: none; background-color: transparent;
+  color: @C_MUTED@; border: none; box-shadow: none;
+  font-size: 13px;
+}
+.win-btn:hover { background-color: @C_HOVER@; color: @C_INK@; }
+.win-btn.win-close:hover { background-color: #e5484d; color: #ffffff; }
+.xlin-titlebar { padding: 8px 10px 4px 16px; }
+.xlin-titlebar .tool-title { margin: 0; }
+
 .tool-title { font-size: 14px; font-weight: 700; color: @C_INK@; }
 
 /* the x in the corner */

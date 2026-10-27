@@ -24,6 +24,9 @@ import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
 from gi.repository import Gdk, Gio, GLib, Gtk  # noqa: E402
+import os as _os
+sys.path[:0] = ["/usr/local/lib/xlin", _os.path.join(_os.path.dirname(_os.path.realpath(__file__)), "..", "lib")]
+import xlin_ui  # noqa: E402
 
 CSS_FILE = os.path.expanduser("~/.config/xlin/tools.css")
 
@@ -794,10 +797,7 @@ class ToolWindow(Gtk.ApplicationWindow):
         t.add_css_class("tool-title")
         strip.append(t)
         if with_close:
-            x = Gtk.Button(label="✕")
-            x.add_css_class("tool-close")
-            x.connect("clicked", lambda _b: self.close())
-            strip.append(x)
+            strip.append(xlin_ui.controls(self))
         handle.set_child(strip)
         root.append(handle)
 

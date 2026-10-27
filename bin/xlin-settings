@@ -16,6 +16,9 @@ import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
 from gi.repository import Gio, GLib, Gtk  # noqa: E402
+import os as _os
+sys.path[:0] = ["/usr/local/lib/xlin", _os.path.join(_os.path.dirname(_os.path.realpath(__file__)), "..", "lib")]
+import xlin_ui  # noqa: E402
 
 APP_ID = "dev.xlin.Settings"
 STATE = os.path.expanduser("~/.config/xlin/state")
@@ -629,6 +632,7 @@ class SettingsWindow(Gtk.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app, title="Settings")
         self.set_default_size(920, 640)
+        xlin_ui.titlebar(self, "Settings")
         root = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         self.set_child(root)
 

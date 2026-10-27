@@ -23,6 +23,9 @@ import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
 from gi.repository import Gdk, Gio, GLib, GObject, Gtk, Pango  # noqa: E402
+import os as _os
+sys.path[:0] = ["/usr/local/lib/xlin", _os.path.join(_os.path.dirname(_os.path.realpath(__file__)), "..", "lib")]
+import xlin_ui  # noqa: E402
 
 try:                       # picture thumbnails are a bonus: the app works without them
     gi.require_version("GdkPixbuf", "2.0")
@@ -480,6 +483,7 @@ class FilesWindow(Gtk.ApplicationWindow):
         super().__init__(application=app, title="Files")
         self.set_default_size(900, 600)
         self.add_css_class("xlin-tools")
+        xlin_ui.titlebar(self, "Files")
         self.cwd = HOME
         self.back_stack, self.fwd_stack = [], []
         self.show_hidden = False

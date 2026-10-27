@@ -22,6 +22,9 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
 gi.require_version("Vte", "3.91")
 from gi.repository import Gdk, Gio, GLib, Gtk, Pango, Vte  # noqa: E402
+import os as _os
+sys.path[:0] = ["/usr/local/lib/xlin", _os.path.join(_os.path.dirname(_os.path.realpath(__file__)), "..", "lib")]
+import xlin_ui  # noqa: E402
 
 APP_ID = "dev.xlin.Terminal"
 HOME = os.path.expanduser("~")
@@ -96,6 +99,7 @@ class TermWindow(Gtk.ApplicationWindow):
         self.set_default_size(980, 600)
         self.add_css_class("xlin-tools")
         self.add_css_class("xlin-terminal")
+        xlin_ui.titlebar(self, "Terminal")
         self.scale = 1.0
         self.font_family, self.font_size = load_font()
         self.theme, self.palette = load_theme()

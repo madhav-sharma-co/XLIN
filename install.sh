@@ -104,6 +104,7 @@ sudo install -m 755 "$SRC/bin/xlin-monitor" /usr/local/bin/xlin-monitor
 sudo install -m 755 "$SRC/bin/xlin-terminal" /usr/local/bin/xlin-terminal
 sudo install -m 755 "$SRC/bin/xlin-desktop" /usr/local/bin/xlin-desktop
 sudo install -m 755 "$SRC/bin/xlin-launcher" /usr/local/bin/xlin-launcher
+sudo install -D -m 644 "$SRC/lib/xlin_ui.py" /usr/local/lib/xlin/xlin_ui.py
 mkdir -p "$HOME/.local/share/applications"
 cp "$SRC"/config/applications/dev.xlin.*.desktop "$HOME/.local/share/applications/"
 mkdir -p "$HOME/.local/share/icons/hicolor/scalable/apps"

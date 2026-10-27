@@ -1,0 +1,279 @@
+#!/usr/bin/env python3
+"""XLIN Launcher - the app drawer (Super+Space, or the button on the Run Bar).
+
+Type to search, arrows + Enter to open, click to open, Alt+P pin to the Run Bar, Alt+U unpin, Esc closes.
+`xlin-launcher --pin` shows the same drawer to pick an app to pin. Needs gtk4-layer-shell.
+"""
+import glob
+import os
+import subprocess
+import sys
+
+# gtk4-layer-shell must be loaded before libwayland-client: preload it once, then restart ourselves
+if not os.environ.get("XLIN_LAUNCHER_REEXEC"):
+    libs = glob.glob("/usr/lib/libgtk4-layer-shell.so*") + glob.glob("/usr/lib64/libgtk4-layer-shell.so*")
+    if libs:
+        old = os.environ.get("LD_PRELOAD", "")
+        os.environ["LD_PRELOAD"] = (old + ":" if old else "") + libs[0]
+        os.environ["XLIN_LAUNCHER_REEXEC"] = "1"
+        os.execv(sys.executable, [sys.executable] + sys.argv)
+
+import gi  # noqa: E402
+
+gi.require_version("Gtk", "4.0")
+gi.require_version("Gdk", "4.0")
+try:
+    gi.require_version("Gtk4LayerShell", "1.0")
+    from gi.repository import Gtk4LayerShell as LayerShell
+except (ValueError, ImportError):
+    sys.exit(3)
+from gi.repository import Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
+
+HOME = os.path.expanduser("~")
+CSS_FILE = os.path.join(HOME, ".config/xlin/tools.css")
+PINS = os.path.join(HOME, ".cache/nwg-dock-pinned")
+RECENT = os.path.join(HOME, ".config/xlin/state/recent")
+COLUMNS = 5
+PIN_MODE = "--pin" in sys.argv
+MSG_NORMAL = "Pinned and recent apps first   ·   Alt+P pin   ·   Alt+U unpin"
+MSG_PIN = "Pick an app to pin to the run bar"
+
+
+def read_ids(path):
+    try:
+        with open(path) as f:
+            return [ln.strip() for ln in f if ln.strip()]
+    except OSError:
+        return []
+
+
+def run(cmd):
+    try:
+        subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    except OSError:
+        pass
+
+
+def fuzzy(query, text):
+    """Score of query as a (fuzzy) match inside text; None if it does not match. Lower is better."""
+    q, t = query.lower(), text.lower()
+    if t.startswith(q):
+        return 0
+    if q in t:
+        return 1 + t.index(q) / 100
+    pos = -1
+    gaps = 0
+    for ch in q:
+        nxt = t.find(ch, pos + 1)
+        if nxt < 0:
+            return None
+        gaps += nxt - pos - 1
+        pos = nxt
+    return 2 + gaps / 100
+
+
+class Launcher(Gtk.Window):
+    def __init__(self, app):
+        super().__init__(application=app, title="XLIN Launcher")
+        self.add_css_class("xlin-launcher")
+        self.set_decorated(False)
+        self.set_resizable(False)
+        self.was_active = False
+
+        LayerShell.init_for_window(self)
+        LayerShell.set_namespace(self, "xlin-launcher")
+        LayerShell.set_layer(self, LayerShell.Layer.OVERLAY)
+        LayerShell.set_anchor(self, LayerShell.Edge.BOTTOM, True)
+        LayerShell.set_margin(self, LayerShell.Edge.BOTTOM, 78)
+        LayerShell.set_keyboard_mode(self, LayerShell.KeyboardMode.EXCLUSIVE)
+
+        self.apps = self.load_apps()
+        self.order = self.default_order()
+        self.shown = []
+        self.sel = 0
+        self.cells = []
+
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
+        box.set_size_request(600, -1)
+        for m in ("top", "bottom", "start", "end"):
+            getattr(box, f"set_margin_{m}")(16)
+        self.set_child(box)
+
+        self.entry = Gtk.Entry()
+        self.entry.add_css_class("launcher-search")
+        self.entry.set_placeholder_text("Search apps")
+        self.entry.connect("changed", lambda _e: self.rebuild())
+        self.entry.connect("activate", lambda _e: self.activate_selected())
+        box.append(self.entry)
+
+        msg = Gtk.Label(label=MSG_PIN if PIN_MODE else MSG_NORMAL, xalign=0)
+        msg.add_css_class("launcher-msg")
+        box.append(msg)
+
+        self.grid = Gtk.Grid(row_homogeneous=True, column_homogeneous=True, row_spacing=6, column_spacing=6)
+        self.scroll = Gtk.ScrolledWindow()
+        self.scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        self.scroll.set_min_content_height(3 * 92 + 2 * 6)
+        self.scroll.set_max_content_height(3 * 92 + 2 * 6)
+        self.scroll.set_propagate_natural_height(True)
+        self.scroll.set_child(self.grid)
+        box.append(self.scroll)
+
+        keys = Gtk.EventControllerKey()
+        keys.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        keys.connect("key-pressed", self.on_key)
+        self.add_controller(keys)
+        self.connect("notify::is-active", self.on_active)
+        self.rebuild()
+        self.entry.grab_focus()
+
+    # ---- data
+    @staticmethod
+    def load_apps():
+        apps, seen = [], set()
+        for a in Gio.AppInfo.get_all():
+            if not a.should_show() or not a.get_id():
+                continue
+            aid = a.get_id()
+            aid = aid[:-8] if aid.endswith(".desktop") else aid
+            if aid in seen:
+                continue
+            seen.add(aid)
+            apps.append((aid, a.get_display_name(), a.get_icon()))
+        apps.sort(key=lambda x: x[1].lower())
+        return apps
+
+    def default_order(self):
+        by_id = {a[0]: a for a in self.apps}
+        order, used = [], set()
+        for aid in read_ids(PINS) + read_ids(RECENT):
+            if aid in by_id and aid not in used:
+                used.add(aid)
+                order.append(by_id[aid])
+        order += [a for a in self.apps if a[0] not in used]
+        return order
+
+    # ---- list
+    def rebuild(self):
+        q = self.entry.get_text().strip()
+        if not q:
+            self.shown = list(self.order)
+        else:
+            scored = []
+            for a in self.order:
+                s = fuzzy(q, a[1])
+                if s is not None:
+                    scored.append((s, a))
+            scored.sort(key=lambda p: p[0])
+            self.shown = [a for _s, a in scored]
+        while (c := self.grid.get_first_child()) is not None:
+            self.grid.remove(c)
+        self.cells = []
+        for i, (aid, name, icon) in enumerate(self.shown):
+            cell = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+            cell.add_css_class("launcher-item")
+            cell.set_size_request(-1, 92)
+            img = Gtk.Image()
+            img.set_pixel_size(44)
+            img.set_halign(Gtk.Align.CENTER)
+            if icon is not None:
+                img.set_from_gicon(icon)
+            else:
+                img.set_from_icon_name("application-x-executable")
+            lab = Gtk.Label(label=name)
+            lab.add_css_class("launcher-name")
+            lab.set_ellipsize(Pango.EllipsizeMode.END)
+            lab.set_max_width_chars(12)
+            lab.set_justify(Gtk.Justification.CENTER)
+            cell.append(img)
+            cell.append(lab)
+            click = Gtk.GestureClick(button=1)
+            click.connect("released", lambda _g, _n, _x, _y, idx=i: self.activate(idx))
+            cell.add_controller(click)
+            self.grid.attach(cell, i % COLUMNS, i // COLUMNS, 1, 1)
+            self.cells.append(cell)
+        # keep the grid 5 columns wide even when few results are shown
+        self.sel = 0
+        self.mark()
+
+    def mark(self):
+        for i, c in enumerate(self.cells):
+            if i == self.sel:
+                c.add_css_class("selected")
+            else:
+                c.remove_css_class("selected")
+        if self.cells:
+            self.sel = max(0, min(self.sel, len(self.cells) - 1))
+            row = self.sel // COLUMNS
+            adj = self.scroll.get_vadjustment()
+            top, bottom = row * 98, row * 98 + 92
+            if top < adj.get_value():
+                adj.set_value(top)
+            elif bottom > adj.get_value() + adj.get_page_size():
+                adj.set_value(bottom - adj.get_page_size())
+
+    # ---- actions
+    def activate_selected(self):
+        self.activate(self.sel)
+
+    def activate(self, idx):
+        if not 0 <= idx < len(self.shown):
+            return
+        aid = self.shown[idx][0]
+        if PIN_MODE:
+            run(["xlin", "pin", aid])
+        else:
+            run(["xlin", "launch-app", aid])
+        self.close()
+
+    def on_key(self, _c, keyval, _code, state):
+        alt = bool(state & Gdk.ModifierType.ALT_MASK)
+        if keyval == Gdk.KEY_Escape:
+            self.close()
+            return True
+        if alt and keyval in (Gdk.KEY_p, Gdk.KEY_P, Gdk.KEY_u, Gdk.KEY_U) and self.shown:
+            aid = self.shown[self.sel][0]
+            run(["xlin", "pin" if keyval in (Gdk.KEY_p, Gdk.KEY_P) else "unpin", aid])
+            self.close()
+            return True
+        moves = {Gdk.KEY_Right: 1, Gdk.KEY_Left: -1, Gdk.KEY_Down: COLUMNS, Gdk.KEY_Up: -COLUMNS,
+                 Gdk.KEY_Tab: 1, Gdk.KEY_ISO_Left_Tab: -1}
+        if keyval in moves and self.cells:
+            new = self.sel + moves[keyval]
+            if 0 <= new < len(self.cells):
+                self.sel = new
+            elif keyval == Gdk.KEY_Down and self.sel // COLUMNS < (len(self.cells) - 1) // COLUMNS:
+                self.sel = len(self.cells) - 1
+            self.mark()
+            return True
+        return False
+
+    def on_active(self, *_a):
+        if self.is_active():
+            self.was_active = True
+        elif self.was_active:           # clicked somewhere else: close, like a menu
+            self.close()
+
+
+class LauncherApp(Gtk.Application):
+    def __init__(self):
+        super().__init__(application_id="dev.xlin.Launcher", flags=Gio.ApplicationFlags.NON_UNIQUE)
+
+    def do_startup(self):
+        Gtk.Application.do_startup(self)
+        try:
+            with open(CSS_FILE, "rb") as f:
+                data = f.read()
+            prov = Gtk.CssProvider()
+            prov.load_from_data(data)
+            Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), prov,
+                                                      Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        except Exception:
+            pass
+
+    def do_activate(self):
+        Launcher(self).present()
+
+
+if __name__ == "__main__":
+    sys.exit(LauncherApp().run([sys.argv[0]]))

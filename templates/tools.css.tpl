@@ -140,3 +140,22 @@ textview.note-text, textview.note-text text { background-color: transparent; col
 popover.files-menu > contents { background-color: @C_PANEL@; color: @C_INK@; border: 1px solid @C_LINE_SOLID@; border-radius: 10px; padding: 4px; }
 .files-menu-item { background-image: none; background-color: transparent; color: @C_INK@; border: none; box-shadow: none; border-radius: 6px; padding: 6px 14px; }
 .files-menu-item:hover { background-color: @C_ACCENT_SOFT@; }
+
+/* ---- the app drawer (xlin-launcher) ---- */
+window.xlin-launcher {
+  background-color: @C_PANEL@;
+  color: @C_INK@;
+  border: 1px solid @C_LINE_SOLID@;
+  border-radius: 11px;
+}
+.launcher-search {
+  padding: 11px 13px; min-height: 0;
+  background-image: none; background-color: @C_SOFT@;
+  color: @C_INK@; border: none; box-shadow: none; outline: none; border-radius: 8px;
+}
+.launcher-search text { color: @C_INK@; }
+.launcher-search placeholder { color: @C_MUTED@; }
+.launcher-msg { color: @C_MUTED@; font-size: 11px; }
+.launcher-item { padding: 12px 4px 8px 4px; border-radius: 8px; background-color: transparent; }
+.launcher-item.selected { background-color: @C_SOFT@; }
+.launcher-name { color: @C_INK@; font-size: 9pt; font-weight: 700; }

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.25.0
+- The app drawer is now XLIN's own (`xlin-launcher`, GTK + layer-shell) and no longer needs rofi: same look, same place above the Run Bar, same search, pinned/recent first, arrows + Enter, Alt+P pin, Alt+U unpin, Esc or a click outside closes
+- rofi is optional now (installer and `xlin doctor`); it is only a fallback if the drawer cannot start, and is still used by the clipboard and shortcut pickers
+- New: `xlin launch-app <id>`
+
 ## 0.24.0
 - Desktop: icons and widgets now drag smoothly (one gesture on the whole desktop, so the pointer no longer jitters), lift with a shadow while moving, are kept on screen and glide into their grid cell when dropped
 - New widgets: Battery, Media player (needs playerctl), Notes (shows recent notes, add a quick note), To-do list, Timer (with notification)

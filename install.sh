@@ -53,9 +53,11 @@ sudo pacman -S --needed --noconfirm ttf-jetbrains-mono-nerd 2>/dev/null || \
 sudo pacman -S --needed --noconfirm ttf-nerd-fonts-symbols || echo "(icon font not installed, icons may be blank)"
 fc-cache -f >/dev/null 2>&1 || true
 
-rofi_pkg="$(pick_repo rofi-wayland rofi)"
 wall_pkg="$(pick_repo awww swww hyprpaper)"
-sudo pacman -S --needed --noconfirm ${rofi_pkg:+"$rofi_pkg"} ${wall_pkg:+"$wall_pkg"} || pacman_fail
+sudo pacman -S --needed --noconfirm ${wall_pkg:+"$wall_pkg"} || pacman_fail
+# rofi is optional now: the app drawer is XLIN's own (only the clipboard/shortcut pickers still use it)
+rofi_pkg="$(pick_repo rofi-wayland rofi)"
+[[ -n "$rofi_pkg" ]] && { sudo pacman -S --needed --noconfirm "$rofi_pkg" || echo "(rofi not installed, that is fine)"; }
 
 # A file manager is optional: XLIN uses whichever one you already have
 have_fm=0
@@ -101,6 +103,7 @@ sudo install -m 755 "$SRC/bin/xlin-files" /usr/local/bin/xlin-files
 sudo install -m 755 "$SRC/bin/xlin-monitor" /usr/local/bin/xlin-monitor
 sudo install -m 755 "$SRC/bin/xlin-terminal" /usr/local/bin/xlin-terminal
 sudo install -m 755 "$SRC/bin/xlin-desktop" /usr/local/bin/xlin-desktop
+sudo install -m 755 "$SRC/bin/xlin-launcher" /usr/local/bin/xlin-launcher
 mkdir -p "$HOME/.local/share/applications"
 cp "$SRC"/config/applications/dev.xlin.*.desktop "$HOME/.local/share/applications/"
 mkdir -p "$HOME/.local/share/icons/hicolor/scalable/apps"

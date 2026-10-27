@@ -344,7 +344,24 @@ launch_id() {
   fi
 }
 
+# The app drawer is XLIN's own (xlin-launcher); rofi is only a fallback if it cannot start
 cmd_launcher() {
+  local mode="${1:-}"
+  if pgrep -f '[x]lin-launcher' >/dev/null; then pkill -f '[x]lin-launcher'; [[ "$mode" == pin ]] || return 0; sleep 0.15; fi
+  if have xlin-launcher; then
+    mkdir -p "$HOME/.cache/xlin"
+    local rc=0
+    if [[ "$mode" == pin ]]; then xlin-launcher --pin >>"$HOME/.cache/xlin/launcher.log" 2>&1 || rc=$?
+    else xlin-launcher >>"$HOME/.cache/xlin/launcher.log" 2>&1 || rc=$?; fi
+    [[ $rc -eq 3 ]] || return 0
+  fi
+  have rofi || { notify "App drawer could not start" "Install: sudo pacman -S gtk4-layer-shell"; return 1; }
+  cmd_launcher_rofi "$mode"
+}
+
+cmd_launch_app() { record_recent "${1%.desktop}"; launch_id "${1%.desktop}"; }
+
+cmd_launcher_rofi() {
   local mode="${1:-}" msg="Pinned and recent apps first   ·   Alt+P pin   ·   Alt+U unpin"
   if pgrep -x rofi >/dev/null; then pkill -x rofi; [[ "$mode" == pin ]] || return 0; sleep 0.15; fi
   [[ "$mode" == pin ]] && msg="Pick an app to pin to the run bar"
@@ -562,7 +579,7 @@ cmd_doctor() {
   }
   echo "XLIN $XLIN_VERSION"
   echo "Core programs:"
-  chk required hyprctl hyprland;       chk required waybar waybar;        chk required rofi rofi
+  chk required hyprctl hyprland;       chk required waybar waybar;        chk optional rofi rofi
   chk required swaync swaync;          chk required jq jq;                chk required socat socat
   chk required nmcli networkmanager;   chk required wpctl wireplumber;    chk required brightnessctl brightnessctl
   if python3 -c "import gi; gi.require_version('Vte','3.91')" >/dev/null 2>&1; then echo "  ok       XLIN Terminal (vte4)"
@@ -803,7 +820,7 @@ cmd_start() {
 }
 
 # ================================================================= XLIN CLI
-XLIN_VERSION="0.24.0"
+XLIN_VERSION="0.25.0"
 
 if [[ -t 1 ]]; then B=$'\e[1m'; D=$'\e[2m'; R=$'\e[0m'; else B=""; D=""; R=""; fi
 die() { echo "xlin: $*" >&2; return 1; }
@@ -1587,7 +1604,8 @@ case "${1:-help}" in
   battery)   shift; cmd_battery "$@" ;;
   theme)     shift; cmd_theme "${1:-}" ;;
   wallpaper) shift; cmd_wallpaper "${1:-next}" ;;
-  launcher)  cmd_launcher ;;
+  launcher)  shift; cmd_launcher "${1:-}" ;;
+  launch-app) shift; cmd_launch_app "${1:?usage: xlin launch-app <desktop-id>}" ;;
   pin)       shift; cmd_pin "${1:-}" ;;
   unpin)     shift; cmd_unpin "${1:-}" ;;
   dock|runbar) shift; case "${1:-check}" in

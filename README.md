@@ -31,7 +31,7 @@ Remove everything (your old Waybar, swaync and Kitty configs are put back):
 | Piece           | How                                                                   |
 |-----------------|-----------------------------------------------------------------------|
 | Top bar         | Waybar: X launcher, settings, tools, Wi-Fi, Bluetooth, sound, battery, clock, power, control panel |
-| Launcher        | rofi grid above the Run Bar. Alt+P pins, Alt+U unpins                    |
+| Launcher        | XLIN app drawer above the Run Bar (no rofi needed). Alt+P pins, Alt+U unpins                    |
 | Run Bar         | The bar at the bottom (nwg-dock-hyprland): auto-hides, hidden when nothing runs or is pinned |
 | Control panel   | swaync: toggles, sliders and notifications (Super+C)                  |
 | Settings        | XLIN Settings (GTK4): Wi-Fi, Bluetooth, Display, Sound, Appearance, Bars (choose top-bar buttons, Run Bar), General, About / Update |

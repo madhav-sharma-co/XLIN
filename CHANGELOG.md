@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.20.0
+- Right-click the desktop for a menu: Add app shortcut, Widgets (clock, calendar, system), Next wallpaper / Choose picture, Terminal, Files, Settings
+- Desktop shortcut icons (double-click to open, right-click to remove) and widgets, drag to arrange; positions are remembered in ~/.config/xlin/desktop.json
+- New: `xlin desktop on|off|restart` (needs gtk4-layer-shell, installed by the installer)
+
 ## 0.19.0
 - New app: XLIN Terminal (VTE): tabs (Ctrl+Shift+T), XLIN colours and font that follow `xlin theme`, copy/paste menu, text zoom. Super+Return / Super+T open it; `xlin term [-d folder] [-e cmd]` from the command line
 - `xlin terminal use kitty` switches back to Kitty; Kitty is also the automatic fallback if VTE is missing

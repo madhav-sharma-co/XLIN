@@ -10,4 +10,4 @@ jobs:
       - name: ShellCheck (errors only)
         run: sudo apt-get install -y shellcheck && shellcheck -S error bin/xlin install.sh update.sh
       - name: Python compile
-        run: python3 -m py_compile bin/xlin-settings bin/xlin-tools bin/xlin-files bin/xlin-welcome bin/xlin-monitor bin/xlin-terminal scripts/make-cursors.py scripts/make-icons.py scripts/make-wallpapers.py
+        run: python3 -m py_compile bin/xlin-settings bin/xlin-tools bin/xlin-files bin/xlin-welcome bin/xlin-monitor bin/xlin-terminal bin/xlin-desktop scripts/make-cursors.py scripts/make-icons.py scripts/make-wallpapers.py

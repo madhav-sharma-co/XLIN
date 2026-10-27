@@ -336,7 +336,9 @@ launch_id() {
 }
 
 cmd_launcher() {
-  if pgrep -x rofi >/dev/null; then pkill -x rofi; return 0; fi
+  local mode="${1:-}" msg="Pinned and recent apps first   ·   Alt+P pin   ·   Alt+U unpin"
+  if pgrep -x rofi >/dev/null; then pkill -x rofi; [[ "$mode" == pin ]] || return 0; sleep 0.15; fi
+  [[ "$mode" == pin ]] && msg="Pick an app to pin to the dock"
   load_apps
   local i k id sel code real
   local -a ORD=()
@@ -357,16 +359,96 @@ cmd_launcher() {
       printf '%s\0icon\x1f%s\n' "${A_NAME[$k]}" "${A_ICON[$k]}"
     done | rofi -dmenu -i -show-icons -format i -matching fuzzy \
       -theme "$HOME/.config/rofi/xlin.rasi" \
-      -mesg "Pinned and recent apps first   ·   Alt+P pin   ·   Alt+U unpin" \
+      -mesg "$msg" \
       -kb-custom-1 "Alt+p" -kb-custom-2 "Alt+u"
   )"
   code=$?
   [[ -z "$sel" ]] && return 0
   real="${ORD[$sel]}"
   case "$code" in
-    0)  record_recent "${A_ID[$real]}"; launch_id "${A_ID[$real]}" ;;
+    0)  if [[ "$mode" == pin ]]; then cmd_pin "${A_ID[$real]}"; notify "Pinned to the dock" "${A_NAME[$real]}"
+        else record_recent "${A_ID[$real]}"; launch_id "${A_ID[$real]}"; fi ;;
     10) cmd_pin "${A_ID[$real]}" ;;
     11) cmd_unpin "${A_ID[$real]}" ;;
+  esac
+}
+
+# ---------------------------------------------------------- desktop right-click menu
+# Bound to a non-consuming right click (xlin.conf). It only shows when the click landed on the
+# empty desktop: not on a window, the bar or the dock.
+menu_pick() {   # menu_pick X Y item...   -> the chosen item on stdout
+  local x="$1" y="$2"; shift 2
+  local n=$# w=250 h mx my mw mh
+  h=$(( n * 38 + 20 ))
+  read -r mx my mw mh < <(hyprctl monitors -j 2>/dev/null | jq -r '[.[]|select(.focused)][0] | "\(.x) \(.y) \((.width/.scale)|floor) \((.height/.scale)|floor)"') || true
+  mx="${mx:-0}"; my="${my:-0}"; mw="${mw:-1920}"; mh="${mh:-1080}"
+  x=$(( x - mx )); y=$(( y - my ))
+  (( x + w > mw - 8 )) && x=$(( mw - w - 8 ))
+  (( y + h > mh - 8 )) && y=$(( mh - h - 8 ))
+  (( x < 8 )) && x=8; (( y < 8 )) && y=8
+  printf '%s\n' "$@" | rofi -dmenu -i -format s -no-custom -theme "$HOME/.config/rofi/xlin.rasi" \
+    -theme-str "window { location: northwest; anchor: northwest; x-offset: ${x}px; y-offset: ${y}px; width: ${w}px; padding: 6px; }
+      listview { columns: 1; lines: $n; fixed-height: true; spacing: 2px; }
+      element { orientation: horizontal; padding: 8px 12px; spacing: 0px; }
+      element-text { horizontal-align: 0; font: \"DM Sans 11\"; }
+      inputbar { enabled: false; } message { enabled: false; }"
+}
+
+cmd_desktop_menu() {
+  have hyprctl && have jq && have rofi || return 0
+  if [[ "${1:-}" != force ]] && pgrep -x rofi >/dev/null; then return 0; fi
+  local pos x y ws theme dm
+  pos="$(hyprctl cursorpos -j 2>/dev/null)" || return 0
+  x="$(jq -r '.x|floor' <<<"$pos")"; y="$(jq -r '.y|floor' <<<"$pos")"
+  ws="$(hyprctl activeworkspace -j 2>/dev/null | jq -r '.id')"
+  # a window under the pointer? then it was an ordinary right click inside an app
+  hyprctl clients -j 2>/dev/null | jq -e --argjson x "$x" --argjson y "$y" --argjson ws "${ws:-1}" \
+    '[.[] | select(.mapped and (.hidden|not) and .workspace.id==$ws
+        and $x>=.at[0] and $x<(.at[0]+.size[0]) and $y>=.at[1] and $y<(.at[1]+.size[1]))] | length > 0' >/dev/null && return 0
+  # the bar, the dock or a panel under the pointer?
+  hyprctl layers -j 2>/dev/null | jq -e --argjson x "$x" --argjson y "$y" \
+    '[.[] | .levels | to_entries[] | .value[] | select(.namespace|test("waybar|dock|rofi|swaync-control|xlin|osd"))
+        | select($x>=.x and $x<(.x+.w) and $y>=.y and $y<(.y+.h))] | length > 0' >/dev/null && return 0
+
+  theme="$(cat "$STATE/theme" 2>/dev/null || echo light)"
+  [[ "$theme" == dark ]] && dm="Switch to light mode" || dm="Switch to dark mode"
+  local pick
+  pick="$(menu_pick "$x" "$y" "New note" "Open terminal" "Open files" "Widgets  ›" "Change wallpaper  ›" \
+    "Pin an app to the dock…" "$dm" "System monitor" "Display settings" "XLIN settings")" || return 0
+  case "$pick" in
+    "New note")               cmd_note ;;
+    "Open terminal")          cmd_term ;;
+    "Open files")             cmd_files ;;
+    "Widgets"*)
+      pick="$(menu_pick "$x" "$y" "Calculator" "Calendar" "Notes")" || return 0
+      xlin_tools_open "${pick,,}" ;;
+    "Change wallpaper"*)      desktop_wallpaper_menu "$x" "$y" ;;
+    "Pin an app"*)            sleep 0.1; cmd_launcher pin ;;
+    "Switch to"*)             cmd_theme toggle ;;
+    "System monitor")         cmd_monitor ;;
+    "Display settings")       cmd_settings display ;;
+    "XLIN settings")          cmd_settings ;;
+  esac
+}
+
+xlin_tools_open() {
+  have xlin-tools || return 0
+  setsid xlin-tools "$1" >>"$HOME/.cache/xlin/tools.log" 2>&1 &
+}
+
+desktop_wallpaper_menu() {
+  local x="$1" y="$2" f n pick
+  local -a names=("Next wallpaper") files=("")
+  while IFS= read -r f; do
+    n="$(basename "$f")"; n="${n%.*}"; n="${n#xlin-}"
+    names+=("${n^}"); files+=("$f")
+  done < <(find "$WALLS" -maxdepth 1 -type f \( -iname 'xlin-*.jpg' -o -iname 'xlin-*.png' \) 2>/dev/null | sort)
+  names+=("Choose a picture…"); files+=("")
+  pick="$(menu_pick "$x" "$y" "${names[@]}")" || return 0
+  case "$pick" in
+    "Next wallpaper")      cmd_wallpaper next ;;
+    "Choose a picture"*)   cmd_settings appearance ;;
+    *) for n in "${!names[@]}"; do [[ "${names[$n]}" == "$pick" ]] && cmd_wallpaper "${files[$n]}"; done ;;
   esac
 }
 
@@ -478,7 +560,7 @@ cmd_doctor() {
   python3 -c 'import gi; gi.require_version("Gtk","4.0")' 2>/dev/null \
     && echo "  ok       GTK4 for Python" || { echo "  MISSING  GTK4 for Python   (sudo pacman -S gtk4 python-gobject)"; missing=1; }
   echo "XLIN commands:"
-  for b in xlin xlin-dock-watch xlin-settings xlin-tools xlin-welcome xlin-files xlin-monitor xlin-terminal; do
+  for b in xlin xlin-dock-watch xlin-settings xlin-tools xlin-welcome xlin-files xlin-monitor xlin-terminal xlin-desktop; do
     have "$b" && printf '  ok       %s\n' "$b" || { printf '  MISSING  %s   (run ./update.sh)\n' "$b"; missing=1; }
   done
   echo "Extras (features that need them):"
@@ -699,6 +781,7 @@ cmd_start() {
     sleep 0.3
     setsid swaync >>"$HOME/.cache/xlin/swaync.log" 2>&1 &
   fi
+  [[ -f "$STATE/desktop_off" ]] || cmd_desktop start quiet || true
   pgrep -f xlin-dock-watch >/dev/null || setsid xlin-dock-watch >>"$HOME/.cache/xlin/dock.log" 2>&1 &
   cmd_wallpaper restore
   apply_cursor
@@ -708,7 +791,7 @@ cmd_start() {
 }
 
 # ================================================================= XLIN CLI
-XLIN_VERSION="0.19.0"
+XLIN_VERSION="0.20.0"
 
 if [[ -t 1 ]]; then B=$'\e[1m'; D=$'\e[2m'; R=$'\e[0m'; else B=""; D=""; R=""; fi
 die() { echo "xlin: $*" >&2; return 1; }
@@ -998,6 +1081,30 @@ cmd_nightlight() {
   esac
 }
 
+# ---- desktop: right-click menu, shortcut icons and widgets (needs gtk4-layer-shell)
+desktop_ok() { python3 -c "import gi; gi.require_version('Gtk4LayerShell','1.0')" >/dev/null 2>&1; }
+
+cmd_desktop() {
+  local act="${1:-start}" quiet="${2:-}"
+  case "$act" in
+    stop|off)
+      pkill -f '[x]lin-desktop$' 2>/dev/null; touch "$STATE/desktop_off"
+      echo "desktop menu and widgets: off (xlin desktop on to bring them back)" ;;
+    start|on|restart)
+      [[ "$act" == on ]] && rm -f "$STATE/desktop_off"
+      [[ "$act" == restart ]] && { pkill -f '[x]lin-desktop$' 2>/dev/null; sleep 0.4; }
+      if ! have xlin-desktop || ! desktop_ok; then
+        [[ "$quiet" == quiet ]] || echo "The desktop menu needs gtk4-layer-shell: sudo pacman -S gtk4-layer-shell"
+        return 1
+      fi
+      pgrep -f '[x]lin-desktop$' >/dev/null && return 0
+      mkdir -p "$HOME/.cache/xlin"
+      setsid xlin-desktop >>"$HOME/.cache/xlin/desktop.log" 2>&1 &
+      [[ "$quiet" == quiet ]] || echo "desktop menu and widgets: on (right-click the desktop)" ;;
+    *) echo "usage: xlin desktop [on|off|restart]" ;;
+  esac
+}
+
 # ---- monitor: CPU, memory, disk, network and your running apps
 cmd_monitor() {
   if have xlin-monitor && python3 -c 'import gi' >/dev/null 2>&1; then
@@ -1100,7 +1207,7 @@ EOT
   local hc="$HOME/.config/hypr/hyprland.conf" f bak
   [[ -f "$hc" ]] && sed -i '/^# XLIN/d;/hypr\/xlin\.conf/d' "$hc"
   rm -f "$HOME"/.config/hypr/xlin{,-colors,-opacity,-hyprlock,-hypridle}.conf
-  pkill -f '[x]lin-dock-watch$' 2>/dev/null; pkill -f '^nwg-dock-hyprland' 2>/dev/null
+  pkill -f '[x]lin-dock-watch$' 2>/dev/null; pkill -f '[x]lin-desktop$' 2>/dev/null; pkill -f '[x]lin-desktop$' 2>/dev/null; pkill -f '^nwg-dock-hyprland' 2>/dev/null
   pkill -x hypridle 2>/dev/null; pkill -x hyprsunset 2>/dev/null
 
   for f in "$HOME/.config/waybar/config.jsonc" "$HOME/.config/swaync/config.json"; do
@@ -1122,7 +1229,7 @@ EOT
   echo "XLIN removed. Start your own bar with e.g. 'waybar &'. Log out and in again for a clean session."
   # last step replaces this shell, because it deletes the very script that is running
   exec sudo rm -f /usr/local/bin/xlin /usr/local/bin/xlin-dock-watch /usr/local/bin/xlin-settings \
-                  /usr/local/bin/xlin-tools /usr/local/bin/xlin-welcome /usr/local/bin/xlin-files /usr/local/bin/xlin-monitor /usr/local/bin/xlin-terminal
+                  /usr/local/bin/xlin-tools /usr/local/bin/xlin-welcome /usr/local/bin/xlin-files /usr/local/bin/xlin-monitor /usr/local/bin/xlin-terminal /usr/local/bin/xlin-desktop
 }
 
 # ---- keeping the XLIN shortcuts working: xlin keys check | fix, and xlin hook
@@ -1341,6 +1448,7 @@ ${B}Look and feel${R}
   xlin opacity <0.3-1.0>           window transparency
   xlin dock autohide on|off        dock behaviour
   xlin term [-d folder] [-e cmd]   open a terminal window
+  xlin desktop [on|off|restart]    right-click desktop menu, shortcuts and widgets
   xlin terminal use xlin|kitty     which terminal Super+Return opens
   xlin terminal font ["Name" 12]   terminal font
   xlin terminal banner on|off      terminal welcome card
@@ -1443,7 +1551,9 @@ case "${1:-help}" in
   reboot|restart-pc) systemctl reboot ;;
   files)     shift; cmd_files "$@" ;;
   monitor)   cmd_monitor ;;
+  desktop-menu) shift; cmd_desktop_menu "${1:-}" ;;
   term)      shift; cmd_term "$@" ;;
+  desktop)   shift; cmd_desktop "$@" ;;
   reload)    reload_all ;;
   doctor)    cmd_doctor ;;
   *) echo "xlin: unknown command '$1'" >&2; echo >&2; cmd_help >&2; exit 1 ;;

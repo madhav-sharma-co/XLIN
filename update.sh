@@ -24,7 +24,7 @@ cp "$SRC/config/swaync/config.json" "$HOME/.config/swaync/config.json"
 
 say "Power modes need power-profiles-daemon (skipped if you have it)"
 sudo pacman -S --needed --noconfirm power-profiles-daemon || echo "(could not install it; the battery menu will show how)"
-sudo pacman -S --needed --noconfirm vte4 udisks2 gvfs gvfs-smb >/dev/null 2>&1 || echo "(could not install udisks2/gvfs; USB drives and network folders in Files need them)"
+sudo pacman -S --needed --noconfirm gtk4-layer-shell vte4 udisks2 gvfs gvfs-smb >/dev/null 2>&1 || echo "(could not install udisks2/gvfs; USB drives and network folders in Files need them)"
 sudo systemctl enable --now power-profiles-daemon 2>/dev/null || true
 
 say "Lock screen"
@@ -37,7 +37,7 @@ done
 systemctl --user enable --now hyprpolkitagent.service >/dev/null 2>&1 || true
 
 say "Installing the xlin commands (asks for your password once)"
-for b in xlin xlin-dock-watch xlin-settings xlin-tools xlin-welcome xlin-files xlin-monitor xlin-terminal; do
+for b in xlin xlin-dock-watch xlin-settings xlin-tools xlin-welcome xlin-files xlin-monitor xlin-terminal xlin-desktop; do
   sudo install -m 755 "$SRC/bin/$b" "/usr/local/bin/$b"
 done
 

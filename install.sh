@@ -22,7 +22,7 @@ pick_repo() { # first package that exists in the repos
 }
 
 say "Installing packages"
-core=(vte4 udisks2 gvfs gvfs-smb hyprland waybar swaync jq socat libnotify brightnessctl networkmanager
+core=(gtk4-layer-shell vte4 udisks2 gvfs gvfs-smb hyprland waybar swaync jq socat libnotify brightnessctl networkmanager
       network-manager-applet pipewire wireplumber pavucontrol blueman
       imagemagick ttf-font-awesome inter-font gtk3 gtk4 python-gobject kitty bluez bluez-utils power-profiles-daemon hyprlock)
 
@@ -96,6 +96,7 @@ sudo install -m 755 "$SRC/bin/xlin-welcome" /usr/local/bin/xlin-welcome
 sudo install -m 755 "$SRC/bin/xlin-files" /usr/local/bin/xlin-files
 sudo install -m 755 "$SRC/bin/xlin-monitor" /usr/local/bin/xlin-monitor
 sudo install -m 755 "$SRC/bin/xlin-terminal" /usr/local/bin/xlin-terminal
+sudo install -m 755 "$SRC/bin/xlin-desktop" /usr/local/bin/xlin-desktop
 mkdir -p "$HOME/.local/share/applications"
 cp "$SRC"/config/applications/dev.xlin.*.desktop "$HOME/.local/share/applications/"
 mkdir -p "$HOME/.local/share/icons/hicolor/scalable/apps"

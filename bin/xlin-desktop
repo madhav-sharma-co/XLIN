@@ -1,0 +1,533 @@
+#!/usr/bin/env python3
+"""XLIN Desktop - the layer between your wallpaper and your windows.
+
+Right-click the desktop for a menu: add an app shortcut, show widgets (clock, calendar, system),
+change the wallpaper, open Terminal / Files / Settings. Shortcuts and widgets can be dragged;
+double-click a shortcut to open it, right-click it to remove it.
+Needs gtk4-layer-shell (sudo pacman -S gtk4-layer-shell). Started by `xlin start`; `xlin desktop`.
+"""
+import glob
+import json
+import os
+import subprocess
+import sys
+import time
+
+# gtk4-layer-shell must be loaded before libwayland-client: preload it once, then restart ourselves
+if not os.environ.get("XLIN_DESKTOP_REEXEC"):
+    libs = glob.glob("/usr/lib/libgtk4-layer-shell.so*") + glob.glob("/usr/lib64/libgtk4-layer-shell.so*")
+    if libs:
+        old = os.environ.get("LD_PRELOAD", "")
+        os.environ["LD_PRELOAD"] = (old + ":" if old else "") + libs[0]
+        os.environ["XLIN_DESKTOP_REEXEC"] = "1"
+        os.execv(sys.executable, [sys.executable] + sys.argv)
+
+import gi  # noqa: E402
+
+gi.require_version("Gtk", "4.0")
+gi.require_version("Gdk", "4.0")
+try:
+    gi.require_version("Gtk4LayerShell", "1.0")
+    from gi.repository import Gtk4LayerShell as LayerShell
+except (ValueError, ImportError):
+    print("XLIN Desktop needs gtk4-layer-shell:  sudo pacman -S gtk4-layer-shell", file=sys.stderr)
+    sys.exit(3)
+from gi.repository import Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
+
+APP_ID = "dev.xlin.Desktop"
+HOME = os.path.expanduser("~")
+CONFIG = os.path.join(HOME, ".config/xlin/desktop.json")
+STATE = os.path.join(HOME, ".config/xlin/state")
+CSS_FILE = os.path.join(HOME, ".config/xlin/tools.css")
+CELL_W, CELL_H, MARGIN_X, MARGIN_Y = 100, 108, 36, 66
+DEFAULT = {
+    "icons": [{"id": "dev.xlin.Files.desktop", "x": 0, "y": 0}, {"id": "dev.xlin.Terminal.desktop", "x": 0, "y": 1}],
+    "widgets": {"clock": {"on": True, "x": 0, "y": 0}, "calendar": {"on": False, "x": 0, "y": 0},
+                "system": {"on": False, "x": 0, "y": 0}},
+}
+WIDGET_NAMES = (("clock", "Clock"), ("calendar", "Calendar"), ("system", "System"))
+
+
+# ------------------------------------------------------------- settings
+def load_config():
+    try:
+        with open(CONFIG) as f:
+            data = json.load(f)
+        if isinstance(data, dict) and "icons" in data and "widgets" in data:
+            for k, v in DEFAULT["widgets"].items():
+                data["widgets"].setdefault(k, dict(v))
+            return data
+    except (OSError, ValueError):
+        pass
+    return json.loads(json.dumps(DEFAULT))
+
+
+def save_config(cfg):
+    try:
+        os.makedirs(os.path.dirname(CONFIG), exist_ok=True)
+        tmp = CONFIG + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(cfg, f, indent=1)
+        os.replace(tmp, CONFIG)
+    except OSError:
+        pass
+
+
+def theme_name():
+    try:
+        with open(os.path.join(STATE, "theme")) as f:
+            return f.read().strip() or "light"
+    except OSError:
+        return "light"
+
+
+def desktop_css():
+    dark = theme_name() == "dark"
+    ink = "#f2f4fa" if dark else "#182035"
+    card = "rgba(28,30,38,.58)" if dark else "rgba(255,255,255,.62)"
+    shadow = "0 1px 3px rgba(0,0,0,.65)" if dark else "0 1px 2px rgba(255,255,255,.6)"
+    return f"""
+    window.xlin-desktop {{ background: transparent; }}
+    .desk-label {{ color: {ink}; text-shadow: {shadow}; font-size: 12px; }}
+    .desk-icon {{ padding: 8px 6px; border-radius: 12px; }}
+    .desk-icon:hover {{ background-color: alpha({ink}, .10); }}
+    .desk-card {{ background-color: {card}; border-radius: 18px; padding: 14px 18px; color: {ink}; }}
+    .desk-card label {{ color: {ink}; }}
+    .desk-time {{ font-size: 56px; font-weight: 300; }}
+    .desk-date {{ font-size: 15px; opacity: .8; }}
+    .desk-title {{ font-size: 11px; opacity: .6; }}
+    .desk-card calendar {{ background: transparent; color: {ink}; border: none; }}
+    .desk-card levelbar block.filled {{ background-color: {ink}; border-radius: 4px; }}
+    .desk-card levelbar block.empty {{ background-color: alpha({ink}, .18); border-radius: 4px; }}
+    """
+
+
+def run(cmd):
+    try:
+        subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    except OSError:
+        pass
+
+
+def cpu_times():
+    with open("/proc/stat") as f:
+        p = [int(x) for x in f.readline().split()[1:]]
+    idle = p[3] + (p[4] if len(p) > 4 else 0)
+    total = sum(p[:8])
+    return total - idle, total
+
+
+def mem_frac():
+    info = {}
+    with open("/proc/meminfo") as f:
+        for line in f:
+            k, v = line.split(":", 1)
+            info[k] = int(v.split()[0])
+    t = info.get("MemTotal", 1)
+    return (t - info.get("MemAvailable", info.get("MemFree", 0))) / t
+
+
+def disk_frac():
+    s = os.statvfs("/")
+    return 1 - (s.f_bavail / s.f_blocks) if s.f_blocks else 0
+
+
+# --------------------------------------------------------------- the desktop
+class DesktopWindow(Gtk.Window):
+    def __init__(self, app):
+        super().__init__(application=app, title="XLIN Desktop")
+        self.cfg = load_config()
+        self.add_css_class("xlin-desktop")
+        self.set_decorated(False)
+
+        LayerShell.init_for_window(self)
+        LayerShell.set_namespace(self, "xlin-desktop")
+        LayerShell.set_layer(self, LayerShell.Layer.BOTTOM)
+        for edge in (LayerShell.Edge.TOP, LayerShell.Edge.BOTTOM, LayerShell.Edge.LEFT, LayerShell.Edge.RIGHT):
+            LayerShell.set_anchor(self, edge, True)
+        LayerShell.set_exclusive_zone(self, -1)
+        LayerShell.set_keyboard_mode(self, LayerShell.KeyboardMode.ON_DEMAND)
+
+        self.css = Gtk.CssProvider()
+        Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), self.css,
+                                                  Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 2)
+        self.theme = None
+        self.fixed = Gtk.Fixed()
+        self.set_child(self.fixed)
+        self.icon_widgets = {}
+        self.widget_boxes = {}
+        self.prev_cpu = cpu_times()
+
+        right = Gtk.GestureClick(button=3)
+        right.connect("pressed", self.on_desktop_menu)
+        self.fixed.add_controller(right)
+
+        self.refresh_theme()
+        for item in list(self.cfg["icons"]):
+            self.add_icon_widget(item)
+        for key, _n in WIDGET_NAMES:
+            self.sync_widget(key)
+        GLib.timeout_add_seconds(1, self.tick)
+
+    # ---- helpers
+    def refresh_theme(self):
+        name = theme_name()
+        if name != self.theme:
+            self.theme = name
+            try:
+                self.css.load_from_data(desktop_css().encode())
+            except Exception:
+                pass
+
+    def screen_size(self):
+        w, h = self.get_width(), self.get_height()
+        if w < 100 or h < 100:
+            try:
+                geo = Gdk.Display.get_default().get_monitors().get_item(0).get_geometry()
+                w, h = geo.width, geo.height
+            except Exception:
+                w, h = 1920, 1080
+        return w, h
+
+    def grid_pos(self, gx, gy):
+        return MARGIN_X + gx * CELL_W, MARGIN_Y + gy * CELL_H
+
+    def snap(self, x, y):
+        w, h = self.screen_size()
+        gx = max(0, min(int((w - MARGIN_X) // CELL_W) - 1, round((x - MARGIN_X) / CELL_W)))
+        gy = max(0, min(int((h - MARGIN_Y) // CELL_H) - 1, round((y - MARGIN_Y) / CELL_H)))
+        return gx, gy
+
+    def free_cell(self):
+        used = {(i["x"], i["y"]) for i in self.cfg["icons"]}
+        rows = max(1, int((self.screen_size()[1] - MARGIN_Y) // CELL_H))
+        for gx in range(0, 30):
+            for gy in range(rows):
+                if (gx, gy) not in used:
+                    return gx, gy
+        return 0, 0
+
+    # ---- shortcut icons
+    def add_icon_widget(self, item):
+        app = Gio.DesktopAppInfo.new(item["id"])
+        if app is None:
+            return False
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        box.add_css_class("desk-icon")
+        box.set_size_request(CELL_W - 12, CELL_H - 8)
+        img = Gtk.Image()
+        img.set_pixel_size(52)
+        gicon = app.get_icon()
+        if gicon:
+            img.set_from_gicon(gicon)
+        else:
+            img.set_from_icon_name("application-x-executable")
+        label = Gtk.Label(label=app.get_display_name())
+        label.add_css_class("desk-label")
+        label.set_ellipsize(Pango.EllipsizeMode.END)
+        label.set_max_width_chars(12)
+        box.append(img)
+        box.append(label)
+        px, py = self.grid_pos(item["x"], item["y"])
+        self.fixed.put(box, px, py)
+        self.icon_widgets[item["id"]] = box
+        self.make_draggable(box, box, lambda x, y, it=item: self.drop_icon(it, x, y))
+        dbl = Gtk.GestureClick(button=1)
+        dbl.connect("released", lambda g, n, _x, _y, a=app: n == 2 and self.launch(a))
+        box.add_controller(dbl)
+        rc = Gtk.GestureClick(button=3)
+        rc.connect("pressed", lambda g, _n, x, y, it=item, a=app, b=box: self.icon_menu(g, b, x, y, it, a))
+        box.add_controller(rc)
+        return True
+
+    def launch(self, app):
+        try:
+            app.launch([], None)
+        except GLib.Error:
+            pass
+
+    def drop_icon(self, item, x, y):
+        gx, gy = self.snap(x, y)
+        for other in self.cfg["icons"]:          # cell taken: stay where we were
+            if other is not item and (other["x"], other["y"]) == (gx, gy):
+                gx, gy = item["x"], item["y"]
+        item["x"], item["y"] = gx, gy
+        px, py = self.grid_pos(gx, gy)
+        self.fixed.move(self.icon_widgets[item["id"]], px, py)
+        save_config(self.cfg)
+
+    def add_shortcut(self, app_id):
+        if any(i["id"] == app_id for i in self.cfg["icons"]):
+            return
+        gx, gy = self.free_cell()
+        item = {"id": app_id, "x": gx, "y": gy}
+        if self.add_icon_widget(item):
+            self.cfg["icons"].append(item)
+            save_config(self.cfg)
+
+    def remove_shortcut(self, item):
+        w = self.icon_widgets.pop(item["id"], None)
+        if w is not None:
+            self.fixed.remove(w)
+        self.cfg["icons"] = [i for i in self.cfg["icons"] if i["id"] != item["id"]]
+        save_config(self.cfg)
+
+    # ---- dragging (icons and widgets)
+    def make_draggable(self, handle, target, on_drop):
+        drag = Gtk.GestureDrag(button=1)
+        state = {}
+
+        def begin(_g, _x, _y):
+            x, y = self.fixed.get_child_position(target)
+            state["o"] = (x, y)
+
+        def update(_g, dx, dy):
+            if "o" in state and abs(dx) + abs(dy) > 4:
+                self.fixed.move(target, max(0, state["o"][0] + dx), max(30, state["o"][1] + dy))
+                state["moved"] = True
+
+        def end(_g, dx, dy):
+            if state.pop("moved", False):
+                x, y = self.fixed.get_child_position(target)
+                on_drop(x, y)
+            state.clear()
+        drag.connect("drag-begin", begin)
+        drag.connect("drag-update", update)
+        drag.connect("drag-end", end)
+        handle.add_controller(drag)
+
+    # ---- widgets
+    def sync_widget(self, key):
+        conf = self.cfg["widgets"][key]
+        box = self.widget_boxes.get(key)
+        if conf["on"] and box is None:
+            box = self.build_widget(key)
+            x, y = conf.get("x", 0), conf.get("y", 0)
+            if not x and not y:
+                x, y = self.default_widget_pos(key)
+                conf["x"], conf["y"] = x, y
+            self.fixed.put(box, x, y)
+            self.widget_boxes[key] = box
+        elif not conf["on"] and box is not None:
+            self.fixed.remove(box)
+            del self.widget_boxes[key]
+
+    def default_widget_pos(self, key):
+        w = self.screen_size()[0]
+        return {"clock": (w - 420, 90), "calendar": (w - 420, 250), "system": (w - 420, 520)}.get(key, (200, 100))
+
+    def build_widget(self, key):
+        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        card.add_css_class("desk-card")
+        handle = card
+        if key == "clock":
+            self.time_l = Gtk.Label(label="", xalign=0)
+            self.time_l.add_css_class("desk-time")
+            self.date_l = Gtk.Label(label="", xalign=0)
+            self.date_l.add_css_class("desk-date")
+            card.append(self.time_l)
+            card.append(self.date_l)
+        elif key == "calendar":
+            title = Gtk.Label(label="Calendar", xalign=0)
+            title.add_css_class("desk-title")
+            card.append(title)
+            card.append(Gtk.Calendar())
+            handle = title
+        else:
+            title = Gtk.Label(label="System", xalign=0)
+            title.add_css_class("desk-title")
+            card.append(title)
+            self.bars = {}
+            for name in ("Processor", "Memory", "Disk"):
+                row = Gtk.Box(spacing=10)
+                lab = Gtk.Label(label=name, xalign=0)
+                lab.set_size_request(80, -1)
+                bar = Gtk.LevelBar(min_value=0, max_value=1, hexpand=True, valign=Gtk.Align.CENTER)
+                bar.set_size_request(150, -1)
+                row.append(lab)
+                row.append(bar)
+                card.append(row)
+                self.bars[name] = bar
+            handle = title
+        self.make_draggable(handle, card, lambda x, y, k=key: self.drop_widget(k, x, y))
+        rc = Gtk.GestureClick(button=3)
+        rc.connect("pressed", lambda g, _n, x, y, k=key, c=card: self.widget_menu(g, c, x, y, k))
+        card.add_controller(rc)
+        self.tick()
+        return card
+
+    def drop_widget(self, key, x, y):
+        self.cfg["widgets"][key]["x"], self.cfg["widgets"][key]["y"] = int(x), int(y)
+        save_config(self.cfg)
+
+    def toggle_widget(self, key):
+        self.cfg["widgets"][key]["on"] = not self.cfg["widgets"][key]["on"]
+        self.sync_widget(key)
+        save_config(self.cfg)
+
+    def tick(self):
+        self.refresh_theme()
+        if "clock" in self.widget_boxes:
+            now = time.localtime()
+            self.time_l.set_text(time.strftime("%H:%M", now))
+            self.date_l.set_text(time.strftime("%A, %d %B", now))
+        if "system" in self.widget_boxes:
+            busy, total = cpu_times()
+            pb, pt = self.prev_cpu
+            self.prev_cpu = (busy, total)
+            self.bars["Processor"].set_value((busy - pb) / max(1, total - pt))
+            self.bars["Memory"].set_value(mem_frac())
+            self.bars["Disk"].set_value(disk_frac())
+        return True
+
+    # ---- menus
+    def popup(self, parent, x, y, build):
+        pop = Gtk.Popover()
+        pop.add_css_class("files-menu")
+        pop.set_parent(parent)
+        pop.set_has_arrow(False)
+        rect = Gdk.Rectangle()
+        rect.x, rect.y, rect.width, rect.height = int(x), int(y), 1, 1
+        pop.set_pointing_to(rect)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        box.set_size_request(210, -1)
+        build(box, pop)
+        pop.set_child(box)
+        pop.connect("closed", lambda p: GLib.idle_add(p.unparent))
+        pop.popup()
+
+    @staticmethod
+    def item(box, pop, label, fn):
+        b = Gtk.Button(label=label, halign=Gtk.Align.FILL)
+        b.get_child().set_xalign(0)
+        b.add_css_class("files-menu-item")
+        b.connect("clicked", lambda _b: (pop.popdown(), GLib.idle_add(lambda: (fn(), False)[1])))
+        box.append(b)
+
+    @staticmethod
+    def header(box, text):
+        h = Gtk.Label(label=text, xalign=0, margin_start=14, margin_top=4)
+        h.add_css_class("tools-sub")
+        box.append(h)
+
+    def on_desktop_menu(self, gesture, _n, x, y):
+        def build(box, pop):
+            self.item(box, pop, "Add app shortcut…", self.choose_app)
+            box.append(Gtk.Separator())
+            self.header(box, "Widgets")
+            for key, name in WIDGET_NAMES:
+                on = self.cfg["widgets"][key]["on"]
+                self.item(box, pop, ("✓  " if on else "     ") + name, lambda k=key: self.toggle_widget(k))
+            box.append(Gtk.Separator())
+            self.header(box, "Wallpaper")
+            self.item(box, pop, "Next wallpaper", lambda: run(["xlin", "wallpaper", "next"]))
+            self.item(box, pop, "Choose picture…", self.choose_wallpaper)
+            box.append(Gtk.Separator())
+            self.item(box, pop, "Open Terminal", lambda: run(["xlin", "term"]))
+            self.item(box, pop, "Open Files", lambda: run(["xlin", "files"]))
+            self.item(box, pop, "Settings", lambda: run(["xlin", "settings"]))
+        self.popup(self.fixed, x, y, build)
+
+    def icon_menu(self, gesture, widget, x, y, item, app):
+        gesture.set_state(Gtk.EventSequenceState.CLAIMED)
+
+        def build(box, pop):
+            self.item(box, pop, "Open", lambda: self.launch(app))
+            self.item(box, pop, "Remove shortcut", lambda: self.remove_shortcut(item))
+        self.popup(widget, x, y, build)
+
+    def widget_menu(self, gesture, card, x, y, key):
+        gesture.set_state(Gtk.EventSequenceState.CLAIMED)
+
+        def build(box, pop):
+            self.item(box, pop, "Remove widget", lambda: self.toggle_widget(key))
+        self.popup(card, x, y, build)
+
+    # ---- dialogs
+    def choose_wallpaper(self):
+        dlg = Gtk.FileDialog(title="Choose a wallpaper")
+        flt = Gtk.FileFilter()
+        flt.set_name("Pictures")
+        for pat in ("*.png", "*.jpg", "*.jpeg", "*.webp"):
+            flt.add_pattern(pat)
+        store = Gio.ListStore.new(Gtk.FileFilter)
+        store.append(flt)
+        dlg.set_filters(store)
+
+        def done(d, res):
+            try:
+                f = d.open_finish(res)
+            except GLib.Error:
+                return
+            if f and f.get_path():
+                run(["xlin", "wallpaper", f.get_path()])
+        dlg.open(None, None, done)
+
+    def choose_app(self):
+        win = Gtk.Window(title="Add app shortcut")
+        win.set_default_size(380, 520)
+        win.add_css_class("xlin-tools")
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        for m in ("top", "bottom", "start", "end"):
+            getattr(box, f"set_margin_{m}")(16)
+        win.set_child(box)
+        t = Gtk.Label(label="Add app shortcut", xalign=0)
+        t.add_css_class("tool-title")
+        box.append(t)
+        search = Gtk.SearchEntry()
+        search.set_placeholder_text("Search apps")
+        box.append(search)
+        lst = Gtk.ListBox()
+        lst.add_css_class("fm-list")
+        lst.set_selection_mode(Gtk.SelectionMode.NONE)
+        apps = sorted((a for a in Gio.AppInfo.get_all() if a.should_show() and a.get_id()),
+                      key=lambda a: a.get_display_name().lower())
+        for a in apps:
+            row = Gtk.ListBoxRow()
+            row.app_id, row.title = a.get_id(), a.get_display_name().lower()
+            r = Gtk.Box(spacing=10)
+            img = Gtk.Image()
+            if a.get_icon():
+                img.set_from_gicon(a.get_icon())
+            r.append(img)
+            r.append(Gtk.Label(label=a.get_display_name(), xalign=0))
+            row.set_child(r)
+            lst.append(row)
+        lst.set_filter_func(lambda row: search.get_text().lower() in row.title)
+        search.connect("search-changed", lambda _e: lst.invalidate_filter())
+        lst.connect("row-activated", lambda _l, row: (self.add_shortcut(row.app_id), win.close()))
+        sc = Gtk.ScrolledWindow(vexpand=True)
+        sc.set_child(lst)
+        box.append(sc)
+        keys = Gtk.EventControllerKey()
+        keys.connect("key-pressed", lambda _c, kv, _k, _s: (win.close(), True)[1] if kv == Gdk.KEY_Escape else False)
+        win.add_controller(keys)
+        win.present()
+        search.grab_focus()
+
+
+class DesktopApp(Gtk.Application):
+    def __init__(self):
+        super().__init__(application_id=APP_ID, flags=Gio.ApplicationFlags.FLAGS_NONE)
+        self.win = None
+
+    def do_startup(self):
+        Gtk.Application.do_startup(self)
+        try:
+            with open(CSS_FILE, "rb") as f:
+                data = f.read()
+            prov = Gtk.CssProvider()
+            prov.load_from_data(data)
+            Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), prov,
+                                                      Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        except Exception:
+            pass
+
+    def do_activate(self):
+        if self.win is None:
+            self.win = DesktopWindow(self)
+        self.win.present()
+
+
+if __name__ == "__main__":
+    sys.exit(DesktopApp().run([sys.argv[0]]))

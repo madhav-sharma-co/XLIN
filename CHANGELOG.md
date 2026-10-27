@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.26.1
+- Lock screen shows the battery level (top right) next to the time, date, name and password field
+- The app drawer has a close button (panels only get a close button)
+
 ## 0.26.0
 - Every XLIN app window (Settings, Files, Monitor, Terminal, Welcome, Calculator, Calendar, Notes, Screenshot) now has the same three buttons in its top corner: hide, fullscreen, close. The Tools menu stays a plain dropdown
 - Hide moves the window out of sight; Super+H (or `xlin unhide`) brings hidden windows back

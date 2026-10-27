@@ -28,6 +28,9 @@ try:
 except (ValueError, ImportError):
     sys.exit(3)
 from gi.repository import Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
+import os as _os
+sys.path[:0] = ["/usr/local/lib/xlin", _os.path.join(_os.path.dirname(_os.path.realpath(__file__)), "..", "lib")]
+import xlin_ui  # noqa: E402
 
 HOME = os.path.expanduser("~")
 CSS_FILE = os.path.join(HOME, ".config/xlin/tools.css")
@@ -106,7 +109,11 @@ class Launcher(Gtk.Window):
         self.entry.set_placeholder_text("Search apps")
         self.entry.connect("changed", lambda _e: self.rebuild())
         self.entry.connect("activate", lambda _e: self.activate_selected())
-        box.append(self.entry)
+        self.entry.set_hexpand(True)
+        top = Gtk.Box(spacing=8)
+        top.append(self.entry)
+        top.append(xlin_ui.close_button(self))       # panels only get a close button
+        box.append(top)
 
         msg = Gtk.Label(label=MSG_PIN if PIN_MODE else MSG_NORMAL, xalign=0)
         msg.add_css_class("launcher-msg")

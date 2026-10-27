@@ -100,6 +100,18 @@ input-field {
     valign = center
 }
 
+# battery (top right; nothing on a computer without one)
+label {
+    monitor =
+    text = cmd[update:20000] b=$(cat /sys/class/power_supply/BAT*/capacity 2>/dev/null | head -1); s=$(cat /sys/class/power_supply/BAT*/status 2>/dev/null | head -1); if [ -n "$b" ]; then if [ "$s" = Charging ]; then echo "$b%  charging"; else echo "$b%"; fi; fi
+    color = @C_LOCK_INK@
+    font_size = 15
+    font_family = Inter Medium
+    position = -34, -28
+    halign = right
+    valign = top
+}
+
 # hint
 label {
     monitor =

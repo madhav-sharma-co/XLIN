@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""XLIN Welcome - the short first-run tour (theme, accent colour, dock, shortcuts).
+"""XLIN Welcome - the short first-run tour (theme, accent colour, Run Bar, shortcuts).
 
 Starts by itself on the first login after installing; run `xlin welcome` to see it again.
 """
@@ -248,7 +248,7 @@ class WelcomeWindow(Gtk.ApplicationWindow):
     def p_basics(self):
         b = page("Good defaults", "Two things most people like to decide right away.")
         for title, sub, active, cb in (
-            ("Auto-hide the dock", "Show it only when you reach the bottom edge",
+            ("Auto-hide the Run Bar", "Show it only when you reach the bottom edge",
              read_state("dock_autohide", "on") != "off", self.set_autohide),
             ("Lock when idle", "Lock the screen after 5 minutes",
              not os.path.exists(os.path.join(STATE, "idle_off")), self.set_idle),
@@ -336,7 +336,7 @@ class WelcomeWindow(Gtk.ApplicationWindow):
         in_thread(lambda: run(["xlin", "accent", name]), lambda _r: self.reload_css())
 
     def set_autohide(self, on):
-        in_thread(lambda: run(["xlin", "dock", "autohide", "on" if on else "off"]))
+        in_thread(lambda: run(["xlin", "runbar", "autohide", "on" if on else "off"]))
 
     def set_idle(self, on):
         in_thread(lambda: run(["xlin", "idle", "on" if on else "off"]))

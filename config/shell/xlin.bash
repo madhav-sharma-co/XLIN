@@ -108,7 +108,7 @@ fi
 _xlin_complete() {
   local cur=${COMP_WORDS[COMP_CWORD]} cmd=${COMP_WORDS[1]:-} words=""
   if ((COMP_CWORD == 1)); then
-    words="help status keys screenshot idle nightlight clipboard notes note version wifi bluetooth bt sound volume brightness battery theme accent welcome wallpaper opacity dock terminal tools power lock session sleep logout poweroff reboot launcher settings panel files pin unpin toggle start restart reload doctor uninstall adapt"
+    words="help status keys screenshot idle nightlight clipboard notes note version wifi bluetooth bt sound volume brightness battery theme accent welcome wallpaper opacity dock runbar bar terminal term cursor desktop monitor update tools power lock session sleep logout poweroff reboot launcher settings panel files pin unpin toggle start restart reload doctor uninstall adapt"
   else
     case $cmd in
       wifi)       words="status list connect disconnect forget on off ip help" ;;
@@ -119,9 +119,13 @@ _xlin_complete() {
       theme)      words="light dark toggle" ;;
       accent)     words="blue teal green rose orange graphite reset" ;;
       wallpaper)  words="next" ;;
-      dock)       words="check restart autohide" ;;
-      terminal)   words="font banner" ;;
-      tools)      words="calculator calendar notes" ;;
+      dock|runbar) words="check restart autohide size" ;;
+      bar)        words="status show hide reset" ;;
+      terminal)   words="font banner use" ;;
+      desktop)    words="on off restart" ;;
+      cursor)     words="24 32 48 64" ;;
+      update)     words="check" ;;
+      tools)      words="calculator calendar notes screenshot" ;;
       screenshot) words="region full window" ;;
       idle)       words="on off status set" ;;
       nightlight|night) words="on off 3500 4000 4500" ;;
@@ -129,10 +133,13 @@ _xlin_complete() {
       notes)      words="list dir" ;;
       files)      words="default" ;;
       help)       words="wifi bluetooth sound brightness battery theme" ;;
-      settings)   words="wifi bluetooth display sound appearance about" ;;
+      settings)   words="wifi bluetooth display sound appearance bars general about" ;;
     esac
-    [[ $cmd == dock && ${COMP_WORDS[2]:-} == autohide ]] && words="on off"
+    [[ $cmd == dock || $cmd == runbar ]] && [[ ${COMP_WORDS[2]:-} == autohide ]] && words="on off"
+    [[ $cmd == runbar ]] && [[ ${COMP_WORDS[2]:-} == size ]] && words="32 40 48"
+    [[ $cmd == bar ]] && [[ ${COMP_WORDS[2]:-} == show || ${COMP_WORDS[2]:-} == hide ]] && words="settings tools wifi bluetooth sound battery power panel"
     [[ $cmd == terminal && ${COMP_WORDS[2]:-} == banner ]] && words="on off"
+    [[ $cmd == terminal && ${COMP_WORDS[2]:-} == use ]] && words="xlin kitty"
   fi
   COMPREPLY=($(compgen -W "$words" -- "$cur"))
 }

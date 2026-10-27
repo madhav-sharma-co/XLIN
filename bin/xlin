@@ -123,7 +123,7 @@ render_all() {
   grid_icon
 }
 
-# The dock's app-drawer button: a 3x3 grid in the theme's ink colour (instead of the orange default)
+# The run bar's app-drawer button: a 3x3 grid in the theme's ink colour (instead of the orange default)
 grid_icon() {
   local dir="$XLIN_HOME/icons" x y
   mkdir -p "$dir"
@@ -347,7 +347,7 @@ launch_id() {
 cmd_launcher() {
   local mode="${1:-}" msg="Pinned and recent apps first   ·   Alt+P pin   ·   Alt+U unpin"
   if pgrep -x rofi >/dev/null; then pkill -x rofi; [[ "$mode" == pin ]] || return 0; sleep 0.15; fi
-  [[ "$mode" == pin ]] && msg="Pick an app to pin to the dock"
+  [[ "$mode" == pin ]] && msg="Pick an app to pin to the run bar"
   load_apps
   local i k id sel code real
   local -a ORD=()
@@ -375,7 +375,7 @@ cmd_launcher() {
   [[ -z "$sel" ]] && return 0
   real="${ORD[$sel]}"
   case "$code" in
-    0)  if [[ "$mode" == pin ]]; then cmd_pin "${A_ID[$real]}"; notify "Pinned to the dock" "${A_NAME[$real]}"
+    0)  if [[ "$mode" == pin ]]; then cmd_pin "${A_ID[$real]}"; notify "Pinned to the run bar" "${A_NAME[$real]}"
         else record_recent "${A_ID[$real]}"; launch_id "${A_ID[$real]}"; fi ;;
     10) cmd_pin "${A_ID[$real]}" ;;
     11) cmd_unpin "${A_ID[$real]}" ;;
@@ -423,7 +423,7 @@ cmd_desktop_menu() {
   [[ "$theme" == dark ]] && dm="Switch to light mode" || dm="Switch to dark mode"
   local pick
   pick="$(menu_pick "$x" "$y" "New note" "Open terminal" "Open files" "Widgets  ›" "Change wallpaper  ›" \
-    "Pin an app to the dock…" "$dm" "System monitor" "Display settings" "XLIN settings")" || return 0
+    "Pin an app to the run bar…" "$dm" "System monitor" "Display settings" "XLIN settings")" || return 0
   case "$pick" in
     "New note")               cmd_note ;;
     "Open terminal")          cmd_term ;;
@@ -472,7 +472,7 @@ cmd_pin() {
   id="${id%.desktop}"
   touch "$PINS"
   grep -qx "$id" "$PINS" || echo "$id" >>"$PINS"
-  notify "Pinned to dock" "$id"
+  notify "Pinned to the run bar" "$id"
   dock_restart
 }
 
@@ -495,7 +495,8 @@ dock_start() {
   for f in "$XLIN_HOME/icons/xlin-grid.png" "$XLIN_HOME/icons/xlin-grid.svg"; do
     [[ -f "$f" ]] && { ico=(-ico "$f"); break; }
   done
-  setsid nwg-dock-hyprland "${hide[@]}" -i 40 -mb 12 -c "xlin launcher" "${ico[@]}" \
+  local isize; isize="$(cat "$STATE/dock_icon" 2>/dev/null || echo 40)"
+  setsid nwg-dock-hyprland "${hide[@]}" -i "$isize" -mb 12 -c "xlin launcher" "${ico[@]}" \
     -s style.css >>"$HOME/.cache/xlin/dock.log" 2>&1 &
 }
 
@@ -585,8 +586,8 @@ cmd_doctor() {
   echo "Running now:"
   pgrep -x waybar >/dev/null && echo "  ok       waybar" || echo "  NOT RUNNING  waybar      (fix: xlin start)"
   pgrep -x swaync >/dev/null && echo "  ok       swaync (control panel)" || echo "  NOT RUNNING  swaync      (fix: xlin start)"
-  pgrep -f xlin-dock-watch >/dev/null && echo "  ok       dock watcher" || echo "  NOT RUNNING  dock watcher (fix: xlin start)"
-  pgrep -f '^nwg-dock-hyprland' >/dev/null && echo "  ok       dock visible" || echo "  not running  dock (normal if nothing is open or pinned)"
+  pgrep -f xlin-dock-watch >/dev/null && echo "  ok       run bar watcher" || echo "  NOT RUNNING  run bar watcher (fix: xlin start)"
+  pgrep -f '^nwg-dock-hyprland' >/dev/null && echo "  ok       run bar visible" || echo "  not running  run bar (normal if nothing is open or pinned)"
   pgrep -x hypridle >/dev/null && echo "  ok       auto-lock" || echo "  off      auto-lock (xlin idle on)"
   fc-list 2>/dev/null | grep -qiE 'Symbols Nerd|Nerd Font|Font Awesome' \
     && echo "  ok       icon font" || { echo "  MISSING  icon font (sudo pacman -S ttf-nerd-fonts-symbols)"; missing=1; }
@@ -800,7 +801,7 @@ cmd_start() {
 }
 
 # ================================================================= XLIN CLI
-XLIN_VERSION="0.22.0"
+XLIN_VERSION="0.23.0"
 
 if [[ -t 1 ]]; then B=$'\e[1m'; D=$'\e[2m'; R=$'\e[0m'; else B=""; D=""; R=""; fi
 die() { echo "xlin: $*" >&2; return 1; }
@@ -966,7 +967,7 @@ cmd_battery() {
 
 cmd_status() {
   echo "${B}XLIN $XLIN_VERSION${R}"
-  echo "Theme: $(cat "$STATE/theme" 2>/dev/null || echo light)    Dock autohide: $(cat "$STATE/dock_autohide" 2>/dev/null || echo on)"
+  echo "Theme: $(cat "$STATE/theme" 2>/dev/null || echo light)    Run bar autohide: $(cat "$STATE/dock_autohide" 2>/dev/null || echo on)"
   echo
   have nmcli         && { cmd_wifi status 2>/dev/null | head -2; }
   have bluetoothctl  && { cmd_bluetooth status 2>/dev/null; }
@@ -1189,13 +1190,60 @@ start_extras() {
 }
 
 # Hide bar parts this computer does not have (battery on a desktop). Safe to run any time.
+# ---- top bar buttons: xlin bar [status | show <name> | hide <name> | reset]
+BAR_NAMES="settings tools wifi bluetooth sound battery power panel"
+bar_module() {
+  case "$1" in
+    settings) echo custom/settings ;; tools) echo custom/tools ;; wifi) echo network ;;
+    bluetooth) echo bluetooth ;; sound) echo pulseaudio ;; battery) echo battery ;;
+    power) echo custom/session ;; panel) echo custom/panel ;;
+  esac
+}
+
+# Rebuild the Waybar config from the pristine copy, minus the buttons you hid (and the battery on a desktop PC)
+bar_apply() {
+  local f="$HOME/.config/waybar/config.jsonc" base="$XLIN_HOME/waybar-base.jsonc" tmp hidden m mod
+  [[ -f "$f" ]] || return 0
+  [[ -f "$base" ]] || base="$f"            # older install without a pristine copy: edit in place
+  tmp="$(mktemp)"; cp "$base" "$tmp"
+  hidden="$(cat "$STATE/bar_hidden" 2>/dev/null || true)"
+  ls /sys/class/power_supply/BAT* >/dev/null 2>&1 || hidden="$hidden battery"
+  for m in $hidden; do
+    mod="$(bar_module "$m")"
+    [[ -n "$mod" ]] && sed -i "/\"modules-/{s|\"$mod\", ||;s|, \"$mod\"||;s|\"$mod\"||}" "$tmp"
+  done
+  cmp -s "$tmp" "$f" || cp "$tmp" "$f"
+  rm -f "$tmp"
+}
+
+cmd_bar() {
+  local act="${1:-status}" name="${2:-}" hidden m
+  hidden="$(cat "$STATE/bar_hidden" 2>/dev/null || true)"
+  case "$act" in
+    status)
+      for m in $BAR_NAMES; do
+        case " $hidden " in *" $m "*) printf '  %-10s hidden\n' "$m" ;; *) printf '  %-10s shown\n' "$m" ;; esac
+      done
+      echo "(change: xlin bar show|hide <name>)" ;;
+    show|hide)
+      [[ -n "$(bar_module "$name")" ]] || { echo "usage: xlin bar $act <${BAR_NAMES// /|}>"; return 1; }
+      hidden=" $hidden "; hidden="${hidden// $name / }"
+      [[ "$act" == hide ]] && hidden="$hidden $name "
+      mkdir -p "$STATE"; echo $hidden >"$STATE/bar_hidden"      # unquoted on purpose: tidies the spaces
+      bar_apply; pkill -SIGUSR2 waybar 2>/dev/null || true
+      echo "top bar: $name $act" ;;
+    reset)
+      rm -f "$STATE/bar_hidden"; bar_apply; pkill -SIGUSR2 waybar 2>/dev/null || true
+      echo "top bar: all buttons shown" ;;
+    *) echo "usage: xlin bar [status | show <name> | hide <name> | reset]"; return 1 ;;
+  esac
+}
+
 cmd_adapt() {
   local f="$HOME/.config/waybar/config.jsonc"
   [[ -f "$f" ]] || return 0
-  if ! ls /sys/class/power_supply/BAT* >/dev/null 2>&1; then
-    sed -i 's/"battery", //' "$f"
-    echo "no battery found: battery icon removed from the bar"
-  fi
+  ls /sys/class/power_supply/BAT* >/dev/null 2>&1 || echo "no battery found: battery icon removed from the bar"
+  bar_apply
 }
 
 # xlin uninstall [-y] [--purge]: put things back the way they were before XLIN
@@ -1455,7 +1503,9 @@ ${B}Look and feel${R}
   xlin theme [light|dark|toggle]   switch appearance everywhere
   xlin wallpaper [next|<image>]    change the wallpaper
   xlin opacity <0.3-1.0>           window transparency
-  xlin dock autohide on|off        dock behaviour
+  xlin runbar autohide on|off      run bar (the bottom bar): hide when not used
+  xlin runbar size 32|40|48        run bar icon size
+  xlin bar [show|hide <name>]      top bar buttons: settings tools wifi bluetooth sound battery power panel
   xlin term [-d folder] [-e cmd]   open a terminal window
   xlin desktop [on|off|restart]    right-click desktop menu, shortcuts and widgets
   xlin terminal use xlin|kitty     which terminal Super+Return opens
@@ -1486,7 +1536,7 @@ ${B}System${R}
 ${B}Look and feel${R}              (xlin help theme)
   xlin theme [light|dark|toggle]   xlin accent [teal|green|rose|orange|graphite|#hex]
   xlin wallpaper [next|<image>]    xlin welcome (first-run tour)
-  xlin opacity <0.3-1.0>           xlin dock autohide on|off
+  xlin opacity <0.3-1.0>           xlin runbar autohide on|off
   xlin terminal [font|banner]
 
 ${B}Apps and panels${R}
@@ -1538,11 +1588,17 @@ case "${1:-help}" in
   launcher)  cmd_launcher ;;
   pin)       shift; cmd_pin "${1:-}" ;;
   unpin)     shift; cmd_unpin "${1:-}" ;;
-  dock)      shift; case "${1:-check}" in
+  dock|runbar) shift; case "${1:-check}" in
                check) dock_check ;;
                restart) dock_restart ;;
-               autohide) echo "${2:-on}" >"$STATE/dock_autohide"; dock_restart; echo "dock autohide: ${2:-on}" ;;
+               autohide) echo "${2:-on}" >"$STATE/dock_autohide"; dock_restart; echo "run bar autohide: ${2:-on}" ;;
+               size) case "${2:-}" in
+                       32|40|48) echo "$2" >"$STATE/dock_icon"; dock_restart; echo "run bar icon size: $2" ;;
+                       *) echo "usage: xlin runbar size 32|40|48   (now: $(cat "$STATE/dock_icon" 2>/dev/null || echo 40))" ;;
+                     esac ;;
+               *) echo "usage: xlin runbar [autohide on|off | size 32|40|48 | restart]" ;;
              esac ;;
+  bar)       shift; cmd_bar "$@" ;;
   opacity)   shift; cmd_opacity "${1:-}" ;;
   terminal)  shift; cmd_terminal "${1:-}" "${2:-}" "${3:-}" ;;
   tools)     shift; cmd_tools "${1:-}" ;;

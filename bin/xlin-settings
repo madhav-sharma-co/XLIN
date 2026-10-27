@@ -26,6 +26,8 @@ PAGES = [
     ("display", "Display", "video-display-symbolic"),
     ("sound", "Sound", "audio-volume-high-symbolic"),
     ("appearance", "Appearance", "preferences-desktop-theme-symbolic"),
+    ("bars", "Bars", "view-list-symbolic"),
+    ("general", "General", "preferences-system-symbolic"),
     ("about", "About", "help-about-symbolic"),
 ]
 
@@ -423,7 +425,7 @@ def appearance_page(win):
     c = card()
     box.append(c)
     dark = read_state("theme", "light") == "dark"
-    c.append(row("Dark mode", "Bar, dock, launcher, panel and apps", switch(
+    c.append(row("Dark mode", "Top bar, Run Bar, launcher, panel and apps", switch(
         dark, lambda s: in_thread(lambda: run(["xlin", "theme", "dark" if s else "light"], 30)))))
 
     c.append(row("Accent colour", "Highlights, buttons and selections", accent_dots()))
@@ -433,10 +435,6 @@ def appearance_page(win):
         run(["xlin", "opacity", val])
     c.append(row("Window transparency", "Fullscreen windows are always solid",
                  slider(85, set_opacity, 40, 100)))
-    autohide = read_state("dock_autohide", "on") != "off"
-    c.append(row("Auto-hide dock", "Show the dock only when you reach the bottom edge", switch(
-        autohide, lambda s: in_thread(lambda: run(["xlin", "dock", "autohide", "on" if s else "off"])))))
-
     def pick_wall():
         dlg = Gtk.FileDialog(title="Choose a wallpaper")
         flt = Gtk.FileFilter()
@@ -460,6 +458,94 @@ def appearance_page(win):
     wb.append(button("Next", lambda: in_thread(lambda: run(["xlin", "wallpaper", "next"], 30))))
     wb.append(button("Choose image...", pick_wall))
     c.append(row("Wallpaper", None, wb))
+    return box
+
+
+def segmented(options, current, on_change):
+    """A row of linked toggle buttons: options = [(value, label)]; calls on_change(value)."""
+    box = Gtk.Box(spacing=0)
+    box.add_css_class("linked")
+    first = None
+    for value, label in options:
+        b = Gtk.ToggleButton(label=label)
+        if first is None:
+            first = b
+        else:
+            b.set_group(first)
+        if str(value) == str(current):
+            b.set_active(True)
+        b.connect("toggled", lambda btn, v=value: btn.get_active() and on_change(v))
+        box.append(b)
+    return box
+
+
+BAR_ITEMS = [
+    ("settings", "Settings shortcut", "The gear button"),
+    ("tools", "Tools shortcut", "Calculator, calendar, notes and screenshot"),
+    ("wifi", "Wi-Fi", "Network status and quick switch"),
+    ("bluetooth", "Bluetooth", "Bluetooth status and devices"),
+    ("sound", "Sound", "Volume"),
+    ("battery", "Battery", "Charge and power mode (hidden by itself on computers without a battery)"),
+    ("power", "Power menu", "Lock, sleep, log out, restart, power off"),
+    ("panel", "Control panel", "Notifications and quick toggles"),
+]
+
+
+def bars_page(win):
+    box = page_box("Bars", "Choose what shows on the top bar and how the Run Bar behaves")
+    hidden = set(read_state("bar_hidden", "").split())
+    c = card()
+    box.append(c)
+    head = Gtk.Label(label="Top bar", xalign=0, margin_top=10)
+    head.add_css_class("xlin-sub")
+    c.append(head)
+    for name, title, sub_ in BAR_ITEMS:
+        c.append(row(title, sub_, switch(
+            name not in hidden,
+            lambda s, n=name: in_thread(lambda: run(["xlin", "bar", "show" if s else "hide", n])))))
+    c.append(row("Show everything again", None,
+                 button("Reset", lambda: in_thread(lambda: run(["xlin", "bar", "reset"]),
+                                                   lambda _r: win.rebuild("bars")))))
+
+    c2 = card()
+    box.append(c2)
+    head2 = Gtk.Label(label="Run Bar (the bar at the bottom)", xalign=0, margin_top=10)
+    head2.add_css_class("xlin-sub")
+    c2.append(head2)
+    c2.append(row("Auto-hide", "Show it only when you reach the bottom edge", switch(
+        read_state("dock_autohide", "on") != "off",
+        lambda s: in_thread(lambda: run(["xlin", "runbar", "autohide", "on" if s else "off"])))))
+    c2.append(row("Icon size", None, segmented(
+        [("32", "Small"), ("40", "Medium"), ("48", "Large")], read_state("dock_icon", "40"),
+        lambda v: in_thread(lambda: run(["xlin", "runbar", "size", v])))))
+    return box
+
+
+def general_page(win):
+    box = page_box("General", "Desktop, mouse, terminal and sleep")
+    c = card()
+    box.append(c)
+    c.append(row("Desktop menu and widgets", "Right-click the desktop for shortcuts, widgets and wallpaper", switch(
+        not os.path.exists(os.path.join(STATE, "desktop_off")),
+        lambda s: in_thread(lambda: run(["xlin", "desktop", "on" if s else "off"], 20)))))
+    c.append(row("Mouse cursor size", None, segmented(
+        [("24", "Small"), ("32", "Medium"), ("48", "Large"), ("64", "Huge")], read_state("cursor_size", "24"),
+        lambda v: in_thread(lambda: run(["xlin", "cursor", v])))))
+    c.append(row("Terminal", "What Super+Return opens", segmented(
+        [("xlin", "XLIN Terminal"), ("kitty", "Kitty")], read_state("terminal", "xlin"),
+        lambda v: in_thread(lambda: run(["xlin", "terminal", "use", v])))))
+
+    c2 = card()
+    box.append(c2)
+    c2.append(row("Lock when idle", "Lock the screen when you are away", switch(
+        not os.path.exists(os.path.join(STATE, "idle_off")),
+        lambda s: in_thread(lambda: run(["xlin", "idle", "on" if s else "off"], 20)))))
+    c2.append(row("Lock after", None, segmented(
+        [("2", "2 min"), ("5", "5 min"), ("10", "10 min"), ("30", "30 min")], read_state("idle_minutes", "5"),
+        lambda v: in_thread(lambda: run(["xlin", "idle", "set", v], 20)))))
+    c2.append(row("Night light", "Warmer screen colour in the evening", switch(
+        os.path.exists(os.path.join(STATE, "nightlight")) and read_state("nightlight", "") != "",
+        lambda s: in_thread(lambda: run(["xlin", "nightlight", "on" if s else "off"], 20)))))
     return box
 
 
@@ -554,6 +640,8 @@ class SettingsWindow(Gtk.ApplicationWindow):
             "display": lambda: display_page(self),
             "sound": lambda: sound_page(self),
             "appearance": lambda: appearance_page(self),
+            "bars": lambda: bars_page(self),
+            "general": lambda: general_page(self),
             "about": lambda: about_page(self),
         }
         self.pages = {}
@@ -582,6 +670,16 @@ class SettingsWindow(Gtk.ApplicationWindow):
             self.stack.add_named(widget, key)
             self.built.add(key)
         self.stack.set_visible_child_name(key)
+
+    def rebuild(self, key):
+        """Drop a built page and build it again (after a Reset button, say)."""
+        child = self.stack.get_child_by_name(key)
+        if child is not None:
+            self.stack.remove(child)
+        self.built.discard(key)
+        self.show_page(key)
+        self.on_select(None, self.pages[key][0])
+        return False
 
     def show_page(self, key):
         if key not in self.pages:

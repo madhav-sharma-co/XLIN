@@ -20,6 +20,7 @@ cp "$SRC/config/shell/xlin.bash" "$XLIN_HOME/shell.bash"
 cp "$SRC/config/kitty/kitty.conf" "$XLIN_HOME/kitty.conf"
 cp "$SRC/config/hypr/xlin.conf" "$HOME/.config/hypr/xlin.conf"
 cp "$SRC/config/waybar/config.jsonc" "$HOME/.config/waybar/config.jsonc"
+cp "$SRC/config/waybar/config.jsonc" "$XLIN_HOME/waybar-base.jsonc"
 cp "$SRC/config/swaync/config.json" "$HOME/.config/swaync/config.json"
 
 say "Power modes need power-profiles-daemon (skipped if you have it)"

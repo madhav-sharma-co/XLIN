@@ -118,6 +118,7 @@ fi
 
 backup "$HOME/.config/waybar/config.jsonc"
 cp "$SRC/config/waybar/config.jsonc" "$HOME/.config/waybar/config.jsonc"
+cp "$SRC/config/waybar/config.jsonc" "$XLIN_HOME/waybar-base.jsonc"
 backup "$HOME/.config/swaync/config.json"
 cp "$SRC/config/swaync/config.json" "$HOME/.config/swaync/config.json"
 cp "$SRC/config/hypr/xlin.conf" "$HOME/.config/hypr/xlin.conf"

@@ -38,7 +38,7 @@ PINS = os.path.join(HOME, ".cache/nwg-dock-pinned")
 RECENT = os.path.join(HOME, ".config/xlin/state/recent")
 COLUMNS = 5
 CELL_W = (600 - 2 * 16 - 2) // COLUMNS
-PIN_MODE = "--pin" in sys.argv
+PIN_FLAG = os.path.join(HOME, ".cache/xlin/drawer-pin")     # `xlin launcher pin` leaves this for us
 MSG_NORMAL = "Pinned and recent apps first   ·   Alt+P pin   ·   Alt+U unpin"
 MSG_PIN = "Pick an app to pin to the run bar"
 
@@ -83,6 +83,7 @@ class Launcher(Gtk.Window):
         self.set_decorated(False)
         self.set_resizable(False)
         self.was_active = False
+        self.pin = False
 
         LayerShell.init_for_window(self)
         LayerShell.set_namespace(self, "xlin-launcher")
@@ -115,9 +116,9 @@ class Launcher(Gtk.Window):
         top.append(xlin_ui.close_button(self))       # panels only get a close button
         box.append(top)
 
-        msg = Gtk.Label(label=MSG_PIN if PIN_MODE else MSG_NORMAL, xalign=0)
-        msg.add_css_class("launcher-msg")
-        box.append(msg)
+        self.msg = Gtk.Label(label=MSG_NORMAL, xalign=0)
+        self.msg.add_css_class("launcher-msg")
+        box.append(self.msg)
 
         self.grid = Gtk.Grid(row_homogeneous=True, column_homogeneous=True, row_spacing=6, column_spacing=6,
                              halign=Gtk.Align.START, valign=Gtk.Align.START)
@@ -249,7 +250,7 @@ class Launcher(Gtk.Window):
         if not 0 <= idx < len(self.shown):
             return
         aid = self.shown[idx][0]
-        if PIN_MODE:
+        if self.pin:
             run(["xlin", "pin", aid])
         else:
             run(["xlin", "launch-app", aid])
@@ -277,6 +278,18 @@ class Launcher(Gtk.Window):
             return True
         return False
 
+    def show_fresh(self, pin=False):
+        """Show the drawer again: fresh app list, empty search, first app selected."""
+        self.pin = pin
+        self.msg.set_text(MSG_PIN if pin else MSG_NORMAL)
+        self.apps = self.load_apps()
+        self.order = self.default_order()
+        self.was_active = False
+        self.entry.set_text("")
+        self.rebuild()
+        self.present()
+        self.entry.grab_focus()
+
     def on_active(self, *_a):
         if self.is_active():
             self.was_active = True
@@ -285,8 +298,12 @@ class Launcher(Gtk.Window):
 
 
 class LauncherApp(Gtk.Application):
+    """One copy keeps running out of sight; running xlin-launcher again shows or hides it."""
+
     def __init__(self):
-        super().__init__(application_id="dev.xlin.Launcher", flags=Gio.ApplicationFlags.NON_UNIQUE)
+        super().__init__(application_id="dev.xlin.Launcher", flags=Gio.ApplicationFlags.FLAGS_NONE)
+        self.win = None
+        self.background = "--background" in sys.argv
 
     def do_startup(self):
         Gtk.Application.do_startup(self)
@@ -301,7 +318,23 @@ class LauncherApp(Gtk.Application):
             pass
 
     def do_activate(self):
-        Launcher(self).present()
+        pin = os.path.exists(PIN_FLAG)
+        if pin:
+            try:
+                os.remove(PIN_FLAG)
+            except OSError:
+                pass
+        if self.win is None:
+            self.win = Launcher(self)
+            xlin_ui.keep_warm(self, self.win)
+            if self.background:
+                self.background = False      # warm start: built and waiting, nothing on screen
+                return
+            self.win.show_fresh(pin)
+        elif self.win.get_visible() and not pin:
+            self.win.close()                 # the same key again closes it
+        else:
+            self.win.show_fresh(pin)
 
 
 if __name__ == "__main__":

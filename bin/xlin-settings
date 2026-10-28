@@ -623,7 +623,7 @@ def general_page(win):
     c2.append(row("Night light", "Warmer screen colour in the evening", switch(
         os.path.exists(os.path.join(STATE, "nightlight")) and read_state("nightlight", "") != "",
         lambda s: in_thread(lambda: run(["xlin", "nightlight", "on" if s else "off"], 20)))))
-    c2.append(row("Keep apps ready", "Settings, Files and Store wait out of sight so they open instantly", switch(
+    c2.append(row("Keep apps ready", "Settings, Files, Store, Launcher and App drawer wait out of sight so they open instantly", switch(
         not os.path.exists(os.path.join(STATE, "warm_off")),
         lambda s: in_thread(lambda: run(["xlin", "warm", "on" if s else "off"], 20)))))
     c2.append(row("Terminal", "What Super+Return opens", segmented(

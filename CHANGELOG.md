@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.35.0
+- The Launcher and the App drawer are part of "Keep apps ready" too: they wait out of sight, so Super+Space and the Run Bar drawer button show them at once (and the same key hides them again)
+
 ## 0.34.0
 - Settings -> About -> Reset XLIN settings (and `xlin reset`): theme, accent, bars, desktop widgets, fonts and options go back to the defaults; wallpaper, pinned apps and your files are kept
 

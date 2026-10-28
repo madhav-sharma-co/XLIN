@@ -378,16 +378,15 @@ launch_id() {
 # The app drawer is XLIN's own (xlin-launcher); rofi is only a fallback if it cannot start
 cmd_drawer() {
   local mode="${1:-}"
-  pkill -f '[x]lin-start' 2>/dev/null
-  if pgrep -f '[x]lin-launcher' >/dev/null; then pkill -f '[x]lin-launcher'; [[ "$mode" == pin ]] || return 0; sleep 0.15; fi
   if have xlin-launcher; then
     mkdir -p "$HOME/.cache/xlin"
+    [[ "$mode" == pin ]] && touch "$HOME/.cache/xlin/drawer-pin"
     local rc=0
-    if [[ "$mode" == pin ]]; then xlin-launcher --pin >>"$HOME/.cache/xlin/launcher.log" 2>&1 || rc=$?
-    else xlin-launcher >>"$HOME/.cache/xlin/launcher.log" 2>&1 || rc=$?; fi
+    xlin-launcher >>"$HOME/.cache/xlin/launcher.log" 2>&1 || rc=$?      # shows it, or hides it if it is open
     [[ $rc -eq 3 ]] || return 0
   fi
   have rofi || { notify "App drawer could not start" "Install: sudo pacman -S gtk4-layer-shell"; return 1; }
+  pgrep -x rofi >/dev/null && { pkill -x rofi; [[ "$mode" == pin ]] || return 0; sleep 0.15; }
   cmd_launcher_rofi "$mode"
 }
 
@@ -407,8 +406,6 @@ cmd_unhide() {
 cmd_launcher() {
   local mode="${1:-}"
   [[ "$mode" == pin ]] && { cmd_drawer pin; return; }
-  pkill -f '[x]lin-launcher' 2>/dev/null
-  if pgrep -f '[x]lin-start' >/dev/null; then pkill -f '[x]lin-start'; return 0; fi
   if have xlin-start; then
     mkdir -p "$HOME/.cache/xlin"
     local rc=0
@@ -860,13 +857,13 @@ cmd_panel() {
 }
 
 # Start everything now (also used at login). Safe to run repeatedly.
-# Keep Settings, Files and the Store running out of sight so they open at once (xlin warm on|off)
+# Keep Settings, Files, the Store, the Launcher and the App drawer running out of sight so they open at once (xlin warm on|off)
 warm_start() {
   [[ -f "$STATE/warm_off" ]] && return 0
   local avail; avail="$(awk '/MemAvailable/ {print int($2/1024)}' /proc/meminfo 2>/dev/null)"
   [[ "${avail:-0}" -ge 1500 ]] || return 0          # low on memory: skip it
   local a
-  for a in xlin-settings xlin-files xlin-store; do
+  for a in xlin-settings xlin-files xlin-store xlin-start xlin-launcher; do
     have "$a" && ! pgrep -f "[x]${a#x}( |\$)" >/dev/null && setsid "$a" --background >>"$HOME/.cache/xlin/warm.log" 2>&1 &
   done
 }
@@ -917,7 +914,7 @@ cmd_start() {
 }
 
 # ================================================================= XLIN CLI
-XLIN_VERSION="0.34.0"
+XLIN_VERSION="0.35.0"
 
 if [[ -t 1 ]]; then B=$'\e[1m'; D=$'\e[2m'; R=$'\e[0m'; else B=""; D=""; R=""; fi
 die() { echo "xlin: $*" >&2; return 1; }
@@ -1674,7 +1671,7 @@ ${B}System${R}
   xlin store                       XLIN Store: find, install and remove apps
   xlin font [name|size ...]        System font and size
   xlin reset                       Put XLIN's settings back to the defaults
-  xlin warm on|off                 Keep Settings, Files and Store ready (instant open)
+  xlin warm on|off                 Keep apps ready (instant open)
   xlin media [files]               XLIN Media: music and video player
   xlin debug                       SysDebug: health checks, logs, quick repairs
   xlin files [folder|default]      XLIN Files (default = use it for "show in folder")

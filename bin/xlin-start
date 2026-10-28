@@ -82,7 +82,8 @@ class Start(Gtk.Window):
         self.stack = Gtk.Stack()
         self.stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
         self.stack.set_transition_duration(120)
-        self.stack.add_named(self.home_page(), "home")
+        self.home = self.home_page()
+        self.stack.add_named(self.home, "home")
         self.results_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         self.stack.add_named(self.results_box, "results")
         box.append(self.stack)
@@ -264,6 +265,19 @@ class Start(Gtk.Window):
             return True
         return False
 
+    def show_fresh(self):
+        """Show the menu again: fresh pinned and recent apps, empty search."""
+        self.apps = xlin_ui.load_apps()
+        self.by_id = {a[0]: a for a in self.apps}
+        self.stack.remove(self.home)
+        self.home = self.home_page()
+        self.stack.add_named(self.home, "home")
+        self.was_active = False
+        self.entry.set_text("")
+        self.stack.set_visible_child_name("home")
+        self.present()
+        self.entry.grab_focus()
+
     def on_active(self, *_a):
         if self.is_active():
             self.was_active = True
@@ -272,8 +286,12 @@ class Start(Gtk.Window):
 
 
 class StartApp(Gtk.Application):
+    """One copy keeps running out of sight; running xlin-start again shows or hides it."""
+
     def __init__(self):
-        super().__init__(application_id="dev.xlin.Start", flags=Gio.ApplicationFlags.NON_UNIQUE)
+        super().__init__(application_id="dev.xlin.Start", flags=Gio.ApplicationFlags.FLAGS_NONE)
+        self.win = None
+        self.background = "--background" in sys.argv
 
     def do_startup(self):
         Gtk.Application.do_startup(self)
@@ -288,7 +306,17 @@ class StartApp(Gtk.Application):
             pass
 
     def do_activate(self):
-        Start(self).present()
+        if self.win is None:
+            self.win = Start(self)
+            xlin_ui.keep_warm(self, self.win)
+            if self.background:
+                self.background = False      # warm start: built and waiting, nothing on screen
+                return
+            self.win.show_fresh()
+        elif self.win.get_visible():
+            self.win.close()                 # the same key again closes it
+        else:
+            self.win.show_fresh()
 
 
 if __name__ == "__main__":

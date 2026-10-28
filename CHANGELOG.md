@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.41.0
+- Show desktop (Super+Shift+D, `xlin showdesktop`): hides every window on the workspace, again brings them back
+- Touchpad: three fingers left/right switch workspace, up opens the Launcher, down shows the desktop
+- README rewritten to match everything XLIN does now
+
 ## 0.40.0
 - Desktop: right-click now opens a short menu (Apps and widgets, New folder, wallpaper, View, Terminal, Files, Settings) that fits any screen; View holds the icon options
 - New "Apps and widgets" gallery (right-click the desktop): widget cards with previews and Add / Remove, and an app list with Add / Remove, like the pickers on a phone, Windows and macOS

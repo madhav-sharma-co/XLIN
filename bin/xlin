@@ -885,6 +885,23 @@ cmd_reset() {
   echo "XLIN settings are back to the defaults"
 }
 
+# Show the desktop (like Win+D): hides every window on this workspace; run it again to bring them back
+cmd_showdesktop() {
+  have hyprctl && have jq || return 1
+  local ws addr cmds="" peeked
+  ws="$(hyprctl activeworkspace -j | jq -r '.id')"
+  peeked="$(hyprctl clients -j | jq -r '.[] | select(.workspace.name=="special:xlin-peek") | .address')"
+  if [[ -n "$peeked" ]]; then
+    for addr in $peeked; do cmds+="dispatch movetoworkspacesilent ${ws},address:${addr} ; "; done
+  else
+    for addr in $(hyprctl clients -j | jq -r --argjson ws "${ws:-1}" '.[] | select(.mapped and .workspace.id==$ws) | .address'); do
+      cmds+="dispatch movetoworkspacesilent special:xlin-peek,address:${addr} ; "
+    done
+  fi
+  [[ -n "$cmds" ]] && hyprctl --batch "${cmds% ; }" >/dev/null
+  return 0
+}
+
 cmd_warm() {
   case "${1:-}" in
     on)  rm -f "$STATE/warm_off"; warm_start; echo "keep apps ready: on" ;;
@@ -914,7 +931,7 @@ cmd_start() {
 }
 
 # ================================================================= XLIN CLI
-XLIN_VERSION="0.40.0"
+XLIN_VERSION="0.41.0"
 
 if [[ -t 1 ]]; then B=$'\e[1m'; D=$'\e[2m'; R=$'\e[0m'; else B=""; D=""; R=""; fi
 die() { echo "xlin: $*" >&2; return 1; }
@@ -1450,6 +1467,7 @@ SUPER|C|xlin panel
 SUPER|U|xlin tools
 SUPER|M|xlin monitor
 SUPER|H|xlin unhide
+SUPER SHIFT|D|xlin showdesktop
 SUPER|N|xlin tools notes
 SUPER SHIFT|N|xlin note
 SUPER|B|xlin power
@@ -1571,6 +1589,8 @@ Daily|Volume/Brightness keys|With an on-screen popup
 Windows|Super+Q|Close window
 Windows|Super+F|Fullscreen
 Windows|Super+H|Bring back hidden windows
+Windows|Super+Shift+D|Show the desktop (again: bring windows back)
+Workspaces|3-finger swipe|Left / right: workspace, up: Launcher, down: show desktop
 Windows|Super+Shift+F|Floating on / off
 Windows|Alt+Tab|Next window
 Windows|Super+Arrows|Move focus
@@ -1677,6 +1697,7 @@ ${B}System${R}
   xlin monitor                     System Monitor (Super+M)
   xlin store                       XLIN Store: find, install and remove apps
   xlin font [name|size ...]        System font and size
+  xlin showdesktop                 Hide all windows to show the desktop (Super+Shift+D)
   xlin reset                       Put XLIN's settings back to the defaults
   xlin warm on|off                 Keep apps ready (instant open)
   xlin media [files]               XLIN Media: music and video player
@@ -1762,6 +1783,7 @@ case "${1:-help}" in
   bar)       shift; cmd_bar "$@" ;;
   opacity)   shift; cmd_opacity "${1:-}" ;;
   reset)     cmd_reset ;;
+  showdesktop|show-desktop) cmd_showdesktop ;;
   warm)      shift; cmd_warm "${1:-}" ;;
   font)      shift; cmd_font "$@" ;;
   terminal)  shift; cmd_terminal "${1:-}" "${2:-}" "${3:-}" ;;

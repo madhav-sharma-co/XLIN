@@ -30,23 +30,20 @@ Remove everything (your old Waybar, swaync and Kitty configs are put back):
 
 | Piece           | How                                                                   |
 |-----------------|-----------------------------------------------------------------------|
-| Top bar         | Waybar: X launcher, settings, tools, Wi-Fi, Bluetooth, sound, battery, clock, power, control panel |
-| Launcher        | XLIN app drawer above the Run Bar (no rofi needed). Alt+P pins, Alt+U unpins                    |
-| Run Bar         | The bar at the bottom (nwg-dock-hyprland): auto-hides, hidden when nothing runs or is pinned |
-| Control panel   | swaync: toggles, sliders and notifications (Super+C)                  |
-| Settings        | XLIN Settings (GTK4): Wi-Fi, Bluetooth, Display, Sound, Appearance, Bars (choose top-bar buttons, Run Bar), General, About / Update |
-| Tools           | Calculator and Calendar as small floating windows (Super+U)           |
-| Battery / power | hover for charge, click for power mode; power menu: lock, sleep, log out, restart, power off |
-| Lock screen    | hyprlock with your blurred wallpaper (Super+L), auto-lock when idle   |
-| Files           | XLIN Files (Super+E): browse, search, copy/cut/paste, drag to move, Trash with restore, Open with, zip/extract, USB drives, network folders |
-| Desktop         | Right-click the desktop: add app shortcuts, widgets (clock, calendar, system, battery, media, notes, to-do, timer), new folder, icon size, change wallpaper. Files in ~/Desktop show up too. Drag to arrange; `xlin desktop off` hides it |
-| System Monitor  | CPU, memory, disk, network and your apps; end a stuck app (Super+M) |
-| Notes           | Quick notes saved as plain .md files (Super+N, Super+Shift+N for a new one) |
-| Look and feel   | XLIN mouse cursor (follows light/dark), app icons, eight built-in wallpapers (Super+W) |
-| Welcome         | First-run tour: theme, accent, wallpaper, Run Bar and shortcuts          |
-| Terminal        | XLIN Terminal (tabs, follows light/dark, Super+Return), or Kitty with `xlin terminal use kitty`; XLIN prompt and welcome card |
-| Look            | light / dark, accent colours, window transparency (fullscreen stays solid) |
-| Daily basics    | screenshots, clipboard history, night light, volume/brightness popup  |
+| Lock screen     | hyprlock with your blurred wallpaper, time, date, battery, name and password (Super+L); auto-lock when idle |
+| Top bar         | X launcher, the current app, settings, tools, Wi-Fi, Bluetooth, sound, battery, date and time, power, control panel; every button can be hidden |
+| Launcher        | A Start menu (Super+Space): search, pinned apps, recent apps, Files / Settings / Lock / Power, and All apps |
+| App drawer      | A phone-style grid of every app (Run Bar button). Right-click an app to pin or unpin it |
+| Run Bar         | The bar at the bottom: pinned and running apps, the app drawer; auto-hides |
+| Control panel   | Wi-Fi, Bluetooth, airplane, theme, night light, volume, brightness, power mode and notifications (Super+C) |
+| Desktop         | Right-click: Apps and widgets gallery (clock, calendar, system, battery, media, notes, to-do, timer), new folder, wallpaper, icon size. Files in ~/Desktop show up too |
+| Settings        | General, Connectivity, Desktop, Status Bar and Run Bar, Launcher and App Drawer, Personalization (theme, fonts, sizes), About (update, reset) |
+| Tools           | Clock, Calendar, Calculator, Notes and Screenshot as small floating windows (Super+U) |
+| Apps            | Terminal (tabs, Super+Return), Files (Super+E), System Monitor (Super+M), Media player, Store (pacman and AUR), SysDebug (checks, logs, repairs) |
+| Windows         | Every app has hide, fullscreen and close buttons; Super+H brings back hidden windows; Super+Shift+D shows the desktop |
+| Fast            | Settings, Files, the Store, the Launcher and the drawer wait out of sight, so they open instantly (`xlin warm off` to disable) |
+| Look and feel   | light / dark, accent colours, system font and size, XLIN cursor, app icons, eight built-in wallpapers (Super+W) |
+| Daily basics    | screenshots, clipboard history, night light, quick notes, volume/brightness popup |
 
 ## Keys
 
@@ -63,6 +60,8 @@ Super+Q Quit window, Super+F Fullscreen, Super+Shift+F Float, Print screenshot.
     xlin bar show|hide settings|tools|wifi|...   xlin runbar autohide on|off
     xlin wallpaper next|<image>    xlin cursor 24|32|48|64   xlin update [check]
     xlin screenshot | clipboard | idle | nightlight | lock | session
+    xlin font <name> | size small|normal|large|huge   xlin store | media | debug
+    xlin showdesktop | unhide | warm on|off | reset
     xlin doctor | uninstall
 
 Tab completion works in the XLIN terminal.

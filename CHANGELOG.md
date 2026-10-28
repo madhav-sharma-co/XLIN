@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.33.0
+- Apps open instantly: Settings, Files and the Store start out of sight a few seconds after you log in, and closing them only hides them, so the next click shows them at once. Switch it off in Settings -> General ("Keep apps ready") or with `xlin warm off`; it is skipped automatically when memory is low
+
 ## 0.32.0
 - Fonts and sizes: Settings -> Personalization has a system font, text size (small to huge), terminal font and terminal text size. Command line: `xlin font <name>`, `xlin font size large`, `xlin font reset`
 - Fix: the window buttons in Settings were unstyled (Settings now loads the XLIN theme)

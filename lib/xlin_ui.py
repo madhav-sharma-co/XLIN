@@ -131,3 +131,24 @@ def fuzzy(query, text):
         gaps += nxt - pos - 1
         pos = nxt
     return 2 + gaps / 100
+
+
+# ---- "keep apps ready": a closed window is only hidden, so it opens instantly next time
+STATE_DIR = os.path.expanduser("~/.config/xlin/state")
+
+
+def warm_on():
+    return not os.path.exists(os.path.join(STATE_DIR, "warm_off"))
+
+
+def keep_warm(app, win):
+    """Closing the window hides it (the app keeps running) while 'Keep apps ready' is on."""
+    if warm_on():
+        app.hold()
+
+    def closing(_w):
+        if warm_on():
+            win.set_visible(False)
+            return True
+        return False
+    win.connect("close-request", closing)

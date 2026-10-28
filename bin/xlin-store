@@ -344,6 +344,7 @@ class StoreApp(Gtk.Application):
     def __init__(self):
         super().__init__(application_id=APP_ID, flags=Gio.ApplicationFlags.FLAGS_NONE)
         self.win = None
+        self.background = "--background" in sys.argv
 
     def do_startup(self):
         Gtk.Application.do_startup(self)
@@ -360,6 +361,10 @@ class StoreApp(Gtk.Application):
     def do_activate(self):
         if self.win is None:
             self.win = StoreWindow(self)
+            xlin_ui.keep_warm(self, self.win)
+        if self.background:
+            self.background = False      # warm start: built and waiting, nothing on screen
+            return
         self.win.present()
 
 

@@ -1233,6 +1233,8 @@ class FilesApp(Gtk.Application):
 
     def do_command_line(self, cmdline):
         args = cmdline.get_arguments()[1:]
+        background = "--background" in args
+        args = [a for a in args if a != "--background"]
         target = None
         if args:
             a = args[0]
@@ -1241,6 +1243,9 @@ class FilesApp(Gtk.Application):
             target = a
         if self.win is None:
             self.win = FilesWindow(self)
+            xlin_ui.keep_warm(self, self.win)
+        if background:
+            return 0                     # warm start: built and waiting, nothing on screen
         if target:
             self.win.go(target)
         self.win.present()

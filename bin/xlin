@@ -860,6 +860,26 @@ cmd_panel() {
 }
 
 # Start everything now (also used at login). Safe to run repeatedly.
+# Keep Settings, Files and the Store running out of sight so they open at once (xlin warm on|off)
+warm_start() {
+  [[ -f "$STATE/warm_off" ]] && return 0
+  local avail; avail="$(awk '/MemAvailable/ {print int($2/1024)}' /proc/meminfo 2>/dev/null)"
+  [[ "${avail:-0}" -ge 1500 ]] || return 0          # low on memory: skip it
+  local a
+  for a in xlin-settings xlin-files xlin-store; do
+    have "$a" && ! pgrep -f "[x]${a#x}( |\$)" >/dev/null && setsid "$a" --background >>"$HOME/.cache/xlin/warm.log" 2>&1 &
+  done
+}
+
+cmd_warm() {
+  case "${1:-}" in
+    on)  rm -f "$STATE/warm_off"; warm_start; echo "keep apps ready: on" ;;
+    off) touch "$STATE/warm_off"; echo "keep apps ready: off (takes effect for apps the next time they start)" ;;
+    *)   [[ -f "$STATE/warm_off" ]] && echo "keep apps ready: off" || echo "keep apps ready: on"
+         echo "usage: xlin warm on|off" ;;
+  esac
+}
+
 cmd_start() {
   mkdir -p "$HOME/.cache/xlin"
   pgrep -x waybar >/dev/null || setsid waybar >>"$HOME/.cache/xlin/waybar.log" 2>&1 &
@@ -876,10 +896,11 @@ cmd_start() {
   start_extras
   ( sleep 3; cmd_keys_check fix quiet >/dev/null 2>&1 ) &
   ( sleep 4; cmd_welcome --first ) >/dev/null 2>&1 &
+  ( sleep 8; warm_start ) >/dev/null 2>&1 &
 }
 
 # ================================================================= XLIN CLI
-XLIN_VERSION="0.32.0"
+XLIN_VERSION="0.33.0"
 
 if [[ -t 1 ]]; then B=$'\e[1m'; D=$'\e[2m'; R=$'\e[0m'; else B=""; D=""; R=""; fi
 die() { echo "xlin: $*" >&2; return 1; }
@@ -1226,7 +1247,6 @@ cmd_media() {
 cmd_store() {
   if have xlin-store && python3 -c 'import gi' >/dev/null 2>&1; then
     mkdir -p "$HOME/.cache/xlin"
-    pgrep -f '[x]lin-store$' >/dev/null && { hyprctl dispatch focuswindow 'class:dev.xlin.Store' >/dev/null 2>&1; return 0; }
     setsid xlin-store >>"$HOME/.cache/xlin/store.log" 2>&1 &
     return 0
   fi
@@ -1636,6 +1656,7 @@ ${B}System${R}
   xlin monitor                     System Monitor (Super+M)
   xlin store                       XLIN Store: find, install and remove apps
   xlin font [name|size ...]        System font and size
+  xlin warm on|off                 Keep Settings, Files and Store ready (instant open)
   xlin media [files]               XLIN Media: music and video player
   xlin debug                       SysDebug: health checks, logs, quick repairs
   xlin files [folder|default]      XLIN Files (default = use it for "show in folder")
@@ -1718,6 +1739,7 @@ case "${1:-help}" in
              esac ;;
   bar)       shift; cmd_bar "$@" ;;
   opacity)   shift; cmd_opacity "${1:-}" ;;
+  warm)      shift; cmd_warm "${1:-}" ;;
   font)      shift; cmd_font "$@" ;;
   terminal)  shift; cmd_terminal "${1:-}" "${2:-}" "${3:-}" ;;
   tools)     shift; cmd_tools "${1:-}" ;;

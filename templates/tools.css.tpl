@@ -19,7 +19,11 @@ window.xlin-tools {
 .win-btn:hover { background-color: @C_HOVER@; color: @C_INK@; }
 .win-btn.win-close:hover { background-color: #e5484d; color: #ffffff; }
 .xlin-titlebar { padding: 8px 10px 4px 16px; }
-.xlin-titlebar .tool-title { margin: 0; }
+.xlin-titlebar .clock-big { font-size: 38px; font-weight: 300; color: @C_INK@; }
+.clock-sub { color: @C_MUTED@; font-size: 12px; }
+.clock-city { color: @C_MUTED@; }
+
+.tool-title { margin: 0; }
 
 .tool-title { font-size: 14px; font-weight: 700; color: @C_INK@; }
 

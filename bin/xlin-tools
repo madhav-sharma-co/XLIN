@@ -17,6 +17,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from datetime import date, datetime
 
 import gi
@@ -32,12 +33,13 @@ CSS_FILE = os.path.expanduser("~/.config/xlin/tools.css")
 
 # name -> (window title, Wayland app id, width, height, short description, icon)
 TOOLS = {
+    "clock":      ("Clock",      "dev.xlin.Clock",      320, 420, "Time zones, stopwatch and timer", "preferences-system-time-symbolic"),
     "calculator": ("Calculator", "dev.xlin.Calculator", 300, 420, "Quick sums", "accessories-calculator-symbolic"),
     "calendar":   ("Calendar",   "dev.xlin.Calendar",   340, 430, "Dates and weekends", "x-office-calendar-symbolic"),
     "notes":      ("Notes",      "dev.xlin.Notes",      360, 470, "Quick notes, saved as files", "accessories-text-editor-symbolic"),
     "screenshot": ("Screenshot", "dev.xlin.Screenshot", 300, 336, "Capture an area, window or screen", "camera-photo-symbolic"),
 }
-MENU_ID, MENU_W, MENU_H = "dev.xlin.Tools", 300, 320
+MENU_ID, MENU_W, MENU_H = "dev.xlin.Tools", 300, 380
 POWER_ID, POWER_W, POWER_H = "dev.xlin.Power", 290, 300
 SESSION_ID, SESSION_W, SESSION_H = "dev.xlin.Session", 200, 282
 # key, glyph, label, xlin command, needs a second click to confirm
@@ -706,6 +708,203 @@ def profile_available():
 
 # -------------------------------------------------------------- windows
 # ------------------------------------------------------------ screenshot
+class ClockView(Gtk.Box):
+    """Clock (with a few time zones), stopwatch and timer."""
+    ZONES = [("Kolkata", "Asia/Kolkata"), ("London", "Europe/London"), ("New York", "America/New_York"),
+             ("Dubai", "Asia/Dubai"), ("Tokyo", "Asia/Tokyo"), ("Sydney", "Australia/Sydney")]
+
+    def __init__(self):
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        self.window = None
+        self.sw = {"running": False, "start": 0.0, "base": 0.0, "laps": []}
+        self.tm = {"total": 300.0, "left": 300.0, "running": False, "end": 0.0}
+
+        tabs = Gtk.Box(spacing=0)
+        tabs.add_css_class("linked")
+        self.stack = Gtk.Stack()
+        self.stack.set_vexpand(True)
+        first = None
+        pages = (("clock", "Clock", self.clock_page()), ("stopwatch", "Stopwatch", self.stopwatch_page()),
+                 ("timer", "Timer", self.timer_page()))
+        for key, label, page in pages:
+            self.stack.add_named(page, key)
+            b = Gtk.ToggleButton(label=label, hexpand=True)
+            if first is None:
+                first = b
+                b.set_active(True)
+            else:
+                b.set_group(first)
+            b.connect("toggled", lambda btn, k=key: btn.get_active() and self.stack.set_visible_child_name(k))
+            tabs.append(b)
+        self.append(tabs)
+        self.append(self.stack)
+        GLib.timeout_add(100, self.tick)
+        self.tick()
+
+    # ---- pages
+    def clock_page(self):
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        self.big = Gtk.Label(label="", xalign=0)
+        self.big.add_css_class("clock-big")
+        self.date = Gtk.Label(label="", xalign=0)
+        self.date.add_css_class("clock-sub")
+        box.append(self.big)
+        box.append(self.date)
+        self.zones = []
+        try:
+            from zoneinfo import ZoneInfo
+            for city, tz in self.ZONES:
+                row = Gtk.Box(spacing=8, margin_top=6)
+                name = Gtk.Label(label=city, xalign=0, hexpand=True)
+                t = Gtk.Label(label="", xalign=1)
+                t.add_css_class("clock-city")
+                row.append(name)
+                row.append(t)
+                box.append(row)
+                self.zones.append((ZoneInfo(tz), t))
+        except Exception:
+            self.zones = []
+        return box
+
+    def stopwatch_page(self):
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        self.sw_label = Gtk.Label(label="00:00.00", xalign=0)
+        self.sw_label.add_css_class("clock-big")
+        box.append(self.sw_label)
+        row = Gtk.Box(spacing=6, homogeneous=True)
+        self.sw_start = Gtk.Button(label="Start")
+        self.sw_start.connect("clicked", lambda _b: self.sw_toggle())
+        lap = Gtk.Button(label="Lap")
+        lap.connect("clicked", lambda _b: self.sw_lap())
+        reset = Gtk.Button(label="Reset")
+        reset.connect("clicked", lambda _b: self.sw_reset())
+        for b in (self.sw_start, lap, reset):
+            row.append(b)
+        box.append(row)
+        self.laps = Gtk.Label(label="", xalign=0, yalign=0, vexpand=True)
+        self.laps.add_css_class("clock-sub")
+        box.append(self.laps)
+        return box
+
+    def timer_page(self):
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        self.tm_label = Gtk.Label(label="05:00", xalign=0)
+        self.tm_label.add_css_class("clock-big")
+        box.append(self.tm_label)
+        presets = Gtk.Box(spacing=6, homogeneous=True)
+        for mins in (1, 5, 10, 25):
+            b = Gtk.Button(label=f"{mins} min")
+            b.connect("clicked", lambda _b, m=mins: self.tm_set(m * 60))
+            presets.append(b)
+        box.append(presets)
+        custom = Gtk.Box(spacing=6)
+        self.tm_entry = Gtk.Entry(hexpand=True)
+        self.tm_entry.set_placeholder_text("Minutes, e.g. 12 or 0.5")
+        self.tm_entry.connect("activate", lambda _e: self.tm_custom())
+        custom.append(self.tm_entry)
+        setb = Gtk.Button(label="Set")
+        setb.connect("clicked", lambda _b: self.tm_custom())
+        custom.append(setb)
+        box.append(custom)
+        row = Gtk.Box(spacing=6, homogeneous=True)
+        self.tm_start = Gtk.Button(label="Start")
+        self.tm_start.connect("clicked", lambda _b: self.tm_toggle())
+        reset = Gtk.Button(label="Reset")
+        reset.connect("clicked", lambda _b: self.tm_set(self.tm["total"]))
+        row.append(self.tm_start)
+        row.append(reset)
+        box.append(row)
+        box.append(Gtk.Box(vexpand=True))
+        return box
+
+    # ---- stopwatch
+    def sw_now(self):
+        s = self.sw
+        return s["base"] + (time.monotonic() - s["start"] if s["running"] else 0.0)
+
+    @staticmethod
+    def fmt(sec, cs=False):
+        m, s = divmod(sec, 60)
+        h, m = divmod(int(m), 60)
+        base = f"{m:02d}:{int(s):02d}" + (f".{int((s % 1) * 100):02d}" if cs else "")
+        return f"{h}:{base}" if h else base
+
+    def sw_toggle(self):
+        s = self.sw
+        if s["running"]:
+            s["base"] = self.sw_now()
+            s["running"] = False
+        else:
+            s["start"] = time.monotonic()
+            s["running"] = True
+        self.sw_start.set_label("Stop" if s["running"] else "Start")
+
+    def sw_lap(self):
+        if self.sw["running"]:
+            self.sw["laps"].append(self.sw_now())
+            laps = self.sw["laps"][-6:]
+            n0 = len(self.sw["laps"]) - len(laps)
+            self.laps.set_text("\n".join(f"Lap {n0 + i + 1}   {self.fmt(t, True)}" for i, t in enumerate(laps)))
+
+    def sw_reset(self):
+        self.sw.update(running=False, base=0.0, laps=[])
+        self.sw_start.set_label("Start")
+        self.laps.set_text("")
+
+    # ---- timer
+    def tm_left(self):
+        t = self.tm
+        return max(0.0, t["end"] - time.monotonic()) if t["running"] else t["left"]
+
+    def tm_set(self, seconds):
+        self.tm.update(total=float(seconds), left=float(seconds), running=False)
+        self.tm_start.set_label("Start")
+
+    def tm_custom(self):
+        try:
+            mins = float(self.tm_entry.get_text().replace(",", ".").strip())
+        except ValueError:
+            return
+        if 0 < mins <= 600:
+            self.tm_set(mins * 60)
+
+    def tm_toggle(self):
+        t = self.tm
+        if t["running"]:
+            t["left"] = self.tm_left()
+            t["running"] = False
+        else:
+            if t["left"] <= 0:
+                t["left"] = t["total"]
+            t["end"] = time.monotonic() + t["left"]
+            t["running"] = True
+        self.tm_start.set_label("Pause" if t["running"] else "Start")
+
+    # ---- one timer for everything on screen
+    def tick(self):
+        now = datetime.now()
+        self.big.set_text(now.strftime("%H:%M:%S"))
+        self.date.set_text(now.strftime("%A, %d %B %Y"))
+        for zone, label in self.zones:
+            z = datetime.now(zone)
+            label.set_text(z.strftime("%H:%M   ") + z.strftime("%a"))
+        self.sw_label.set_text(self.fmt(self.sw_now(), True))
+        left = self.tm_left()
+        self.tm_label.set_text(self.fmt(left + (0.99 if self.tm["running"] else 0)))
+        if self.tm["running"] and left <= 0:
+            self.tm.update(running=False, left=0.0)
+            self.tm_start.set_label("Start")
+            try:
+                subprocess.Popen(["notify-send", "-a", "XLIN", "-u", "critical", "Timer finished", "Time is up"],
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except OSError:
+                pass
+        return True
+
+    def on_key(self, _keyval):
+        return False
+
+
 class ScreenshotView(Gtk.Box):
     """Pick what to capture; the window closes first so it is not in the picture."""
 
@@ -1050,7 +1249,7 @@ class FloatingTool(ToolWindow):
         label, _id, w, h, _sub, _icon = TOOLS[key]
         super().__init__(app, label, w, h, with_close=True)
         self.tool = {"calculator": Calculator, "calendar": CalendarView, "notes": NotesView,
-                     "screenshot": ScreenshotView}[key]()
+                     "screenshot": ScreenshotView, "clock": ClockView}[key]()
         self.tool.window = self
         self.connect("close-request", lambda *_: (getattr(self.tool, "flush", lambda: None)(), False)[1])
         self.body.append(self.tool)

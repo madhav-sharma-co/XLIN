@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.38.0
+- New tool: Clock (Tools menu, `xlin tools clock`): current time with six time zones, a stopwatch with laps, and a timer with presets or your own minutes that notifies when done
+
 ## 0.37.0
 - Store: search also shows AUR packages when yay or paru is installed. Installing one opens a terminal so you can review it first; removing works like any other app
 

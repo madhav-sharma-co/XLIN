@@ -125,7 +125,7 @@ _xlin_complete() {
       desktop)    words="on off restart" ;;
       cursor)     words="24 32 48 64" ;;
       update)     words="check" ;;
-      tools)      words="calculator calendar notes screenshot" ;;
+      tools)      words="clock calculator calendar notes screenshot" ;;
       screenshot) words="region full window" ;;
       idle)       words="on off status set" ;;
       nightlight|night) words="on off 3500 4000 4500" ;;

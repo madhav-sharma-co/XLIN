@@ -36,7 +36,7 @@
         { "label": "  Bluetooth", "command": "xlin toggle bluetooth" },
         { "label": "  Airplane", "command": "xlin toggle airplane" },
         { "label": "  Appearance", "command": "xlin theme toggle" },
-        { "label": "  Night light", "command": "xlin nightlight toggle" },
+        { "label": "\uf186  Night light", "command": "xlin nightlight toggle" },
         { "label": "  Settings", "command": "xlin settings" }
       ]
     },

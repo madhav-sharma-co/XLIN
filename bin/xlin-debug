@@ -1,0 +1,187 @@
+#!/usr/bin/env python3
+"""XLIN SysDebug - find out what is wrong and fix it: health checks, logs, quick repairs, and a
+report you can copy into a bug report. Run: xlin debug
+"""
+import glob
+import os
+import platform
+import re
+import subprocess
+import sys
+import threading
+
+import gi
+
+gi.require_version("Gtk", "4.0")
+gi.require_version("Gdk", "4.0")
+from gi.repository import Gdk, Gio, GLib, Gtk  # noqa: E402
+
+sys.path[:0] = ["/usr/local/lib/xlin", os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib")]
+import xlin_ui  # noqa: E402
+
+APP_ID = "dev.xlin.Debug"
+HOME = os.path.expanduser("~")
+CSS_FILE = os.path.join(HOME, ".config/xlin/tools.css")
+LOG_DIR = os.path.join(HOME, ".cache/xlin")
+ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+
+
+def sh(cmd, timeout=30):
+    try:
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        return ANSI.sub("", (p.stdout or "") + (p.stderr or ""))
+    except Exception as e:
+        return f"({cmd[0]} could not run: {e})"
+
+
+def tail(text, n):
+    return "\n".join(text.splitlines()[-n:])
+
+
+def log_sources():
+    """[(label, function returning text)]"""
+    srcs = [("This session (warnings and errors)",
+             lambda: tail(sh(["journalctl", "--user", "-b", "-p", "warning", "--no-pager", "-n", "300"]), 300)),
+            ("Hyprland", lambda: tail(sh(["hyprctl", "rollinglog"]), 300))]
+    for path in sorted(glob.glob(os.path.join(LOG_DIR, "*.log"))):
+        def read(p=path):
+            try:
+                with open(p, errors="replace") as f:
+                    return tail(f.read(), 300) or "(empty: nothing went wrong)"
+            except OSError as e:
+                return str(e)
+        srcs.append((f"XLIN: {os.path.basename(path)}", read))
+    return srcs
+
+
+def report():
+    parts = ["XLIN report", "-" * 40,
+             f"Version: {sh(['xlin', 'version']).strip()}",
+             f"Kernel: {platform.release()}",
+             f"Hyprland: {sh(['hyprctl', 'version']).splitlines()[0] if sh(['hyprctl', 'version']).strip() else 'unknown'}",
+             "", "Health checks", "-" * 40, sh(["xlin", "doctor"], 60).strip()]
+    for path in sorted(glob.glob(os.path.join(LOG_DIR, "*.log"))):
+        try:
+            with open(path, errors="replace") as f:
+                t = tail(f.read(), 15).strip()
+        except OSError:
+            continue
+        if t:
+            parts += ["", f"Log: {os.path.basename(path)}", "-" * 40, t]
+    return "\n".join(parts)
+
+
+class DebugWindow(Gtk.ApplicationWindow):
+    def __init__(self, app):
+        super().__init__(application=app, title="SysDebug")
+        self.set_default_size(840, 620)
+        self.add_css_class("xlin-tools")
+        xlin_ui.titlebar(self, "SysDebug")
+        self.sources = log_sources()
+
+        root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        for m in ("top", "bottom", "start", "end"):
+            getattr(root, f"set_margin_{m}")(16)
+        self.set_child(root)
+
+        bar = Gtk.Box(spacing=6)
+        for label, fn in (("Run checks", self.checks), ("Logs", self.show_logs), ("Report", self.show_report)):
+            b = Gtk.Button(label=label)
+            b.connect("clicked", lambda _b, f=fn: f())
+            bar.append(b)
+        bar.append(Gtk.Box(hexpand=True))
+        for label, cmd in (("Restart XLIN", ["xlin", "restart"]), ("Fix shortcuts", ["xlin", "keys", "fix"]),
+                           ("Restart desktop", ["xlin", "desktop", "restart"])):
+            b = Gtk.Button(label=label)
+            b.connect("clicked", lambda _b, c=cmd, n=label: self.fix(n, c))
+            bar.append(b)
+        root.append(bar)
+
+        self.picker = Gtk.DropDown.new_from_strings([s[0] for s in self.sources])
+        self.picker.connect("notify::selected", lambda *_a: self.show_logs(False))
+        self.picker.set_visible(False)
+        root.append(self.picker)
+
+        self.view = Gtk.TextView(editable=False, monospace=True, cursor_visible=False)
+        self.view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
+        self.view.set_left_margin(10)
+        self.view.set_top_margin(8)
+        sc = Gtk.ScrolledWindow(vexpand=True)
+        sc.set_child(self.view)
+        root.append(sc)
+
+        foot = Gtk.Box(spacing=8)
+        self.status = Gtk.Label(label="", xalign=0, hexpand=True)
+        self.status.add_css_class("tools-sub")
+        foot.append(self.status)
+        copy = Gtk.Button(label="Copy")
+        copy.connect("clicked", lambda _b: self.copy())
+        foot.append(copy)
+        root.append(foot)
+        self.checks()
+
+    def put(self, text):
+        self.view.get_buffer().set_text(text)
+
+    def background(self, work, label):
+        self.status.set_text(label)
+        self.put("")
+
+        def go():
+            text = work()
+            GLib.idle_add(lambda: (self.put(text), self.status.set_text(""), False)[2])
+        threading.Thread(target=go, daemon=True).start()
+
+    def checks(self):
+        self.picker.set_visible(False)
+        self.background(lambda: sh(["xlin", "doctor"], 60).strip() or "No output from xlin doctor.",
+                        "Running checks...")
+
+    def show_logs(self, reset=True):
+        self.picker.set_visible(True)
+        idx = self.picker.get_selected()
+        if not 0 <= idx < len(self.sources):
+            return
+        self.background(self.sources[idx][1], "Reading log...")
+
+    def show_report(self):
+        self.picker.set_visible(False)
+        self.background(report, "Collecting a report...")
+
+    def fix(self, name, cmd):
+        self.status.set_text(f"{name}...")
+        subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        GLib.timeout_add(2500, lambda: (self.status.set_text(f"{name}: done"), False)[1])
+
+    def copy(self):
+        buf = self.view.get_buffer()
+        text = buf.get_text(buf.get_start_iter(), buf.get_end_iter(), False)
+        self.get_clipboard().set(text)
+        self.status.set_text("Copied to the clipboard")
+
+
+class DebugApp(Gtk.Application):
+    def __init__(self):
+        super().__init__(application_id=APP_ID, flags=Gio.ApplicationFlags.FLAGS_NONE)
+        self.win = None
+
+    def do_startup(self):
+        Gtk.Application.do_startup(self)
+        try:
+            with open(CSS_FILE, "rb") as f:
+                data = f.read()
+            prov = Gtk.CssProvider()
+            prov.load_from_data(data)
+            Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), prov,
+                                                      Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        except Exception:
+            pass
+
+    def do_activate(self):
+        if self.win is None:
+            self.win = DebugWindow(self)
+        self.win.present()
+
+
+if __name__ == "__main__":
+    sys.exit(DebugApp().run([sys.argv[0]]))

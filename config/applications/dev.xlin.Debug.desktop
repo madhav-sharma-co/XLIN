@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=SysDebug
+GenericName=Problem finder
+Comment=Health checks, logs and quick repairs for XLIN
+Exec=xlin-debug
+Icon=xlin-debug
+Terminal=false
+Categories=System;
+StartupWMClass=dev.xlin.Debug

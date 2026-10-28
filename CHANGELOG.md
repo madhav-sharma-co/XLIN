@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.31.0
+- New app: SysDebug (`xlin debug`): health checks, logs (this session, Hyprland and every XLIN app), one-click repairs (restart XLIN, fix shortcuts, restart the desktop layer) and a report you can copy into a bug report
+
 ## 0.30.0
 - New app: XLIN Media (`xlin media`), a music and video player. Open files or a folder, drop files on it, Space plays and pauses, arrow keys skip; it also shows up in "Open with" for audio and video
 

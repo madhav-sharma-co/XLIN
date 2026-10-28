@@ -104,6 +104,13 @@ def media():
             '<path d="M54 46l30 18-30 18z" fill="#e5484d"/>')
 
 
+def debug():
+    return ('<ellipse cx="64" cy="70" rx="22" ry="28" fill="#fff"/>'
+            '<circle cx="64" cy="40" r="12" fill="#fff"/>'
+            '<path d="M40 56l-14-8M88 56l14-8M40 74H24M88 74h16M42 92l-12 10M86 92l12 10" stroke="#fff" stroke-width="6" stroke-linecap="round"/>'
+            '<path d="M64 48v44" stroke="#e08a00" stroke-width="5"/>')
+
+
 ICONS = {
     "xlin-settings": ("#a3adbf", "#626d82", gear()),
     "xlin-notes": ("#ffd95e", "#ffb300", notes()),
@@ -117,6 +124,7 @@ ICONS = {
     "xlin-screenshot": ("#ff9ec0", "#c24eea", screenshot()),
     "xlin-store": ("#6fd0ff", "#3b6df0", store()),
     "xlin-media": ("#ff8a7a", "#e5484d", media()),
+    "xlin-debug": ("#ffc857", "#ef8a17", debug()),
     "xlin-power": ("#ff6b5e", "#d62f2f", power("#d62f2f")),
 }
 

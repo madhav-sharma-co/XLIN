@@ -103,6 +103,7 @@ sudo install -m 755 "$SRC/bin/xlin-files" /usr/local/bin/xlin-files
 sudo install -m 755 "$SRC/bin/xlin-monitor" /usr/local/bin/xlin-monitor
 sudo install -m 755 "$SRC/bin/xlin-store" /usr/local/bin/xlin-store
 sudo install -m 755 "$SRC/bin/xlin-media" /usr/local/bin/xlin-media
+sudo install -m 755 "$SRC/bin/xlin-debug" /usr/local/bin/xlin-debug
 sudo install -m 755 "$SRC/bin/xlin-terminal" /usr/local/bin/xlin-terminal
 sudo install -m 755 "$SRC/bin/xlin-desktop" /usr/local/bin/xlin-desktop
 sudo install -m 755 "$SRC/bin/xlin-launcher" /usr/local/bin/xlin-launcher

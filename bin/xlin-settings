@@ -4,6 +4,7 @@
 Usage: xlin-settings [wifi|bluetooth|display|sound|appearance|about]
 Opens centered on screen (window rules in ~/.config/hypr/xlin.conf).
 """
+import json
 import os
 import re
 import shutil
@@ -24,15 +25,18 @@ APP_ID = "dev.xlin.Settings"
 STATE = os.path.expanduser("~/.config/xlin/state")
 
 PAGES = [
-    ("wifi", "Wi-Fi", "network-wireless-symbolic"),
-    ("bluetooth", "Bluetooth", "bluetooth-symbolic"),
-    ("display", "Display", "video-display-symbolic"),
-    ("sound", "Sound", "audio-volume-high-symbolic"),
-    ("appearance", "Appearance", "preferences-desktop-theme-symbolic"),
-    ("bars", "Bars", "view-list-symbolic"),
     ("general", "General", "preferences-system-symbolic"),
+    ("connectivity", "Connectivity", "network-wireless-symbolic"),
+    ("desktop", "Desktop", "preferences-desktop-wallpaper-symbolic"),
+    ("bars", "Status Bar and Run Bar", "view-list-symbolic"),
+    ("launcher", "Launcher and App Drawer", "view-app-grid-symbolic"),
+    ("personalization", "Personalization", "preferences-desktop-theme-symbolic"),
     ("about", "About", "help-about-symbolic"),
 ]
+# old page names still work (xlin settings wifi, xlin settings sound, ...): name -> (page, tab)
+ALIASES = {"wifi": ("connectivity", "wifi"), "bluetooth": ("connectivity", "bluetooth"),
+           "airplane": ("connectivity", "wifi"), "display": ("general", None), "sound": ("general", None),
+           "appearance": ("personalization", None), "calendar": ("general", None)}
 
 CSS = b"""
 .xlin-side { padding: 10px 8px; }
@@ -345,10 +349,7 @@ class BluetoothPage(Gtk.Box):
             self.refresh(False)))
 
 
-def display_page(win):
-    box = page_box("Display", "Brightness and screens")
-    c = card()
-    box.append(c)
+def display_rows(c):
     ok, out = run(["brightnessctl", "-m", "info"])
     pct = 70
     if ok and out:
@@ -365,13 +366,9 @@ def display_page(win):
                      button("Open...", lambda: subprocess.Popen(["nwg-displays"]))))
     else:
         c.append(row("Screen layout", "Install nwg-displays to arrange screens"))
-    return box
 
 
-def sound_page(win):
-    box = page_box("Sound", "Output volume")
-    c = card()
-    box.append(c)
+def sound_rows(c):
     vol = 50
     ok, out = run(["wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"])
     m = re.search(r"([\d.]+)", out or "")
@@ -386,7 +383,6 @@ def sound_page(win):
     if have("pavucontrol"):
         c.append(row("Devices and apps", "Choose speakers, microphone, per-app volume",
                      button("Open...", lambda: subprocess.Popen(["pavucontrol"]))))
-    return box
 
 
 ACCENTS = [("blue", "#5269dc"), ("teal", "#1f9d9a"), ("green", "#2f9e5f"),
@@ -424,7 +420,7 @@ def accent_dots():
 
 
 def appearance_page(win):
-    box = page_box("Appearance", "Theme, transparency and wallpaper")
+    box = page_box("Personalization", "Theme, accent colour, transparency and wallpaper")
     c = card()
     box.append(c)
     dark = read_state("theme", "light") == "dark"
@@ -475,6 +471,7 @@ def segmented(options, current, on_change):
             first = b
         else:
             b.set_group(first)
+        b.value = value
         if str(value) == str(current):
             b.set_active(True)
         b.connect("toggled", lambda btn, v=value: btn.get_active() and on_change(v))
@@ -495,11 +492,11 @@ BAR_ITEMS = [
 
 
 def bars_page(win):
-    box = page_box("Bars", "Choose what shows on the top bar and how the Run Bar behaves")
+    box = page_box("Status Bar and Run Bar", "Choose what shows on the top bar and how the Run Bar behaves")
     hidden = set(read_state("bar_hidden", "").split())
     c = card()
     box.append(c)
-    head = Gtk.Label(label="Top bar", xalign=0, margin_top=10)
+    head = Gtk.Label(label="Status bar (the top bar)", xalign=0, margin_top=10)
     head.add_css_class("xlin-sub")
     c.append(head)
     for name, title, sub_ in BAR_ITEMS:
@@ -524,19 +521,27 @@ def bars_page(win):
     return box
 
 
+def dnd_on():
+    ok, out = run(["swaync-client", "-D"], 3)
+    return ok and out.strip() == "true"
+
+
+def airplane_on():
+    ok, out = run(["rfkill", "list", "all"], 3)
+    return ok and "Soft blocked: no" not in out and "Soft blocked: yes" in out
+
+
 def general_page(win):
-    box = page_box("General", "Desktop, mouse, terminal and sleep")
+    box = page_box("General", "Sound, brightness, notifications and sleep")
     c = card()
     box.append(c)
-    c.append(row("Desktop menu and widgets", "Right-click the desktop for shortcuts, widgets and wallpaper", switch(
-        not os.path.exists(os.path.join(STATE, "desktop_off")),
-        lambda s: in_thread(lambda: run(["xlin", "desktop", "on" if s else "off"], 20)))))
-    c.append(row("Mouse cursor size", None, segmented(
-        [("24", "Small"), ("32", "Medium"), ("48", "Large"), ("64", "Huge")], read_state("cursor_size", "24"),
-        lambda v: in_thread(lambda: run(["xlin", "cursor", v])))))
-    c.append(row("Terminal", "What Super+Return opens", segmented(
-        [("xlin", "XLIN Terminal"), ("kitty", "Kitty")], read_state("terminal", "xlin"),
-        lambda v: in_thread(lambda: run(["xlin", "terminal", "use", v])))))
+    sound_rows(c)
+    display_rows(c)
+
+    cn = card()
+    box.append(cn)
+    cn.append(row("Do not disturb", "Hide notification pop-ups (they still collect in the control panel)", switch(
+        dnd_on(), lambda s: in_thread(lambda: run(["swaync-client", "-dn" if s else "-df"], 5)))))
 
     c2 = card()
     box.append(c2)
@@ -549,6 +554,141 @@ def general_page(win):
     c2.append(row("Night light", "Warmer screen colour in the evening", switch(
         os.path.exists(os.path.join(STATE, "nightlight")) and read_state("nightlight", "") != "",
         lambda s: in_thread(lambda: run(["xlin", "nightlight", "on" if s else "off"], 20)))))
+    c2.append(row("Terminal", "What Super+Return opens", segmented(
+        [("xlin", "XLIN Terminal"), ("kitty", "Kitty")], read_state("terminal", "xlin"),
+        lambda v: in_thread(lambda: run(["xlin", "terminal", "use", v])))))
+    return box
+
+
+class ConnectivityPage(Gtk.Box):
+    """Airplane mode, then Wi-Fi and Bluetooth as two tabs."""
+
+    def __init__(self, win, keep):
+        super().__init__(orientation=Gtk.Orientation.VERTICAL)
+        self.win = win
+        self.box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        top = page_box("Connectivity", "Airplane mode, Wi-Fi and Bluetooth")
+        c = card()
+        c.append(row("Airplane mode", "Turns Wi-Fi and Bluetooth off together", switch(
+            airplane_on(), lambda s: in_thread(lambda: run(["rfkill", "block" if s else "unblock", "all"], 10)))))
+        top.append(c)
+        self.stack = Gtk.Stack(vexpand=True)
+        self.stack.add_named(keep(WifiPage(win)), "wifi")
+        self.stack.add_named(keep(BluetoothPage(win)), "bluetooth")
+        self.tabs = segmented([("wifi", "Wi-Fi"), ("bluetooth", "Bluetooth")], "wifi",
+                              lambda v: self.stack.set_visible_child_name(v))
+        self.tabs.set_halign(Gtk.Align.START)
+        self.tabs.set_margin_top(12)
+        top.append(self.tabs)
+        self.box.append(top)
+        self.box.append(self.stack)
+
+    def show_tab(self, name):
+        self.stack.set_visible_child_name(name)
+        child = self.tabs.get_first_child()
+        while child is not None:
+            if getattr(child, "value", None) == name:
+                child.set_active(True)
+            child = child.get_next_sibling()
+
+
+DESKTOP_CFG = os.path.expanduser("~/.config/xlin/desktop.json")
+DESKTOP_WIDGETS = [("clock", "Clock"), ("calendar", "Calendar"), ("system", "System"), ("battery", "Battery"),
+                   ("media", "Media player"), ("notes", "Notes"), ("todo", "To-do list"), ("timer", "Timer")]
+
+
+def desktop_edit(change):
+    """Change desktop.json, then restart the desktop layer so it picks the change up."""
+    def work():
+        try:
+            with open(DESKTOP_CFG) as f:
+                cfg = json.load(f)
+        except (OSError, ValueError):
+            cfg = {}
+        run(["pkill", "-f", "[x]lin-desktop$"], 3)
+        change(cfg)
+        os.makedirs(os.path.dirname(DESKTOP_CFG), exist_ok=True)
+        with open(DESKTOP_CFG, "w") as f:
+            json.dump(cfg, f, indent=1)
+        if not os.path.exists(os.path.join(STATE, "desktop_off")):
+            run(["xlin", "desktop", "start"], 10)
+    in_thread(work)
+
+
+def desktop_page(win):
+    box = page_box("Desktop", "Icons, widgets, wallpaper and the mouse")
+    try:
+        with open(DESKTOP_CFG) as f:
+            cfg = json.load(f)
+    except (OSError, ValueError):
+        cfg = {}
+    c = card()
+    box.append(c)
+    c.append(row("Desktop layer", "Right-click menu, icons and widgets on the desktop", switch(
+        not os.path.exists(os.path.join(STATE, "desktop_off")),
+        lambda s: in_thread(lambda: run(["xlin", "desktop", "on" if s else "off"], 20)))))
+    c.append(row("Show desktop icons", None, switch(
+        cfg.get("show_icons", True), lambda s: desktop_edit(lambda d: d.__setitem__("show_icons", s)))))
+    c.append(row("Icon size", None, segmented(
+        [("small", "Small"), ("medium", "Medium"), ("large", "Large")], cfg.get("icon_size", "medium"),
+        lambda v: desktop_edit(lambda d: d.__setitem__("icon_size", v)))))
+
+    cw = card()
+    box.append(cw)
+    head = Gtk.Label(label="Widgets", xalign=0, margin_top=10)
+    head.add_css_class("xlin-sub")
+    cw.append(head)
+    widgets = cfg.get("widgets", {}) if isinstance(cfg.get("widgets"), dict) else {}
+    for key, name in DESKTOP_WIDGETS:
+        on = widgets.get(key, {}).get("on", key == "clock")
+
+        def set_widget(state, k=key):
+            def change(d):
+                w = d.setdefault("widgets", {}).setdefault(k, {})
+                w["on"] = state
+            desktop_edit(change)
+        cw.append(row(name, None, switch(on, set_widget)))
+
+    cm = card()
+    box.append(cm)
+    wb = Gtk.Box(spacing=8)
+    wb.append(button("Next", lambda: in_thread(lambda: run(["xlin", "wallpaper", "next"], 30))))
+    cm.append(row("Wallpaper", "More choices are in Personalization", wb))
+    cm.append(row("Mouse cursor size", None, segmented(
+        [("24", "Small"), ("32", "Medium"), ("48", "Large"), ("64", "Huge")], read_state("cursor_size", "24"),
+        lambda v: in_thread(lambda: run(["xlin", "cursor", v])))))
+    return box
+
+
+def launcher_page(win):
+    box = page_box("Launcher and App Drawer", "Pinned apps show in the Launcher and on the Run Bar")
+    c = card()
+    box.append(c)
+    pins = []
+    try:
+        with open(os.path.expanduser("~/.cache/nwg-dock-pinned")) as f:
+            pins = [ln.strip() for ln in f if ln.strip()]
+    except OSError:
+        pass
+    head = Gtk.Label(label="Pinned apps", xalign=0, margin_top=10)
+    head.add_css_class("xlin-sub")
+    c.append(head)
+    if not pins:
+        c.append(row("Nothing pinned yet", "Pin an app below, or press Alt+P in the App drawer"))
+    for pid in pins:
+        app = Gio.DesktopAppInfo.new(pid + ".desktop")
+        name = app.get_display_name() if app else pid
+        c.append(row(name, None, button("Unpin", lambda p=pid: in_thread(
+            lambda: run(["xlin", "unpin", p], 15), lambda _r: win.rebuild("launcher")))))
+    c2 = card()
+    box.append(c2)
+    c2.append(row("Pin an app", "Opens the App drawer: pick an app to pin", button(
+        "Choose...", lambda: subprocess.Popen(["xlin", "launcher", "pin"]))))
+    c2.append(row("Clear recent apps", "Empties the Recent list in the Launcher", button(
+        "Clear", lambda: in_thread(lambda: (
+            os.path.exists(os.path.join(STATE, "recent")) and os.remove(os.path.join(STATE, "recent")))))))
+    c2.append(row("Open the App drawer", "The grid of every app (also the Run Bar button)", button(
+        "Open", lambda: subprocess.Popen(["xlin", "drawer"]))))
     return box
 
 
@@ -654,13 +794,12 @@ class SettingsWindow(Gtk.ApplicationWindow):
             self.keep.append(obj)
             return obj.box
         builders = {
-            "wifi": lambda: keep(WifiPage(self)),
-            "bluetooth": lambda: keep(BluetoothPage(self)),
-            "display": lambda: display_page(self),
-            "sound": lambda: sound_page(self),
-            "appearance": lambda: appearance_page(self),
-            "bars": lambda: bars_page(self),
             "general": lambda: general_page(self),
+            "connectivity": lambda: self.connectivity(keep),
+            "desktop": lambda: desktop_page(self),
+            "bars": lambda: bars_page(self),
+            "launcher": lambda: launcher_page(self),
+            "personalization": lambda: appearance_page(self),
             "about": lambda: about_page(self),
         }
         self.pages = {}
@@ -678,7 +817,12 @@ class SettingsWindow(Gtk.ApplicationWindow):
             self.pages[key] = (lr, builders[key])
         self.built = set()
         self.side.connect("row-selected", self.on_select)
-        self.show_page("wifi")
+        self.conn = None
+        self.show_page("general")
+
+    def connectivity(self, keep):
+        self.conn = ConnectivityPage(self, keep)
+        return self.conn.box
 
     def on_select(self, _lb, lr):
         if lr is None:
@@ -701,9 +845,16 @@ class SettingsWindow(Gtk.ApplicationWindow):
         return False
 
     def show_page(self, key):
+        tab = None
+        if key in ALIASES:
+            key, tab = ALIASES[key]
         if key not in self.pages:
-            key = "wifi"
+            key = "general"
         self.side.select_row(self.pages[key][0])
+        if key == "connectivity":
+            self.on_select(None, self.pages[key][0])      # build it now so the tab can be chosen
+            if self.conn is not None:
+                self.conn.show_tab(tab or "wifi")
 
 
 class SettingsApp(Gtk.Application):
@@ -722,7 +873,7 @@ class SettingsApp(Gtk.Application):
 
     def do_command_line(self, cmdline):
         args = cmdline.get_arguments()[1:]
-        page = args[0].lower() if args else "wifi"
+        page = args[0].lower() if args else "general"
         if self.win is None:
             self.win = SettingsWindow(self)
         self.win.show_page(page)

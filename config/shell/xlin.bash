@@ -133,7 +133,7 @@ _xlin_complete() {
       notes)      words="list dir" ;;
       files)      words="default" ;;
       help)       words="wifi bluetooth sound brightness battery theme" ;;
-      settings)   words="wifi bluetooth display sound appearance bars general about" ;;
+      settings)   words="general connectivity wifi bluetooth desktop bars launcher personalization about" ;;
     esac
     [[ $cmd == dock || $cmd == runbar ]] && [[ ${COMP_WORDS[2]:-} == autohide ]] && words="on off"
     [[ $cmd == runbar ]] && [[ ${COMP_WORDS[2]:-} == size ]] && words="32 40 48"

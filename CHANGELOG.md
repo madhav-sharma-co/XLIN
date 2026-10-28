@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.28.0
+- Settings reorganised into seven sections: General (volume, brightness, notifications, sleep, terminal), Connectivity (airplane mode, Wi-Fi, Bluetooth), Desktop (icons, widgets, wallpaper, cursor), Status Bar and Run Bar, Launcher and App Drawer (manage pinned apps), Personalization (theme, accent, transparency, wallpaper) and About
+- New: Do not disturb switch, airplane mode switch, widget and icon-size switches for the desktop
+- Old page names still work (`xlin settings wifi`, `sound`, `appearance`, ...)
+
 ## 0.27.0
 - The Launcher is now a Start menu (Super+Space, or the X button): search, your pinned apps, recent apps, and buttons for Files, Settings, Lock and Power. "All apps" opens the App drawer
 - The App drawer (`xlin drawer`, the grid of every app) is on the Run Bar's drawer button; Alt+P / Alt+U still pin and unpin there

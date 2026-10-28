@@ -2,6 +2,8 @@
 
 Panels (control panel, launcher, app drawer) are not windows: they only get a close button.
 """
+import json
+import os
 import subprocess
 
 from gi.repository import Gtk
@@ -9,18 +11,37 @@ from gi.repository import Gtk
 
 def _hypr(*args):
     try:
-        subprocess.Popen(["hyprctl", "dispatch", *args], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.Popen(["hyprctl", *args], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except OSError:
         pass
 
 
-def hide_window(_win=None):
-    """Send the focused window out of sight (Super+H or the Run Bar brings it back)."""
-    _hypr("movetoworkspacesilent", "special:xlin-hidden")
+def _address(win):
+    """Hyprland's address for this very window (not whichever one happens to be focused)."""
+    try:
+        out = subprocess.run(["hyprctl", "clients", "-j"], capture_output=True, text=True, timeout=2).stdout
+        mine = [c for c in json.loads(out) if c.get("pid") == os.getpid()]
+    except Exception:
+        return None
+    if len(mine) > 1:
+        title = win.get_title() if win is not None else None
+        same = [c for c in mine if c.get("title") == title]
+        mine = same or mine
+    return mine[0]["address"] if mine else None
 
 
-def toggle_fullscreen(_win=None):
-    _hypr("fullscreen", "1")        # fills the screen but keeps the bars; same again to leave it
+def hide_window(win=None):
+    """Send this window out of sight (Super+H or `xlin unhide` brings it back)."""
+    addr = _address(win)
+    if addr:
+        _hypr("dispatch", "movetoworkspacesilent", f"special:xlin-hidden,address:{addr}")
+
+
+def toggle_fullscreen(win=None):
+    """Real fullscreen, exactly like Super+F; press again to leave it."""
+    addr = _address(win)
+    if addr:
+        _hypr("--batch", f"dispatch focuswindow address:{addr} ; dispatch fullscreen 0")
 
 
 def _button(glyph, tip, css, fn):

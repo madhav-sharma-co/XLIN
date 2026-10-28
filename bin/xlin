@@ -359,6 +359,18 @@ cmd_launcher() {
   cmd_launcher_rofi "$mode"
 }
 
+# Bring back the window hidden most recently (xlin unhide all: every hidden window)
+cmd_unhide() {
+  have hyprctl && have jq || return 1
+  local ws addr
+  ws="$(hyprctl activeworkspace -j | jq -r '.id')"
+  while read -r addr; do
+    [[ -n "$addr" ]] || continue
+    hyprctl --batch "dispatch movetoworkspacesilent ${ws},address:${addr} ; dispatch focuswindow address:${addr}" >/dev/null
+    [[ "${1:-}" == all ]] || break
+  done < <(hyprctl clients -j | jq -r '[.[] | select(.workspace.name=="special:xlin-hidden")] | sort_by(.focusHistoryID) | .[].address')
+}
+
 cmd_launch_app() { record_recent "${1%.desktop}"; launch_id "${1%.desktop}"; }
 
 cmd_launcher_rofi() {
@@ -820,7 +832,7 @@ cmd_start() {
 }
 
 # ================================================================= XLIN CLI
-XLIN_VERSION="0.26.1"
+XLIN_VERSION="0.26.2"
 
 if [[ -t 1 ]]; then B=$'\e[1m'; D=$'\e[2m'; R=$'\e[0m'; else B=""; D=""; R=""; fi
 die() { echo "xlin: $*" >&2; return 1; }
@@ -1609,7 +1621,7 @@ case "${1:-help}" in
   theme)     shift; cmd_theme "${1:-}" ;;
   wallpaper) shift; cmd_wallpaper "${1:-next}" ;;
   launcher)  shift; cmd_launcher "${1:-}" ;;
-  unhide)    hyprctl dispatch togglespecialworkspace xlin-hidden >/dev/null ;;
+  unhide)    shift; cmd_unhide "${1:-}" ;;
   launch-app) shift; cmd_launch_app "${1:?usage: xlin launch-app <desktop-id>}" ;;
   pin)       shift; cmd_pin "${1:-}" ;;
   unpin)     shift; cmd_unpin "${1:-}" ;;

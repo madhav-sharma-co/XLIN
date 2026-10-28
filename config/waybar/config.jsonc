@@ -19,7 +19,7 @@
     "format": "{class}",
     "max-length": 40,
     "separate-outputs": true,
-    "rewrite": { "": "XLIN" }
+    "rewrite": { "": "XLIN", "^dev\\.xlin\\.(.*)$": "$1" }
   },
 
   "custom/settings": {
@@ -81,7 +81,7 @@
   "clock": {
     "format": "{:%a %b %e   %I:%M %p}",
     "tooltip-format": "<tt>{calendar}</tt>",
-    "on-click": "xlin settings calendar"
+    "on-click": "xlin tools calendar"
   },
 
   "custom/session": {

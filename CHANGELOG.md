@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.26.2
+- Fix: the fullscreen button is now real fullscreen, exactly like Super+F
+- Fix: the hide button hides the window it belongs to (not whichever is focused); Super+H brings back the last hidden window, `xlin unhide all` brings back every one
+- Top bar: the current-app name shows "Files" instead of "dev.xlin.Files"; clicking the date and time opens the Calendar
+
 ## 0.26.1
 - Lock screen shows the battery level (top right) next to the time, date, name and password field
 - The app drawer has a close button (panels only get a close button)

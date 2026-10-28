@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.32.0
+- Fonts and sizes: Settings -> Personalization has a system font, text size (small to huge), terminal font and terminal text size. Command line: `xlin font <name>`, `xlin font size large`, `xlin font reset`
+- Fix: the window buttons in Settings were unstyled (Settings now loads the XLIN theme)
+
 ## 0.31.0
 - New app: SysDebug (`xlin debug`): health checks, logs (this session, Hyprland and every XLIN app), one-click repairs (restart XLIN, fix shortcuts, restart the desktop layer) and a report you can copy into a bug report
 

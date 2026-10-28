@@ -1,6 +1,6 @@
 * {
-  font-family: "DM Sans", "Inter", "Symbols Nerd Font", "Font Awesome 7 Free", "Font Awesome 6 Free", sans-serif;
-  font-size: 12px;
+  font-family: "@C_FONT@", "Inter", "Symbols Nerd Font", "Font Awesome 7 Free", "Font Awesome 6 Free", sans-serif;
+  font-size: @C_FS_BAR@px;
 }
 
 .control-center {

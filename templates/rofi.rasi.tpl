@@ -5,7 +5,7 @@
   ink:    @C_INK@;
   muted:  @C_MUTED@;
   accent: @C_ACCENT@;
-  font:   "DM Sans 11";
+  font:   "@C_FONT@ @C_PT11@";
 }
 
 window {
@@ -74,5 +74,5 @@ element-text {
   vertical-align: 0.5;
   background-color: transparent;
   text-color: inherit;
-  font: "DM Sans Bold 9";
+  font: "@C_FONT@ Bold @C_PT9@";
 }

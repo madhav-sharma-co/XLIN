@@ -1,6 +1,6 @@
 * {
-  font-family: "DM Sans", "Inter", "Symbols Nerd Font", "Font Awesome 7 Free", "Font Awesome 6 Free", sans-serif;
-  font-size: 12px;
+  font-family: "@C_FONT@", "Inter", "Symbols Nerd Font", "Font Awesome 7 Free", "Font Awesome 6 Free", sans-serif;
+  font-size: @C_FS_BAR@px;
   border: none;
   border-radius: 0;
   min-height: 0;
@@ -28,7 +28,7 @@ tooltip label { color: @C_INK@; }
   border: 1px solid @C_TOPBAR_LINE@;
   color: @C_INK@;
   font-family: "Inter", sans-serif;
-  font-size: 16px;
+  font-size: @C_FS_BAR_X@px;
   font-weight: 800;
 }
 #custom-xlin:hover { background: @C_ACCENT_SOFT@; color: @C_ACCENT@; }
@@ -49,7 +49,7 @@ tooltip label { color: @C_INK@; }
 
 #clock {
   padding: 0 8px;
-  font-size: 11px;
+  font-size: @C_FS_BAR_SM@px;
   font-weight: 600;
 }
 #clock:hover { background: @C_HOVER@; border-radius: 7px; }

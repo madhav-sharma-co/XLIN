@@ -95,11 +95,42 @@ cmd_welcome() {   # xlin welcome [--first]: the first-run tour
   setsid xlin-welcome >>"$HOME/.cache/xlin/welcome.log" 2>&1 &
 }
 
+# System font and size, as template values (Settings -> Personalization, or `xlin font`)
+ui_font_vars() {
+  local f sz pct
+  f="$(cat "$STATE/ui_font" 2>/dev/null || true)"; [[ -n "$f" ]] || f="DM Sans"
+  sz="$(cat "$STATE/ui_size" 2>/dev/null || echo normal)"
+  case "$sz" in small) pct=92 ;; large) pct=112 ;; huge) pct=125 ;; *) pct=100 ;; esac
+  C_FONT="$f"; C_FS_PCT="${pct}%"
+  C_FS_BAR=$(( (12 * pct + 50) / 100 )); C_FS_BAR_SM=$(( (11 * pct + 50) / 100 )); C_FS_BAR_X=$(( (16 * pct + 50) / 100 ))
+  C_PT9=$(( (9 * pct + 50) / 100 )); C_PT10=$(( (10 * pct + 50) / 100 )); C_PT11=$(( (11 * pct + 50) / 100 ))
+}
+
+cmd_font() {
+  local sz
+  case "${1:-}" in
+    "") echo "font: $(cat "$STATE/ui_font" 2>/dev/null || echo "DM Sans")   size: $(cat "$STATE/ui_size" 2>/dev/null || echo normal)"
+        echo "usage: xlin font <family name> | xlin font size small|normal|large|huge | xlin font reset"; return 0 ;;
+    reset) rm -f "$STATE/ui_font" "$STATE/ui_size" ;;
+    size)  sz="${2:-}"
+           case "$sz" in small|normal|large|huge) echo "$sz" >"$STATE/ui_size" ;;
+             *) echo "usage: xlin font size small|normal|large|huge"; return 1 ;; esac ;;
+    *)     local name="$*"
+           if have fc-list && [[ -z "$(fc-list "$name" family 2>/dev/null)" ]]; then
+             echo "font '$name' is not installed (see: fc-list : family)"; return 1
+           fi
+           echo "$name" >"$STATE/ui_font" ;;
+  esac
+  cmd_theme "$(cat "$STATE/theme" 2>/dev/null || echo light)" >/dev/null
+  echo "font: $(cat "$STATE/ui_font" 2>/dev/null || echo "DM Sans")   size: $(cat "$STATE/ui_size" 2>/dev/null || echo normal)"
+}
+
 render_all() {
   local theme="$1" v expr="" tpl out
   # shellcheck disable=SC1090
   source "$XLIN_HOME/themes/$theme.sh"
   accent_override "$theme"
+  ui_font_vars
   for v in $(compgen -v C_); do
     expr+="s|@${v}@|${!v}|g;"
   done
@@ -848,7 +879,7 @@ cmd_start() {
 }
 
 # ================================================================= XLIN CLI
-XLIN_VERSION="0.31.0"
+XLIN_VERSION="0.32.0"
 
 if [[ -t 1 ]]; then B=$'\e[1m'; D=$'\e[2m'; R=$'\e[0m'; else B=""; D=""; R=""; fi
 die() { echo "xlin: $*" >&2; return 1; }
@@ -1604,6 +1635,7 @@ ${B}System${R}
   xlin clipboard                   clipboard history
   xlin monitor                     System Monitor (Super+M)
   xlin store                       XLIN Store: find, install and remove apps
+  xlin font [name|size ...]        System font and size
   xlin media [files]               XLIN Media: music and video player
   xlin debug                       SysDebug: health checks, logs, quick repairs
   xlin files [folder|default]      XLIN Files (default = use it for "show in folder")
@@ -1686,6 +1718,7 @@ case "${1:-help}" in
              esac ;;
   bar)       shift; cmd_bar "$@" ;;
   opacity)   shift; cmd_opacity "${1:-}" ;;
+  font)      shift; cmd_font "$@" ;;
   terminal)  shift; cmd_terminal "${1:-}" "${2:-}" "${3:-}" ;;
   tools)     shift; cmd_tools "${1:-}" ;;
   start)     cmd_start ;;

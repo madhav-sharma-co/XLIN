@@ -419,6 +419,54 @@ def accent_dots():
     return box
 
 
+def font_families(mono):
+    """Installed font family names (monospace ones only when mono)."""
+    ok, out = run(["fc-list", ":spacing=100" if mono else ":", "family"], 10)
+    names = set()
+    for line in (out or "").splitlines():
+        first = line.split(",")[0].strip()
+        if first and not first.startswith("."):
+            names.add(first)
+    return sorted(names, key=str.lower)
+
+
+def terminal_font():
+    """(family, size) from the terminal's font file."""
+    fam, size = "", "11.5"
+    try:
+        with open(os.path.expanduser("~/.config/kitty/xlin-font.conf")) as f:
+            for ln in f:
+                m = re.match(r'font_family\s+family="?([^"\n]+)"?', ln)
+                if m:
+                    fam = m.group(1).strip()
+                m = re.match(r"font_size\s+([\d.]+)", ln)
+                if m:
+                    size = m.group(1)
+    except OSError:
+        pass
+    return fam or "JetBrainsMono Nerd Font", size
+
+
+def font_picker(families, current, on_pick):
+    if current and current not in families:
+        families = [current] + families
+    dd = Gtk.DropDown.new_from_strings(families or [current or "DM Sans"])
+    dd.set_enable_search(True)
+    dd.set_expression(Gtk.PropertyExpression.new(Gtk.StringObject, None, "string"))
+    dd.set_size_request(220, -1)
+    if current in families:
+        dd.set_selected(families.index(current))
+    state = {"ready": False}
+    GLib.idle_add(lambda: (state.update(ready=True), False)[1])
+
+    def changed(_d, _p):
+        item = dd.get_selected_item()
+        if state["ready"] and item is not None:
+            on_pick(item.get_string())
+    dd.connect("notify::selected", changed)
+    return dd
+
+
 def appearance_page(win):
     box = page_box("Personalization", "Theme, accent colour, transparency and wallpaper")
     c = card()
@@ -457,6 +505,27 @@ def appearance_page(win):
     wb.append(button("Next", lambda: in_thread(lambda: run(["xlin", "wallpaper", "next"], 30))))
     wb.append(button("Choose image...", pick_wall))
     c.append(row("Wallpaper", None, wb))
+
+    cf = card()
+    box.append(cf)
+    head = Gtk.Label(label="Fonts and sizes", xalign=0, margin_top=10)
+    head.add_css_class("xlin-sub")
+    cf.append(head)
+    cf.append(row("System font", "Bars, panels and apps",
+                  font_picker(font_families(False), read_state("ui_font", "DM Sans"),
+                              lambda name: in_thread(lambda: run(["xlin", "font", name], 40)))))
+    cf.append(row("Text size", "Bars, panels and apps", segmented(
+        [("small", "Small"), ("normal", "Normal"), ("large", "Large"), ("huge", "Huge")],
+        read_state("ui_size", "normal"), lambda v: in_thread(lambda: run(["xlin", "font", "size", v], 40)))))
+    tfont, tsize = terminal_font()
+    cf.append(row("Terminal font", "Monospace fonts only",
+                  font_picker(font_families(True), tfont,
+                              lambda name: in_thread(lambda: run(["xlin", "terminal", "font", name, tsize], 20)))))
+    cf.append(row("Terminal text size", "Applies to new terminal windows", segmented(
+        [("10", "Small"), ("11.5", "Normal"), ("13", "Large"), ("15", "Huge")], tsize,
+        lambda v: in_thread(lambda: run(["xlin", "terminal", "font", tfont, v], 20)))))
+    cf.append(row("Back to the default look", None, button("Reset", lambda: in_thread(
+        lambda: run(["xlin", "font", "reset"], 40), lambda _r: win.rebuild("personalization")))))
     return box
 
 
@@ -870,6 +939,14 @@ class SettingsApp(Gtk.Application):
         prov.load_from_data(CSS)
         Gtk.StyleContext.add_provider_for_display(
             Gdk.Display.get_default(), prov, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        try:       # XLIN's window buttons, title and the system font
+            with open(os.path.expanduser("~/.config/xlin/tools.css"), "rb") as f:
+                theme = Gtk.CssProvider()
+                theme.load_from_data(f.read())
+            Gtk.StyleContext.add_provider_for_display(
+                Gdk.Display.get_default(), theme, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        except Exception:
+            pass
 
     def do_command_line(self, cmdline):
         args = cmdline.get_arguments()[1:]

@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.34.0
+- Settings -> About -> Reset XLIN settings (and `xlin reset`): theme, accent, bars, desktop widgets, fonts and options go back to the defaults; wallpaper, pinned apps and your files are kept
+
 ## 0.33.0
 - Apps open instantly: Settings, Files and the Store start out of sight a few seconds after you log in, and closing them only hides them, so the next click shows them at once. Switch it off in Settings -> General ("Keep apps ready") or with `xlin warm off`; it is skipped automatically when memory is low
 

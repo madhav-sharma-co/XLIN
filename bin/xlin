@@ -871,6 +871,23 @@ warm_start() {
   done
 }
 
+# Put XLIN's own settings back to how a fresh install looks (wallpaper, pinned apps and files are kept)
+cmd_reset() {
+  local f
+  for f in theme accent dock_autohide dock_icon cursor_size terminal desktop_off bar_hidden idle_off idle_minutes \
+           nightlight ui_font ui_size warm_off no-banner recent; do
+    rm -f "$STATE/$f"
+  done
+  rm -f "$XLIN_HOME/desktop.json"
+  cmd_theme light >/dev/null 2>&1 || true
+  bar_apply 2>/dev/null || true
+  apply_cursor 2>/dev/null || true
+  cmd_desktop restart quiet >/dev/null 2>&1 || true
+  dock_restart >/dev/null 2>&1 || true
+  pkill -SIGUSR2 waybar 2>/dev/null || true
+  echo "XLIN settings are back to the defaults"
+}
+
 cmd_warm() {
   case "${1:-}" in
     on)  rm -f "$STATE/warm_off"; warm_start; echo "keep apps ready: on" ;;
@@ -900,7 +917,7 @@ cmd_start() {
 }
 
 # ================================================================= XLIN CLI
-XLIN_VERSION="0.33.0"
+XLIN_VERSION="0.34.0"
 
 if [[ -t 1 ]]; then B=$'\e[1m'; D=$'\e[2m'; R=$'\e[0m'; else B=""; D=""; R=""; fi
 die() { echo "xlin: $*" >&2; return 1; }
@@ -1656,6 +1673,7 @@ ${B}System${R}
   xlin monitor                     System Monitor (Super+M)
   xlin store                       XLIN Store: find, install and remove apps
   xlin font [name|size ...]        System font and size
+  xlin reset                       Put XLIN's settings back to the defaults
   xlin warm on|off                 Keep Settings, Files and Store ready (instant open)
   xlin media [files]               XLIN Media: music and video player
   xlin debug                       SysDebug: health checks, logs, quick repairs
@@ -1739,6 +1757,7 @@ case "${1:-help}" in
              esac ;;
   bar)       shift; cmd_bar "$@" ;;
   opacity)   shift; cmd_opacity "${1:-}" ;;
+  reset)     cmd_reset ;;
   warm)      shift; cmd_warm "${1:-}" ;;
   font)      shift; cmd_font "$@" ;;
   terminal)  shift; cmd_terminal "${1:-}" "${2:-}" "${3:-}" ;;

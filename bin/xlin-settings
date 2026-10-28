@@ -836,6 +836,38 @@ def about_page(win):
     u.append(row("Software update", None, buttons))
     u.append(row("Status", None, status))
     check()
+
+    r = card()
+    box.append(r)
+    rstatus = Gtk.Label(label="", xalign=0)
+    rstatus.add_css_class("xlin-sub")
+
+    def do_reset():
+        rstatus.set_text("Resetting...")
+        in_thread(lambda: run(["xlin", "reset"], 90),
+                  lambda _r: (rstatus.set_text("Done. Everything is back to the defaults."), win.rebuild("about")))
+
+    def ask_reset():
+        try:
+            dlg = Gtk.AlertDialog()
+            dlg.set_message("Reset XLIN settings?")
+            dlg.set_detail("Theme, accent, bars, desktop widgets, fonts and other options go back to the defaults. "
+                           "Your wallpaper, pinned apps and files are kept.")
+            dlg.set_buttons(["Cancel", "Reset"])
+            dlg.set_cancel_button(0)
+            dlg.set_default_button(0)
+            dlg.choose(win, None, lambda d, res: do_reset_if(d, res))
+        except (AttributeError, TypeError):
+            do_reset()
+
+    def do_reset_if(d, res):
+        try:
+            if d.choose_finish(res) == 1:
+                do_reset()
+        except GLib.Error:
+            pass
+    r.append(row("Reset XLIN settings", "Back to how a fresh install looks", button("Reset...", ask_reset)))
+    r.append(row("Status", None, rstatus))
     return box
 
 

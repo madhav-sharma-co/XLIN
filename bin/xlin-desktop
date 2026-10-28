@@ -36,6 +36,9 @@ except (ValueError, ImportError):
     sys.exit(3)
 from gi.repository import Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
 
+sys.path[:0] = ["/usr/local/lib/xlin", os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib")]
+import xlin_ui  # noqa: E402
+
 APP_ID = "dev.xlin.Desktop"
 HOME = os.path.expanduser("~")
 CONFIG = os.path.join(HOME, ".config/xlin/desktop.json")
@@ -887,30 +890,53 @@ class DesktopWindow(Gtk.Window):
             return
 
         def build(box, pop):
-            self.item(box, pop, "Add app shortcut…", self.choose_app)
+            self.item(box, pop, "Apps and widgets…", self.open_gallery)
             self.item(box, pop, "New folder", self.new_folder)
             box.append(Gtk.Separator())
-            self.header(box, "Widgets")
-            for key, name in WIDGET_NAMES:
-                on = self.cfg["widgets"][key]["on"]
-                self.item(box, pop, ("✓  " if on else "     ") + name, lambda k=key: self.toggle_widget(k))
-            box.append(Gtk.Separator())
-            self.header(box, "View")
-            show = self.cfg.get("show_icons", True)
-            self.item(box, pop, ("✓  " if show else "     ") + "Show desktop icons", self.toggle_icons)
-            for name, label in (("small", "Small icons"), ("medium", "Medium icons"), ("large", "Large icons")):
-                self.item(box, pop, ("✓  " if self.cfg["icon_size"] == name else "     ") + label,
-                          lambda n=name: self.set_icon_size(n))
-            self.item(box, pop, "Arrange icons", self.arrange)
-            box.append(Gtk.Separator())
-            self.header(box, "Wallpaper")
             self.item(box, pop, "Next wallpaper", lambda: run(["xlin", "wallpaper", "next"]))
-            self.item(box, pop, "Choose picture…", self.choose_wallpaper)
+            self.item(box, pop, "Choose wallpaper…", self.choose_wallpaper)
+            box.append(Gtk.Separator())
+            self.sub_item(box, pop, "View", self.view_entries)
             box.append(Gtk.Separator())
             self.item(box, pop, "Open Terminal", lambda: run(["xlin", "term"]))
             self.item(box, pop, "Open Files", lambda: run(["xlin", "files"]))
             self.item(box, pop, "Settings", lambda: run(["xlin", "settings"]))
+        self.menu_builder = build
         self.popup(self.fixed, x, y, build)
+
+    def view_entries(self):
+        show = self.cfg.get("show_icons", True)
+        out = [(("✓  " if show else "     ") + "Show desktop icons", self.toggle_icons)]
+        for name, label in (("small", "Small icons"), ("medium", "Medium icons"), ("large", "Large icons")):
+            out.append((("✓  " if self.cfg["icon_size"] == name else "     ") + label,
+                        lambda n=name: self.set_icon_size(n)))
+        out.append(("Arrange icons", self.arrange))
+        return out
+
+    def sub_item(self, box, pop, label, entries):
+        """A menu row with a second level: clicking it swaps the menu for the sub-menu (with a Back row)."""
+        b = Gtk.Button(label=label + "   ›", halign=Gtk.Align.FILL)
+        b.get_child().set_xalign(0)
+        b.add_css_class("files-menu-item")
+
+        def open_sub(_b):
+            while (c := box.get_first_child()) is not None:
+                box.remove(c)
+            back = Gtk.Button(label="‹   " + label, halign=Gtk.Align.FILL)
+            back.get_child().set_xalign(0)
+            back.add_css_class("files-menu-item")
+            back.connect("clicked", lambda _b: self.rebuild_menu(box, pop))
+            box.append(back)
+            box.append(Gtk.Separator())
+            for text, fn in entries():
+                self.item(box, pop, text, fn)
+        b.connect("clicked", open_sub)
+        box.append(b)
+
+    def rebuild_menu(self, box, pop):
+        while (c := box.get_first_child()) is not None:
+            box.remove(c)
+        self.menu_builder(box, pop)
 
     def toggle_icons(self):
         self.cfg["show_icons"] = not self.cfg.get("show_icons", True)
@@ -952,6 +978,142 @@ class DesktopWindow(Gtk.Window):
             if f and f.get_path():
                 run(["xlin", "wallpaper", f.get_path()])
         dlg.open(None, None, done)
+
+    # ---- the Apps and widgets gallery (like the widget picker on a phone, Windows or macOS)
+    WIDGET_INFO = {
+        "clock": ("Clock", "Big time and the date", "12:45"),
+        "calendar": ("Calendar", "This month at a glance", "Oct 2026"),
+        "system": ("System", "Processor, memory and disk", "CPU 12%  ·  RAM 41%"),
+        "battery": ("Battery", "Charge level and state", "86%"),
+        "media": ("Media player", "Play, pause and skip", "⏮  ⏯  ⏭"),
+        "notes": ("Notes", "Latest notes and a quick note box", "Buy milk"),
+        "todo": ("To-do list", "Tasks you can tick off", "☐ Call mum"),
+        "timer": ("Timer", "A countdown with presets", "25:00"),
+    }
+
+    def open_gallery(self):
+        if getattr(self, "gallery", None) is not None:
+            self.gallery.present()
+            return
+        win = Gtk.Window(title="Apps and widgets")
+        self.gallery = win
+        win.set_default_size(640, 600)
+        win.add_css_class("xlin-tools")
+        xlin_ui.titlebar(win, "Apps and widgets", hide=False)
+        win.connect("close-request", lambda _w: (setattr(self, "gallery", None), False)[1])
+
+        root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        for m in ("top", "bottom", "start", "end"):
+            getattr(root, f"set_margin_{m}")(16)
+        win.set_child(root)
+        stack = Gtk.Stack()
+        stack.set_vexpand(True)
+        tabs = Gtk.Box()
+        tabs.add_css_class("linked")
+        first = None
+        for key, label in (("widgets", "Widgets"), ("apps", "Apps")):
+            b = Gtk.ToggleButton(label=label)
+            if first is None:
+                first = b
+                b.set_active(True)
+            else:
+                b.set_group(first)
+            b.connect("toggled", lambda btn, k=key: btn.get_active() and stack.set_visible_child_name(k))
+            tabs.append(b)
+        tabs.set_halign(Gtk.Align.START)
+        root.append(tabs)
+        root.append(stack)
+
+        # widgets: a card for each, with Add / Remove
+        flow = Gtk.FlowBox()
+        flow.set_selection_mode(Gtk.SelectionMode.NONE)
+        flow.set_max_children_per_line(2)
+        flow.set_min_children_per_line(2)
+        flow.set_homogeneous(True)
+        flow.set_row_spacing(10)
+        flow.set_column_spacing(10)
+        for key, _n in WIDGET_NAMES:
+            title, desc, sample = self.WIDGET_INFO[key]
+            card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+            card.add_css_class("gallery-card")
+            prev = Gtk.Label(label=sample)
+            prev.add_css_class("gallery-preview")
+            prev.set_size_request(-1, 70)
+            t = Gtk.Label(label=title, xalign=0)
+            t.add_css_class("tool-title")
+            d = Gtk.Label(label=desc, xalign=0)
+            d.add_css_class("tools-sub")
+            d.set_wrap(True)
+            btn = Gtk.Button()
+
+            def paint(b=btn, k=key):
+                on = self.cfg["widgets"][k]["on"]
+                b.set_label("Remove from desktop" if on else "Add to desktop")
+                (b.remove_css_class if on else b.add_css_class)("suggested-action")
+
+            def toggle(_b, k=key, p=paint):
+                self.toggle_widget(k)
+                p()
+            btn.connect("clicked", toggle)
+            paint()
+            for w in (prev, t, d, btn):
+                card.append(w)
+            flow.append(card)
+        sc = Gtk.ScrolledWindow(vexpand=True)
+        sc.set_child(flow)
+        stack.add_named(sc, "widgets")
+
+        # apps: search + Add / Remove
+        apps_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        search = Gtk.SearchEntry()
+        search.set_placeholder_text("Search apps")
+        apps_box.append(search)
+        lst = Gtk.ListBox()
+        lst.add_css_class("fm-list")
+        lst.set_selection_mode(Gtk.SelectionMode.NONE)
+        apps = sorted((a for a in Gio.AppInfo.get_all() if a.should_show() and a.get_id()),
+                      key=lambda a: a.get_display_name().lower())
+        for a in apps:
+            aid = a.get_id()
+            row = Gtk.ListBoxRow(activatable=False)
+            row.title = a.get_display_name().lower()
+            r = Gtk.Box(spacing=10)
+            r.set_margin_top(6)
+            r.set_margin_bottom(6)
+            r.set_margin_start(6)
+            r.set_margin_end(6)
+            img = Gtk.Image()
+            img.set_pixel_size(32)
+            if a.get_icon():
+                img.set_from_gicon(a.get_icon())
+            r.append(img)
+            r.append(Gtk.Label(label=a.get_display_name(), xalign=0, hexpand=True))
+            btn = Gtk.Button()
+
+            def paint_app(b=btn, i=aid):
+                on = any(x["id"] == i for x in self.cfg["icons"])
+                b.set_label("Remove" if on else "Add")
+                (b.remove_css_class if on else b.add_css_class)("suggested-action")
+
+            def toggle_app(_b, i=aid, p=paint_app):
+                found = next((x for x in self.cfg["icons"] if x["id"] == i), None)
+                if found:
+                    self.remove_shortcut(found)
+                else:
+                    self.add_shortcut(i)
+                p()
+            btn.connect("clicked", toggle_app)
+            paint_app()
+            r.append(btn)
+            row.set_child(r)
+            lst.append(row)
+        lst.set_filter_func(lambda row: search.get_text().lower() in row.title)
+        search.connect("search-changed", lambda _e: lst.invalidate_filter())
+        sc2 = Gtk.ScrolledWindow(vexpand=True)
+        sc2.set_child(lst)
+        apps_box.append(sc2)
+        stack.add_named(apps_box, "apps")
+        win.present()
 
     def choose_app(self):
         win = Gtk.Window(title="Add app shortcut")

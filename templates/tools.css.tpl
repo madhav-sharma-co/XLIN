@@ -19,7 +19,10 @@ window.xlin-tools {
 .win-btn:hover { background-color: @C_HOVER@; color: @C_INK@; }
 .win-btn.win-close:hover { background-color: #e5484d; color: #ffffff; }
 .xlin-titlebar { padding: 8px 10px 4px 16px; }
-.xlin-titlebar .clock-big { font-size: 38px; font-weight: 300; color: @C_INK@; }
+.xlin-titlebar .gallery-card { padding: 12px; border-radius: 14px; background-color: @C_SOFT@; }
+.gallery-preview { border-radius: 10px; background-color: @C_PANEL@; color: @C_INK@; font-size: 18px; font-weight: 300; }
+
+.clock-big { font-size: 38px; font-weight: 300; color: @C_INK@; }
 .clock-sub { color: @C_MUTED@; font-size: 12px; }
 .clock-city { color: @C_MUTED@; }
 

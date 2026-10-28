@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.40.0
+- Desktop: right-click now opens a short menu (Apps and widgets, New folder, wallpaper, View, Terminal, Files, Settings) that fits any screen; View holds the icon options
+- New "Apps and widgets" gallery (right-click the desktop): widget cards with previews and Add / Remove, and an app list with Add / Remove, like the pickers on a phone, Windows and macOS
+- `xlin desktop status` and a Status row with a Restart button on Settings -> Desktop say whether the desktop layer is running and why not
+
 ## 0.39.0
 - App drawer redesigned like the app drawer on a phone: A-Z grid of every app with larger icons and a rounded search pill, in the same shape and place as the Launcher
 - Right-click an app in the drawer for Open, Pin to the Run Bar or Unpin from the Run Bar (Alt+P and Alt+U still work)

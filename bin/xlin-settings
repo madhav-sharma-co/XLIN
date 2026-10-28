@@ -696,6 +696,18 @@ def desktop_page(win):
         cfg = {}
     c = card()
     box.append(c)
+    dstatus = Gtk.Label(label="Checking...", xalign=0)
+    dstatus.add_css_class("xlin-sub")
+    dstatus.set_wrap(True)
+
+    def refresh_status():
+        in_thread(lambda: run(["xlin", "desktop", "status"], 10)[1] or "unknown",
+                  lambda text: dstatus.set_text(text))
+    refresh_status()
+    c.append(row("Status", None, dstatus))
+    c.append(row("Restart the desktop layer", "Use this if right-click on the desktop does nothing", button(
+        "Restart", lambda: in_thread(lambda: run(["xlin", "desktop", "restart"], 20),
+                                     lambda _r: GLib.timeout_add(1500, lambda: (refresh_status(), False)[1])))))
     c.append(row("Desktop layer", "Right-click menu, icons and widgets on the desktop", switch(
         not os.path.exists(os.path.join(STATE, "desktop_off")),
         lambda s: in_thread(lambda: run(["xlin", "desktop", "on" if s else "off"], 20)))))

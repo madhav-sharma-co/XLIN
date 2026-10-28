@@ -914,7 +914,7 @@ cmd_start() {
 }
 
 # ================================================================= XLIN CLI
-XLIN_VERSION="0.39.0"
+XLIN_VERSION="0.40.0"
 
 if [[ -t 1 ]]; then B=$'\e[1m'; D=$'\e[2m'; R=$'\e[0m'; else B=""; D=""; R=""; fi
 die() { echo "xlin: $*" >&2; return 1; }
@@ -1224,7 +1224,14 @@ cmd_desktop() {
       mkdir -p "$HOME/.cache/xlin"
       setsid xlin-desktop >>"$HOME/.cache/xlin/desktop.log" 2>&1 &
       [[ "$quiet" == quiet ]] || echo "desktop menu and widgets: on (right-click the desktop)" ;;
-    *) echo "usage: xlin desktop [on|off|restart]" ;;
+    status)
+      if [[ -f "$STATE/desktop_off" ]]; then echo "Desktop layer: switched off (xlin desktop on)"
+      elif ! have xlin-desktop; then echo "Desktop layer: not installed (run ./update.sh from the XLIN folder)"
+      elif ! desktop_ok; then echo "Desktop layer: needs gtk4-layer-shell (sudo pacman -S gtk4-layer-shell)"
+      elif pgrep -f '[x]lin-desktop$' >/dev/null; then echo "Desktop layer: running (right-click the desktop)"
+      else echo "Desktop layer: not running (press Restart)"; tail -n 4 "$HOME/.cache/xlin/desktop.log" 2>/dev/null
+      fi ;;
+    *) echo "usage: xlin desktop [on|off|restart|status]" ;;
   esac
 }
 

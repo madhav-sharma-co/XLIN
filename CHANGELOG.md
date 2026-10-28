@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.30.0
+- New app: XLIN Media (`xlin media`), a music and video player. Open files or a folder, drop files on it, Space plays and pauses, arrow keys skip; it also shows up in "Open with" for audio and video
+
 ## 0.29.0
 - New app: XLIN Store (`xlin store`, or find it in the App drawer). Featured apps by category, search all packages, see what you installed, and check updates. Install and Remove ask for your password through the system prompt (needs polkit); "Update everything" runs in XLIN Terminal
 

@@ -40,7 +40,7 @@ python3 -c "import gi; gi.require_version('Vte','3.91')" >/dev/null 2>&1 || \
 systemctl --user enable --now hyprpolkitagent.service >/dev/null 2>&1 || true
 
 say "Installing the xlin commands (asks for your password once)"
-for b in xlin xlin-dock-watch xlin-settings xlin-tools xlin-welcome xlin-files xlin-monitor xlin-terminal xlin-desktop xlin-launcher xlin-start xlin-store; do
+for b in xlin xlin-dock-watch xlin-settings xlin-tools xlin-welcome xlin-files xlin-monitor xlin-terminal xlin-desktop xlin-launcher xlin-start xlin-store xlin-media; do
   sudo install -m 755 "$SRC/bin/$b" "/usr/local/bin/$b"
 done
 

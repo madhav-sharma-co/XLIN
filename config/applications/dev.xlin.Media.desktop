@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Media
+GenericName=Music and video player
+Comment=Play music and video
+Exec=xlin-media %F
+Icon=xlin-media
+Terminal=false
+Categories=AudioVideo;Audio;Video;Player;
+MimeType=audio/mpeg;audio/flac;audio/ogg;audio/x-wav;audio/mp4;video/mp4;video/x-matroska;video/webm;
+StartupWMClass=dev.xlin.Media

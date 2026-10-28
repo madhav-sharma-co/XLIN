@@ -99,6 +99,11 @@ def store():
             '<path d="M52 70l12 12 14-18" fill="none" stroke="#0a84ff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>')
 
 
+def media():
+    return ('<circle cx="64" cy="64" r="36" fill="#fff" fill-opacity=".95"/>'
+            '<path d="M54 46l30 18-30 18z" fill="#e5484d"/>')
+
+
 ICONS = {
     "xlin-settings": ("#a3adbf", "#626d82", gear()),
     "xlin-notes": ("#ffd95e", "#ffb300", notes()),
@@ -111,6 +116,7 @@ ICONS = {
     "xlin-terminal": ("#5b6272", "#23262f", terminal()),
     "xlin-screenshot": ("#ff9ec0", "#c24eea", screenshot()),
     "xlin-store": ("#6fd0ff", "#3b6df0", store()),
+    "xlin-media": ("#ff8a7a", "#e5484d", media()),
     "xlin-power": ("#ff6b5e", "#d62f2f", power("#d62f2f")),
 }
 

@@ -108,7 +108,7 @@ fi
 _xlin_complete() {
   local cur=${COMP_WORDS[COMP_CWORD]} cmd=${COMP_WORDS[1]:-} words=""
   if ((COMP_CWORD == 1)); then
-    words="help status keys screenshot idle nightlight clipboard notes note version wifi bluetooth bt sound volume brightness battery theme accent welcome wallpaper opacity dock runbar bar terminal term cursor desktop monitor update tools power lock session sleep logout poweroff reboot launcher launch-app unhide drawer store settings panel files pin unpin toggle start restart reload doctor uninstall adapt"
+    words="help status keys screenshot idle nightlight clipboard notes note version wifi bluetooth bt sound volume brightness battery theme accent welcome wallpaper opacity dock runbar bar terminal term cursor desktop monitor update tools power lock session sleep logout poweroff reboot launcher launch-app unhide drawer store media settings panel files pin unpin toggle start restart reload doctor uninstall adapt"
   else
     case $cmd in
       wifi)       words="status list connect disconnect forget on off ip help" ;;

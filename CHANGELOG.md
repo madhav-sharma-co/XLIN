@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.37.0
+- Store: search also shows AUR packages when yay or paru is installed. Installing one opens a terminal so you can review it first; removing works like any other app
+
 ## 0.36.0
 - Control Panel now matches the plan: a close button (top right), Wi-Fi / Bluetooth / Airplane / Theme / Night light / Settings buttons, volume and brightness sliders, and a Power mode row (Saver, Balanced, Performance)
 

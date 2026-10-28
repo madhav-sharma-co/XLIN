@@ -10,6 +10,9 @@ import shutil
 import subprocess
 import sys
 import threading
+import json
+import urllib.parse
+import urllib.request
 
 import gi
 
@@ -72,6 +75,22 @@ def search(query):
         elif cur is not None and line.startswith("    "):
             cur[2] = line.strip()
     return [tuple(r) for r in res]
+
+
+def aur_helper():
+    return next((h for h in ("paru", "yay") if shutil.which(h)), None)
+
+
+def aur_search(query):
+    """[(name, version, description, 'aur')] from the AUR web service (empty if offline)."""
+    try:
+        url = "https://aur.archlinux.org/rpc/v5/search/" + urllib.parse.quote(query) + "?by=name-desc"
+        with urllib.request.urlopen(url, timeout=8) as r:
+            data = json.load(r)
+        items = sorted(data.get("results", []), key=lambda i: -i.get("NumVotes", 0))[:40]
+        return [(i["Name"], i.get("Version", ""), i.get("Description") or "", "aur") for i in items]
+    except Exception:
+        return []
 
 
 def explicit_installed():
@@ -189,7 +208,7 @@ class StoreWindow(Gtk.ApplicationWindow):
         row.set_child(lab)
         self.list.append(row)
 
-    def add_row(self, name, title, desc, version=""):
+    def add_row(self, name, title, desc, version="", aur=False):
         row = Gtk.ListBoxRow(activatable=False, selectable=False)
         box = Gtk.Box(spacing=12)
         box.set_margin_top(8)
@@ -213,7 +232,7 @@ class StoreWindow(Gtk.ApplicationWindow):
         btn = Gtk.Button()
         self.paint_button(btn, name)
         btn.set_valign(Gtk.Align.CENTER)
-        btn.connect("clicked", lambda _b, n=name: self.toggle(n))
+        btn.connect("clicked", lambda _b, n=name, a=aur: self.toggle(n, a))
         box.append(btn)
         self.buttons.append((btn, name))
         row.set_child(box)
@@ -249,7 +268,7 @@ class StoreWindow(Gtk.ApplicationWindow):
                 for name, title, desc in apps:
                     self.add_row(name, title, desc)
         elif key == "search":
-            self.status.set_text("Type a name above and press Enter")
+            self.status.set_text("Type a name above and press Enter" + ("  (AUR included)" if aur_helper() else ""))
             if self.search.get_text().strip():
                 self.do_search()
         elif key == "installed":
@@ -294,15 +313,22 @@ class StoreWindow(Gtk.ApplicationWindow):
             return
         self.clear()
         self.status.set_text("Searching...")
-        self.thread(lambda: search(q), self.show_results)
+        self.thread(lambda: (search(q), aur_search(q) if aur_helper() else []), self.show_results)
 
-    def show_results(self, rows):
+    def show_results(self, res):
+        rows, aur = res
         if self.tab != "search":
             return
         self.clear()
-        self.status.set_text("" if rows else "Nothing found")
-        for name, version, desc, repo in rows[:80]:
+        self.status.set_text("" if rows or aur else "Nothing found")
+        for name, version, desc, repo in rows[:60]:
             self.add_row(name, name, desc, version)
+        official = {r[0] for r in rows}
+        aur = [a for a in aur if a[0] not in official]
+        if aur:
+            self.heading("AUR (made by the community: read before you install)")
+            for name, version, desc, _r in aur:
+                self.add_row(name, name, desc, version, aur=True)
 
     # ---- install / remove / update
     def set_busy(self, busy, text=""):
@@ -311,10 +337,18 @@ class StoreWindow(Gtk.ApplicationWindow):
         self.repaint()
         self.update_btn.set_sensitive(not busy)
 
-    def toggle(self, name):
+    def toggle(self, name, aur=False):
         if self.busy:
             return
         removing = name in self.installed
+        if aur and not removing:        # AUR packages are built on your computer: needs a terminal and your say-so
+            helper = aur_helper()
+            if helper is None or not run_in_terminal(
+                    f"{helper} -S {name}; echo; read -rp 'Done. Press Enter to close.'"):
+                self.status.set_text("Install an AUR helper first: yay or paru")
+            else:
+                self.status.set_text(f"Installing {name} in a terminal window. Come back and press Search again.")
+            return
         if shutil.which("pkexec") is None:
             self.status.set_text("Needs polkit (pkexec) to ask for your password: sudo pacman -S polkit")
             return

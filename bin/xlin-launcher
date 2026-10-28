@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""XLIN Launcher - the app drawer (Super+Space, or the button on the Run Bar).
+"""XLIN App drawer - every app in one grid, like the app drawer on a phone (Run Bar button, or `xlin drawer`).
 
-Type to search, arrows + Enter to open, click to open, Alt+P pin to the Run Bar, Alt+U unpin, Esc closes.
-`xlin-launcher --pin` shows the same drawer to pick an app to pin. Needs gtk4-layer-shell.
+Type to search, arrows + Enter or a click to open, right-click an app to pin or unpin it on the Run Bar
+(Alt+P / Alt+U work too), Esc closes. Same shape and place as the Launcher. Needs gtk4-layer-shell.
 """
 import glob
 import os
@@ -39,7 +39,7 @@ RECENT = os.path.join(HOME, ".config/xlin/state/recent")
 COLUMNS = 5
 CELL_W = (600 - 2 * 16 - 2) // COLUMNS
 PIN_FLAG = os.path.join(HOME, ".cache/xlin/drawer-pin")     # `xlin launcher pin` leaves this for us
-MSG_NORMAL = "Pinned and recent apps first   ·   Alt+P pin   ·   Alt+U unpin"
+MSG_NORMAL = ""
 MSG_PIN = "Pick an app to pin to the run bar"
 
 
@@ -84,6 +84,7 @@ class Launcher(Gtk.Window):
         self.set_resizable(False)
         self.was_active = False
         self.pin = False
+        self.menu_open = False
 
         LayerShell.init_for_window(self)
         LayerShell.set_namespace(self, "xlin-launcher")
@@ -107,6 +108,7 @@ class Launcher(Gtk.Window):
 
         self.entry = Gtk.Entry()
         self.entry.add_css_class("launcher-search")
+        self.entry.add_css_class("drawer-search")
         self.entry.set_placeholder_text("Search apps")
         self.entry.connect("changed", lambda _e: self.rebuild())
         self.entry.connect("activate", lambda _e: self.activate_selected())
@@ -118,6 +120,7 @@ class Launcher(Gtk.Window):
 
         self.msg = Gtk.Label(label=MSG_NORMAL, xalign=0)
         self.msg.add_css_class("launcher-msg")
+        self.msg.set_visible(False)
         box.append(self.msg)
 
         self.grid = Gtk.Grid(row_homogeneous=True, column_homogeneous=True, row_spacing=6, column_spacing=6,
@@ -154,14 +157,7 @@ class Launcher(Gtk.Window):
         return apps
 
     def default_order(self):
-        by_id = {a[0]: a for a in self.apps}
-        order, used = [], set()
-        for aid in read_ids(PINS) + read_ids(RECENT):
-            if aid in by_id and aid not in used:
-                used.add(aid)
-                order.append(by_id[aid])
-        order += [a for a in self.apps if a[0] not in used]
-        return order
+        return list(self.apps)          # A to Z, like the app drawer on a phone
 
     # ---- list
     def rebuild(self):
@@ -180,20 +176,20 @@ class Launcher(Gtk.Window):
             self.grid.remove(c)
         self.cells = []
         for i, (aid, name, icon) in enumerate(self.shown):
-            cell = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+            cell = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=7)
             cell.set_size_request(CELL_W, -1)      # 5 fixed columns even when few apps match
-            cell.add_css_class("launcher-item")
+            cell.add_css_class("drawer-item")
             img = Gtk.Image()
-            img.set_pixel_size(44)
+            img.set_pixel_size(52)
             img.set_halign(Gtk.Align.CENTER)
             if icon is not None:
                 img.set_from_gicon(icon)
             else:
                 img.set_from_icon_name("application-x-executable")
             lab = Gtk.Label(label=name)
-            lab.add_css_class("launcher-name")
+            lab.add_css_class("drawer-name")
             lab.set_ellipsize(Pango.EllipsizeMode.END)
-            lab.set_max_width_chars(11)
+            lab.set_max_width_chars(12)
             lab.set_justify(Gtk.Justification.CENTER)
             cell.append(img)
             cell.append(lab)
@@ -203,6 +199,9 @@ class Launcher(Gtk.Window):
             motion = Gtk.EventControllerMotion()
             motion.connect("enter", lambda _c, _x, _y, idx=i: self.hover(idx))
             cell.add_controller(motion)
+            right = Gtk.GestureClick(button=3)
+            right.connect("pressed", lambda g, _n, x, y, idx=i, c=cell: self.app_menu(g, idx, c, x, y))
+            cell.add_controller(right)
             self.grid.attach(cell, i % COLUMNS, i // COLUMNS, 1, 1)
             self.cells.append(cell)
         self.sel = 0
@@ -216,14 +215,14 @@ class Launcher(Gtk.Window):
                 (c.add_css_class if i == idx else c.remove_css_class)("selected")
 
     def fix_height(self):
-        """Always three rows tall (like the old drawer), whatever the font makes one row."""
+        """Always four rows tall (about as tall as the Launcher), whatever the font makes one row."""
         if not self.cells:
             return
         if not self.cell_h:
             _m, nat, _b, _c = self.cells[0].measure(Gtk.Orientation.VERTICAL, -1)
-            self.cell_h = max(nat, 60)
-            self.scroll.set_min_content_height(3 * self.cell_h + 2 * 6)
-            self.scroll.set_max_content_height(3 * self.cell_h + 2 * 6)
+            self.cell_h = max(nat, 70)
+            self.scroll.set_min_content_height(4 * self.cell_h + 3 * 6)
+            self.scroll.set_max_content_height(4 * self.cell_h + 3 * 6)
 
     def mark(self):
         for i, c in enumerate(self.cells):
@@ -256,6 +255,42 @@ class Launcher(Gtk.Window):
             run(["xlin", "launch-app", aid])
         self.close()
 
+    def app_menu(self, gesture, idx, cell, x, y):
+        """Right-click an app: Open, Pin to the Run Bar or Unpin from it."""
+        gesture.set_state(Gtk.EventSequenceState.CLAIMED)
+        if not 0 <= idx < len(self.shown):
+            return
+        self.sel = idx
+        self.mark()
+        aid, name = self.shown[idx][0], self.shown[idx][1]
+        pinned = aid in read_ids(PINS)
+        pop = Gtk.Popover()
+        pop.add_css_class("files-menu")
+        pop.set_parent(cell)
+        pop.set_has_arrow(False)
+        rect = Gdk.Rectangle()
+        rect.x, rect.y, rect.width, rect.height = int(x), int(y), 1, 1
+        pop.set_pointing_to(rect)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        box.set_size_request(190, -1)
+        items = [("Open", lambda: run(["xlin", "launch-app", aid])),
+                 ("Unpin from the Run Bar" if pinned else "Pin to the Run Bar",
+                  lambda: run(["xlin", "unpin" if pinned else "pin", aid]))]
+        for label, fn in items:
+            b = Gtk.Button(label=label, halign=Gtk.Align.FILL)
+            b.get_child().set_xalign(0)
+            b.add_css_class("files-menu-item")
+            b.connect("clicked", lambda _b, f=fn: (pop.popdown(), f(), GLib.timeout_add(120, self.close_later)))
+            box.append(b)
+        pop.set_child(box)
+        pop.connect("closed", lambda p: (setattr(self, "menu_open", False), GLib.idle_add(p.unparent)))
+        self.menu_open = True
+        pop.popup()
+
+    def close_later(self):
+        self.close()
+        return False
+
     def on_key(self, _c, keyval, _code, state):
         alt = bool(state & Gdk.ModifierType.ALT_MASK)
         if keyval == Gdk.KEY_Escape:
@@ -282,6 +317,7 @@ class Launcher(Gtk.Window):
         """Show the drawer again: fresh app list, empty search, first app selected."""
         self.pin = pin
         self.msg.set_text(MSG_PIN if pin else MSG_NORMAL)
+        self.msg.set_visible(pin)
         self.apps = self.load_apps()
         self.order = self.default_order()
         self.was_active = False
@@ -293,7 +329,7 @@ class Launcher(Gtk.Window):
     def on_active(self, *_a):
         if self.is_active():
             self.was_active = True
-        elif self.was_active:           # clicked somewhere else: close, like a menu
+        elif self.was_active and not self.menu_open:     # clicked somewhere else: close, like a menu
             self.close()
 
 

@@ -82,3 +82,52 @@ def titlebar(win, title, hide=True, full=True):
     handle.set_child(strip)
     win.set_titlebar(handle)
     return label
+
+
+# ---- app list helpers shared by the Launcher (Start menu) and the App drawer
+def read_ids(path):
+    try:
+        with open(path) as f:
+            return [ln.strip() for ln in f if ln.strip()]
+    except OSError:
+        return []
+
+
+def run(cmd):
+    try:
+        subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    except OSError:
+        pass
+
+
+def load_apps():
+    """[(id, name, gicon)] of every app that should show in a menu, A-Z."""
+    from gi.repository import Gio
+    apps, seen = [], set()
+    for a in Gio.AppInfo.get_all():
+        if not a.should_show() or not a.get_id():
+            continue
+        aid = a.get_id()
+        aid = aid[:-8] if aid.endswith(".desktop") else aid
+        if aid not in seen:
+            seen.add(aid)
+            apps.append((aid, a.get_display_name(), a.get_icon()))
+    apps.sort(key=lambda x: x[1].lower())
+    return apps
+
+
+def fuzzy(query, text):
+    """Score of query as a fuzzy match inside text; None if no match. Lower is better."""
+    q, t = query.lower(), text.lower()
+    if t.startswith(q):
+        return 0
+    if q in t:
+        return 1 + t.index(q) / 100
+    pos, gaps = -1, 0
+    for ch in q:
+        nxt = t.find(ch, pos + 1)
+        if nxt < 0:
+            return None
+        gaps += nxt - pos - 1
+        pos = nxt
+    return 2 + gaps / 100

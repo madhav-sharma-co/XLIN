@@ -345,8 +345,9 @@ launch_id() {
 }
 
 # The app drawer is XLIN's own (xlin-launcher); rofi is only a fallback if it cannot start
-cmd_launcher() {
+cmd_drawer() {
   local mode="${1:-}"
+  pkill -f '[x]lin-start' 2>/dev/null
   if pgrep -f '[x]lin-launcher' >/dev/null; then pkill -f '[x]lin-launcher'; [[ "$mode" == pin ]] || return 0; sleep 0.15; fi
   if have xlin-launcher; then
     mkdir -p "$HOME/.cache/xlin"
@@ -369,6 +370,21 @@ cmd_unhide() {
     hyprctl --batch "dispatch movetoworkspacesilent ${ws},address:${addr} ; dispatch focuswindow address:${addr}" >/dev/null
     [[ "${1:-}" == all ]] || break
   done < <(hyprctl clients -j | jq -r '[.[] | select(.workspace.name=="special:xlin-hidden")] | sort_by(.focusHistoryID) | .[].address')
+}
+
+# The Launcher is the Start menu (xlin-start); the App drawer (xlin drawer) is the grid of every app
+cmd_launcher() {
+  local mode="${1:-}"
+  [[ "$mode" == pin ]] && { cmd_drawer pin; return; }
+  pkill -f '[x]lin-launcher' 2>/dev/null
+  if pgrep -f '[x]lin-start' >/dev/null; then pkill -f '[x]lin-start'; return 0; fi
+  if have xlin-start; then
+    mkdir -p "$HOME/.cache/xlin"
+    local rc=0
+    xlin-start >>"$HOME/.cache/xlin/launcher.log" 2>&1 || rc=$?
+    [[ $rc -eq 3 ]] || return 0
+  fi
+  cmd_drawer
 }
 
 cmd_launch_app() { record_recent "${1%.desktop}"; launch_id "${1%.desktop}"; }
@@ -525,7 +541,7 @@ dock_start() {
     [[ -f "$f" ]] && { ico=(-ico "$f"); break; }
   done
   local isize; isize="$(cat "$STATE/dock_icon" 2>/dev/null || echo 40)"
-  setsid nwg-dock-hyprland "${hide[@]}" -i "$isize" -mb 12 -c "xlin launcher" "${ico[@]}" \
+  setsid nwg-dock-hyprland "${hide[@]}" -i "$isize" -mb 12 -c "xlin drawer" "${ico[@]}" \
     -s style.css >>"$HOME/.cache/xlin/dock.log" 2>&1 &
 }
 
@@ -832,7 +848,7 @@ cmd_start() {
 }
 
 # ================================================================= XLIN CLI
-XLIN_VERSION="0.26.2"
+XLIN_VERSION="0.27.0"
 
 if [[ -t 1 ]]; then B=$'\e[1m'; D=$'\e[2m'; R=$'\e[0m'; else B=""; D=""; R=""; fi
 die() { echo "xlin: $*" >&2; return 1; }
@@ -1317,7 +1333,7 @@ EOT
   echo "XLIN removed. Start your own bar with e.g. 'waybar &'. Log out and in again for a clean session."
   # last step replaces this shell, because it deletes the very script that is running
   sudo rm -rf /usr/local/lib/xlin
-  sudo rm -f /usr/local/bin/xlin-launcher
+  sudo rm -f /usr/local/bin/xlin-launcher /usr/local/bin/xlin-start
   exec sudo rm -f /usr/local/bin/xlin /usr/local/bin/xlin-dock-watch /usr/local/bin/xlin-settings \
                   /usr/local/bin/xlin-tools /usr/local/bin/xlin-welcome /usr/local/bin/xlin-files /usr/local/bin/xlin-monitor /usr/local/bin/xlin-terminal /usr/local/bin/xlin-desktop
 }
@@ -1575,7 +1591,7 @@ ${B}Look and feel${R}              (xlin help theme)
   xlin terminal [font|banner]
 
 ${B}Apps and panels${R}
-  xlin launcher    xlin settings [page]    xlin panel    xlin power    xlin lock
+  xlin launcher    xlin drawer    xlin settings [page]    xlin panel    xlin power    xlin lock
   xlin session (power menu)   xlin sleep | logout | poweroff | reboot
   xlin tools [calculator|calendar|notes|screenshot]   xlin files    xlin pin|unpin <app>
 
@@ -1621,6 +1637,7 @@ case "${1:-help}" in
   theme)     shift; cmd_theme "${1:-}" ;;
   wallpaper) shift; cmd_wallpaper "${1:-next}" ;;
   launcher)  shift; cmd_launcher "${1:-}" ;;
+  drawer)    shift; cmd_drawer "${1:-}" ;;
   unhide)    shift; cmd_unhide "${1:-}" ;;
   launch-app) shift; cmd_launch_app "${1:?usage: xlin launch-app <desktop-id>}" ;;
   pin)       shift; cmd_pin "${1:-}" ;;

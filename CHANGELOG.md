@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.27.0
+- The Launcher is now a Start menu (Super+Space, or the X button): search, your pinned apps, recent apps, and buttons for Files, Settings, Lock and Power. "All apps" opens the App drawer
+- The App drawer (`xlin drawer`, the grid of every app) is on the Run Bar's drawer button; Alt+P / Alt+U still pin and unpin there
+
 ## 0.26.2
 - Fix: the fullscreen button is now real fullscreen, exactly like Super+F
 - Fix: the hide button hides the window it belongs to (not whichever is focused); Super+H brings back the last hidden window, `xlin unhide all` brings back every one

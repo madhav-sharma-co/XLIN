@@ -173,7 +173,19 @@ window.xlin-launcher entry.launcher-search {
 }
 window.xlin-launcher entry.launcher-search text { color: @C_INK@; padding: 0; margin: 0; min-height: 0; }
 window.xlin-launcher entry.launcher-search placeholder { color: @C_MUTED@; }
-window.xlin-launcher .launcher-msg { color: @C_MUTED@; font-size: 11pt; padding: 0; }
+window.xlin-launcher /* ---- the Launcher / Start menu (xlin-start) ---- */
+.start-section { color: @C_MUTED@; font-size: 11pt; font-weight: 700; }
+.start-link { background-image: none; background-color: transparent; color: @C_MUTED@; border: none; box-shadow: none;
+  border-radius: 8px; padding: 2px 10px; min-height: 0; }
+.start-link:hover { background-color: @C_SOFT@; color: @C_INK@; }
+.start-row { padding: 6px 8px; border-radius: 8px; background-color: transparent; }
+.start-row:hover, .start-row.selected { background-color: @C_SOFT@; }
+.start-name { color: @C_INK@; font-size: 10pt; }
+.start-footer { padding-top: 10px; border-top: 1px solid @C_LINE_SOLID@; }
+.start-user { color: @C_INK@; font-size: 10pt; font-weight: 700; }
+.launcher-item:hover { background-color: @C_SOFT@; }
+
+.launcher-msg { color: @C_MUTED@; font-size: 11pt; padding: 0; }
 window.xlin-launcher scrolledwindow, window.xlin-launcher grid { background: transparent; }
 window.xlin-launcher .launcher-item {
   padding: 12px 4px 8px 4px; border-radius: 8px; background-color: transparent; color: @C_INK@;

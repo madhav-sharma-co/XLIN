@@ -1,0 +1,295 @@
+#!/usr/bin/env python3
+"""XLIN Launcher - the Start menu (Super+Space, or the X button on the top bar).
+
+Search, your pinned apps, recent apps, and quick buttons for Files, Settings, Lock and Power.
+"All apps" opens the App drawer. Esc or a click outside closes it. Needs gtk4-layer-shell.
+"""
+import glob
+import getpass
+import os
+import sys
+
+# gtk4-layer-shell must be loaded before libwayland-client: preload it once, then restart ourselves
+if not os.environ.get("XLIN_START_REEXEC"):
+    libs = glob.glob("/usr/lib/libgtk4-layer-shell.so*") + glob.glob("/usr/lib64/libgtk4-layer-shell.so*")
+    if libs:
+        old = os.environ.get("LD_PRELOAD", "")
+        os.environ["LD_PRELOAD"] = (old + ":" if old else "") + libs[0]
+        os.environ["XLIN_START_REEXEC"] = "1"
+        os.execv(sys.executable, [sys.executable] + sys.argv)
+
+import gi  # noqa: E402
+
+gi.require_version("Gtk", "4.0")
+gi.require_version("Gdk", "4.0")
+try:
+    gi.require_version("Gtk4LayerShell", "1.0")
+    from gi.repository import Gtk4LayerShell as LayerShell
+except (ValueError, ImportError):
+    sys.exit(3)
+from gi.repository import Gdk, Gio, Gtk, Pango  # noqa: E402
+
+sys.path[:0] = ["/usr/local/lib/xlin", os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib")]
+import xlin_ui  # noqa: E402
+
+HOME = os.path.expanduser("~")
+CSS_FILE = os.path.join(HOME, ".config/xlin/tools.css")
+PINS = os.path.join(HOME, ".cache/nwg-dock-pinned")
+RECENT = os.path.join(HOME, ".config/xlin/state/recent")
+PIN_COLS, PIN_MAX = 6, 12
+WIDTH = 600
+
+
+class Start(Gtk.Window):
+    def __init__(self, app):
+        super().__init__(application=app, title="XLIN Launcher")
+        self.add_css_class("xlin-launcher")
+        self.add_css_class("xlin-start")
+        self.set_decorated(False)
+        self.set_resizable(False)
+        self.was_active = False
+        self.sel = 0
+        self.results = []
+        self.rows = []
+
+        LayerShell.init_for_window(self)
+        LayerShell.set_namespace(self, "xlin-start")
+        LayerShell.set_layer(self, LayerShell.Layer.OVERLAY)
+        LayerShell.set_anchor(self, LayerShell.Edge.BOTTOM, True)
+        LayerShell.set_exclusive_zone(self, -1)
+        LayerShell.set_margin(self, LayerShell.Edge.BOTTOM, 78)
+        LayerShell.set_keyboard_mode(self, LayerShell.KeyboardMode.EXCLUSIVE)
+
+        self.apps = xlin_ui.load_apps()
+        self.by_id = {a[0]: a for a in self.apps}
+
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
+        box.set_size_request(WIDTH - 2 * 16 - 2, -1)
+        for m in ("top", "bottom", "start", "end"):
+            getattr(box, f"set_margin_{m}")(16)
+        self.set_child(box)
+
+        top = Gtk.Box(spacing=8)
+        self.entry = Gtk.Entry(hexpand=True)
+        self.entry.add_css_class("launcher-search")
+        self.entry.set_placeholder_text("Search apps")
+        self.entry.connect("changed", lambda _e: self.on_search())
+        self.entry.connect("activate", lambda _e: self.activate(self.sel))
+        top.append(self.entry)
+        top.append(xlin_ui.close_button(self))
+        box.append(top)
+
+        self.stack = Gtk.Stack()
+        self.stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
+        self.stack.set_transition_duration(120)
+        self.stack.add_named(self.home_page(), "home")
+        self.results_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        self.stack.add_named(self.results_box, "results")
+        box.append(self.stack)
+
+        box.append(self.footer())
+
+        keys = Gtk.EventControllerKey()
+        keys.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        keys.connect("key-pressed", self.on_key)
+        self.add_controller(keys)
+        self.connect("notify::is-active", self.on_active)
+        self.entry.grab_focus()
+
+    # ---- pages
+    def app_cell(self, aid, small=True):
+        app = self.by_id.get(aid)
+        if app is None:
+            return None
+        cell = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        cell.add_css_class("launcher-item")
+        cell.set_size_request((WIDTH - 2 * 16 - 2 - 5 * 6) // PIN_COLS, -1)
+        img = Gtk.Image()
+        img.set_pixel_size(36)
+        img.set_halign(Gtk.Align.CENTER)
+        if app[2] is not None:
+            img.set_from_gicon(app[2])
+        else:
+            img.set_from_icon_name("application-x-executable")
+        lab = Gtk.Label(label=app[1])
+        lab.add_css_class("launcher-name")
+        lab.set_ellipsize(Pango.EllipsizeMode.END)
+        lab.set_max_width_chars(10)
+        cell.append(img)
+        cell.append(lab)
+        click = Gtk.GestureClick(button=1)
+        click.connect("released", lambda _g, _n, _x, _y, a=aid: self.launch(a))
+        cell.add_controller(click)
+        return cell
+
+    def section(self, text, button=None):
+        row = Gtk.Box(spacing=8)
+        lab = Gtk.Label(label=text, xalign=0, hexpand=True)
+        lab.add_css_class("start-section")
+        row.append(lab)
+        if button:
+            b = Gtk.Button(label=button[0])
+            b.add_css_class("start-link")
+            b.set_focusable(False)
+            b.connect("clicked", lambda _b: button[1]())
+            row.append(b)
+        return row
+
+    def home_page(self):
+        page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        page.append(self.section("Pinned", ("All apps  ›", self.open_drawer)))
+        pinned = [i for i in xlin_ui.read_ids(PINS) if i in self.by_id]
+        if not pinned:
+            pinned = [a[0] for a in self.apps]
+        grid = Gtk.Grid(row_spacing=6, column_spacing=6, halign=Gtk.Align.START)
+        for n, aid in enumerate(pinned[:PIN_MAX]):
+            cell = self.app_cell(aid)
+            if cell:
+                grid.attach(cell, n % PIN_COLS, n // PIN_COLS, 1, 1)
+        page.append(grid)
+
+        recent = [i for i in xlin_ui.read_ids(RECENT) if i in self.by_id][:6]
+        if recent:
+            page.append(self.section("Recent"))
+            rg = Gtk.Grid(row_spacing=2, column_spacing=6, column_homogeneous=True)
+            for n, aid in enumerate(recent):
+                rg.attach(self.row_for(aid), n % 2, n // 2, 1, 1)
+            page.append(rg)
+        return page
+
+    def row_for(self, aid):
+        app = self.by_id[aid]
+        row = Gtk.Box(spacing=10)
+        row.add_css_class("start-row")
+        img = Gtk.Image()
+        img.set_pixel_size(28)
+        if app[2] is not None:
+            img.set_from_gicon(app[2])
+        else:
+            img.set_from_icon_name("application-x-executable")
+        lab = Gtk.Label(label=app[1], xalign=0, hexpand=True)
+        lab.add_css_class("start-name")
+        lab.set_ellipsize(Pango.EllipsizeMode.END)
+        row.append(img)
+        row.append(lab)
+        click = Gtk.GestureClick(button=1)
+        click.connect("released", lambda _g, _n, _x, _y, a=aid: self.launch(a))
+        row.add_controller(click)
+        hover = Gtk.EventControllerMotion()
+        hover.connect("enter", lambda _c, _x, _y, r=row: self.hover_row(r))
+        row.add_controller(hover)
+        return row
+
+    def footer(self):
+        bar = Gtk.Box(spacing=6)
+        bar.add_css_class("start-footer")
+        name = Gtk.Label(label=self.display_name(), xalign=0, hexpand=True)
+        name.add_css_class("start-user")
+        bar.append(name)
+        for glyph, tip, cmd in (("🗀", "Files", ["xlin", "files"]), ("⚙", "Settings", ["xlin", "settings"]),
+                                ("🔒", "Lock", ["xlin", "lock"]), ("⏻", "Power", ["xlin", "session"])):
+            b = Gtk.Button(label=glyph)
+            b.add_css_class("win-btn")
+            b.set_tooltip_text(tip)
+            b.set_focusable(False)
+            b.connect("clicked", lambda _b, c=cmd: (xlin_ui.run(c), self.close()))
+            bar.append(b)
+        return bar
+
+    @staticmethod
+    def display_name():
+        try:
+            import pwd
+            full = pwd.getpwnam(getpass.getuser()).pw_gecos.split(",")[0].strip()
+            return full or getpass.getuser()
+        except Exception:
+            return getpass.getuser()
+
+    # ---- searching
+    def on_search(self):
+        q = self.entry.get_text().strip()
+        while (c := self.results_box.get_first_child()) is not None:
+            self.results_box.remove(c)
+        self.rows, self.results, self.sel = [], [], 0
+        if not q:
+            self.stack.set_visible_child_name("home")
+            return
+        scored = []
+        for a in self.apps:
+            s = xlin_ui.fuzzy(q, a[1])
+            if s is not None:
+                scored.append((s, a[0]))
+        scored.sort(key=lambda p: p[0])
+        self.results = [aid for _s, aid in scored[:8]]
+        for aid in self.results:
+            row = self.row_for(aid)
+            self.rows.append(row)
+            self.results_box.append(row)
+        if not self.results:
+            none = Gtk.Label(label="No apps found", xalign=0)
+            none.add_css_class("launcher-msg")
+            self.results_box.append(none)
+        self.stack.set_visible_child_name("results")
+        self.mark()
+
+    def mark(self):
+        for i, r in enumerate(self.rows):
+            (r.add_css_class if i == self.sel else r.remove_css_class)("selected")
+
+    def hover_row(self, row):
+        if row in self.rows:
+            self.sel = self.rows.index(row)
+            self.mark()
+
+    # ---- actions
+    def launch(self, aid):
+        xlin_ui.run(["xlin", "launch-app", aid])
+        self.close()
+
+    def activate(self, idx):
+        if 0 <= idx < len(self.results):
+            self.launch(self.results[idx])
+
+    def open_drawer(self):
+        xlin_ui.run(["xlin", "drawer"])
+        self.close()
+
+    def on_key(self, _c, keyval, _code, _state):
+        if keyval == Gdk.KEY_Escape:
+            self.close()
+            return True
+        if self.rows and keyval in (Gdk.KEY_Down, Gdk.KEY_Up):
+            self.sel = (self.sel + (1 if keyval == Gdk.KEY_Down else -1)) % len(self.rows)
+            self.mark()
+            return True
+        return False
+
+    def on_active(self, *_a):
+        if self.is_active():
+            self.was_active = True
+        elif self.was_active:
+            self.close()
+
+
+class StartApp(Gtk.Application):
+    def __init__(self):
+        super().__init__(application_id="dev.xlin.Start", flags=Gio.ApplicationFlags.NON_UNIQUE)
+
+    def do_startup(self):
+        Gtk.Application.do_startup(self)
+        try:
+            with open(CSS_FILE, "rb") as f:
+                data = f.read()
+            prov = Gtk.CssProvider()
+            prov.load_from_data(data)
+            Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), prov,
+                                                      Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        except Exception:
+            pass
+
+    def do_activate(self):
+        Start(self).present()
+
+
+if __name__ == "__main__":
+    sys.exit(StartApp().run([sys.argv[0]]))

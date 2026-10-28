@@ -25,6 +25,14 @@
 }
 .control-center .widget-title > button:hover { background: @C_ACCENT_SOFT@; }
 
+.widget-menubar { background: transparent; margin: 0 0 4px 0; }
+.widget-menubar button {
+  min-width: 26px; min-height: 26px; padding: 0 8px;
+  border-radius: 13px;
+  background: transparent; color: @C_MUTED@; border: none; box-shadow: none;
+}
+.widget-menubar button:hover { background: #e5484d; color: #ffffff; }
+
 .widget-buttons-grid {
   background: transparent;
   margin-bottom: 12px;

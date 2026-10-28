@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.36.0
+- Control Panel now matches the plan: a close button (top right), Wi-Fi / Bluetooth / Airplane / Theme / Night light / Settings buttons, volume and brightness sliders, and a Power mode row (Saver, Balanced, Performance)
+
 ## 0.35.0
 - The Launcher and the App drawer are part of "Keep apps ready" too: they wait out of sight, so Super+Space and the Run Bar drawer button show them at once (and the same key hides them again)
 

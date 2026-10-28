@@ -8,7 +8,7 @@
   "control-center-margin-top": 46,
   "control-center-margin-right": 12,
   "control-center-margin-bottom": 12,
-  "control-center-height": 460,
+  "control-center-height": 560,
   "notification-window-width": 340,
   "notification-icon-size": 40,
   "timeout": 6,
@@ -16,8 +16,14 @@
   "timeout-critical": 0,
   "fit-to-screen": false,
   "hide-on-clear": false,
-  "widgets": ["title", "buttons-grid", "volume", "backlight", "notifications"],
+  "widgets": ["menubar#top", "title", "buttons-grid", "volume", "backlight", "buttons-grid#power", "notifications"],
   "widget-config": {
+    "menubar#top": {
+      "buttons#close": {
+        "position": "right",
+        "actions": [ { "label": "\u2715", "command": "swaync-client -cp" } ]
+      }
+    },
     "title": {
       "text": "Control Panel",
       "clear-all-button": true,
@@ -30,7 +36,7 @@
         { "label": "  Bluetooth", "command": "xlin toggle bluetooth" },
         { "label": "  Airplane", "command": "xlin toggle airplane" },
         { "label": "  Appearance", "command": "xlin theme toggle" },
-        { "label": "  Wallpaper", "command": "xlin wallpaper next" },
+        { "label": "  Night light", "command": "xlin nightlight toggle" },
         { "label": "  Settings", "command": "xlin settings" }
       ]
     },

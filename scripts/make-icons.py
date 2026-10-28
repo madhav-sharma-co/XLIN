@@ -93,6 +93,12 @@ def power(color):
             f'<path d="M44 40a34 34 0 1 0 40 0" stroke="#fff" stroke-width="10" stroke-linecap="round" fill="none"/>')
 
 
+def store():
+    return ('<path d="M34 50h60l-5 46a8 8 0 0 1-8 7H47a8 8 0 0 1-8-7z" fill="#fff"/>'
+            '<path d="M50 50v-8a14 14 0 0 1 28 0v8" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round"/>'
+            '<path d="M52 70l12 12 14-18" fill="none" stroke="#0a84ff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>')
+
+
 ICONS = {
     "xlin-settings": ("#a3adbf", "#626d82", gear()),
     "xlin-notes": ("#ffd95e", "#ffb300", notes()),
@@ -104,6 +110,7 @@ ICONS = {
     "xlin-monitor": ("#5ee0a0", "#16a05f", monitor()),
     "xlin-terminal": ("#5b6272", "#23262f", terminal()),
     "xlin-screenshot": ("#ff9ec0", "#c24eea", screenshot()),
+    "xlin-store": ("#6fd0ff", "#3b6df0", store()),
     "xlin-power": ("#ff6b5e", "#d62f2f", power("#d62f2f")),
 }
 

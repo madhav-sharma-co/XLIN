@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.29.0
+- New app: XLIN Store (`xlin store`, or find it in the App drawer). Featured apps by category, search all packages, see what you installed, and check updates. Install and Remove ask for your password through the system prompt (needs polkit); "Update everything" runs in XLIN Terminal
+
 ## 0.28.0
 - Settings reorganised into seven sections: General (volume, brightness, notifications, sleep, terminal), Connectivity (airplane mode, Wi-Fi, Bluetooth), Desktop (icons, widgets, wallpaper, cursor), Status Bar and Run Bar, Launcher and App Drawer (manage pinned apps), Personalization (theme, accent, transparency, wallpaper) and About
 - New: Do not disturb switch, airplane mode switch, widget and icon-size switches for the desktop

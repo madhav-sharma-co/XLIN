@@ -1,0 +1,367 @@
+#!/usr/bin/env python3
+"""XLIN Store - find, install and remove apps (pacman) in a window.
+
+Featured apps, search, what you installed, and updates. Installing asks for your password once
+through the system's password prompt (polkit). Run: xlin store
+"""
+import os
+import re
+import shutil
+import subprocess
+import sys
+import threading
+
+import gi
+
+gi.require_version("Gtk", "4.0")
+gi.require_version("Gdk", "4.0")
+from gi.repository import Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
+
+sys.path[:0] = ["/usr/local/lib/xlin", os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib")]
+import xlin_ui  # noqa: E402
+
+APP_ID = "dev.xlin.Store"
+CSS_FILE = os.path.expanduser("~/.config/xlin/tools.css")
+
+FEATURED = [
+    ("Web", [("firefox", "Firefox", "Fast, private web browser"),
+             ("chromium", "Chromium", "Open-source web browser"),
+             ("thunderbird", "Thunderbird", "Email, calendar and contacts"),
+             ("telegram-desktop", "Telegram", "Messaging app"),
+             ("discord", "Discord", "Voice, video and text chat")]),
+    ("Media", [("vlc", "VLC", "Plays almost any video or audio file"),
+               ("mpv", "mpv", "Light, fast video player"),
+               ("audacity", "Audacity", "Record and edit audio"),
+               ("obs-studio", "OBS Studio", "Record and stream your screen"),
+               ("kdenlive", "Kdenlive", "Video editor")]),
+    ("Create", [("gimp", "GIMP", "Photo editing and painting"),
+                ("inkscape", "Inkscape", "Vector graphics and logos"),
+                ("blender", "Blender", "3D modelling and animation"),
+                ("krita", "Krita", "Digital painting")]),
+    ("Work", [("libreoffice-fresh", "LibreOffice", "Documents, spreadsheets and slides"),
+              ("code", "Visual Studio Code", "Code editor (open-source build)"),
+              ("obsidian", "Obsidian", "Notes that link to each other"),
+              ("keepassxc", "KeePassXC", "Password manager")]),
+    ("Fun", [("steam", "Steam", "Games (needs the multilib repository)"),
+             ("lutris", "Lutris", "Play games from many sources")]),
+]
+
+
+def sh(cmd, timeout=60):
+    try:
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        return p.returncode == 0, (p.stdout or "") + (p.stderr if p.returncode else "")
+    except Exception as e:  # missing command, timeout
+        return False, str(e)
+
+
+def installed_set():
+    ok, out = sh(["pacman", "-Qq"])
+    return set(out.split()) if ok else set()
+
+
+def search(query):
+    """[(name, version, description, repo)] from pacman -Ss."""
+    ok, out = sh(["pacman", "-Ss", "--", query])
+    res, cur = [], None
+    for line in out.splitlines():
+        m = re.match(r"^(\S+)/(\S+) (\S+)", line)
+        if m and not line.startswith(" "):
+            cur = [m.group(2), m.group(3), "", m.group(1)]
+            res.append(cur)
+        elif cur is not None and line.startswith("    "):
+            cur[2] = line.strip()
+    return [tuple(r) for r in res]
+
+
+def explicit_installed():
+    ok, out = sh(["pacman", "-Qei"], 30)
+    res, cur = [], {}
+    for line in out.splitlines() + [""]:
+        if not line.strip():
+            if cur.get("Name"):
+                res.append((cur["Name"], cur.get("Version", ""), cur.get("Description", ""), "installed"))
+            cur = {}
+            continue
+        m = re.match(r"^(Name|Version|Description)\s*:\s*(.*)$", line)
+        if m:
+            cur[m.group(1)] = m.group(2)
+    return sorted(res, key=lambda r: r[0].lower())
+
+
+def pending_updates():
+    if shutil.which("checkupdates"):
+        ok, out = sh(["checkupdates"], 90)
+    else:
+        ok, out = sh(["pacman", "-Qu"], 30)
+    res = []
+    for line in out.splitlines():
+        parts = line.split()
+        if len(parts) >= 4:
+            res.append((parts[0], f"{parts[1]} → {parts[3]}", "", "update"))
+    return res
+
+
+def run_in_terminal(script):
+    for cmd in (["xlin-terminal", "-e"], ["foot", "-e"], ["kitty", "-e"], ["alacritty", "-e"],
+                ["gnome-terminal", "--"], ["konsole", "-e"], ["xterm", "-e"]):
+        if shutil.which(cmd[0]):
+            subprocess.Popen(cmd + ["bash", "-c", script], start_new_session=True)
+            return True
+    return False
+
+
+class StoreWindow(Gtk.ApplicationWindow):
+    def __init__(self, app):
+        super().__init__(application=app, title="Store")
+        self.set_default_size(820, 620)
+        self.add_css_class("xlin-tools")
+        xlin_ui.titlebar(self, "Store")
+        self.installed = set()
+        self.busy = False
+        self.buttons = []
+        self.tab = "featured"
+
+        root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        for m in ("top", "bottom", "start", "end"):
+            getattr(root, f"set_margin_{m}")(16)
+        self.set_child(root)
+
+        self.search = Gtk.SearchEntry()
+        self.search.set_placeholder_text("Search apps and packages")
+        self.search.connect("activate", lambda _e: self.do_search())
+        root.append(self.search)
+
+        tabs = Gtk.Box(spacing=0)
+        tabs.add_css_class("linked")
+        first = None
+        self.tab_buttons = {}
+        for key, label in (("featured", "Featured"), ("search", "Search"),
+                           ("installed", "Installed"), ("updates", "Updates")):
+            b = Gtk.ToggleButton(label=label)
+            if first is None:
+                first = b
+                b.set_active(True)
+            else:
+                b.set_group(first)
+            b.connect("toggled", lambda btn, k=key: btn.get_active() and self.show_tab(k))
+            tabs.append(b)
+            self.tab_buttons[key] = b
+        tabs.set_halign(Gtk.Align.START)
+        root.append(tabs)
+
+        self.status = Gtk.Label(label="", xalign=0)
+        self.status.add_css_class("tools-sub")
+        root.append(self.status)
+
+        self.list = Gtk.ListBox()
+        self.list.add_css_class("fm-list")
+        self.list.set_selection_mode(Gtk.SelectionMode.NONE)
+        sc = Gtk.ScrolledWindow(vexpand=True)
+        sc.set_child(self.list)
+        root.append(sc)
+
+        self.update_btn = Gtk.Button(label="Update everything")
+        self.update_btn.set_halign(Gtk.Align.END)
+        self.update_btn.connect("clicked", lambda _b: self.update_all())
+        self.update_btn.set_visible(False)
+        root.append(self.update_btn)
+
+        self.thread(installed_set, self.got_installed)
+
+    # ---- helpers
+    def thread(self, work, done=None):
+        def go():
+            res = work()
+            if done:
+                GLib.idle_add(lambda: (done(res), False)[1])
+        threading.Thread(target=go, daemon=True).start()
+
+    def clear(self):
+        self.buttons = []
+        while (c := self.list.get_first_child()) is not None:
+            self.list.remove(c)
+
+    def heading(self, text):
+        lab = Gtk.Label(label=text, xalign=0, margin_top=12, margin_start=4)
+        lab.add_css_class("tool-title")
+        row = Gtk.ListBoxRow(activatable=False, selectable=False)
+        row.set_child(lab)
+        self.list.append(row)
+
+    def add_row(self, name, title, desc, version=""):
+        row = Gtk.ListBoxRow(activatable=False, selectable=False)
+        box = Gtk.Box(spacing=12)
+        box.set_margin_top(8)
+        box.set_margin_bottom(8)
+        box.set_margin_start(6)
+        box.set_margin_end(6)
+        img = Gtk.Image.new_from_icon_name(name if Gtk.IconTheme.get_for_display(Gdk.Display.get_default()).has_icon(name)
+                                           else "package-x-generic")
+        img.set_pixel_size(36)
+        box.append(img)
+        text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, hexpand=True)
+        t = Gtk.Label(label=title + (f"   {version}" if version else ""), xalign=0)
+        t.set_ellipsize(Pango.EllipsizeMode.END)
+        text.append(t)
+        if desc:
+            d = Gtk.Label(label=desc, xalign=0)
+            d.add_css_class("tools-sub")
+            d.set_ellipsize(Pango.EllipsizeMode.END)
+            text.append(d)
+        box.append(text)
+        btn = Gtk.Button()
+        self.paint_button(btn, name)
+        btn.set_valign(Gtk.Align.CENTER)
+        btn.connect("clicked", lambda _b, n=name: self.toggle(n))
+        box.append(btn)
+        self.buttons.append((btn, name))
+        row.set_child(box)
+        self.list.append(row)
+
+    def paint_button(self, btn, name):
+        have = name in self.installed
+        btn.set_label("Remove" if have else "Install")
+        btn.set_sensitive(not self.busy)
+        if have:
+            btn.remove_css_class("suggested-action")
+        else:
+            btn.add_css_class("suggested-action")
+
+    def repaint(self):
+        for btn, name in self.buttons:
+            self.paint_button(btn, name)
+
+    def got_installed(self, s):
+        self.installed = s
+        self.repaint()
+        self.show_tab("featured")
+
+    # ---- tabs
+    def show_tab(self, key):
+        self.tab = key
+        self.update_btn.set_visible(key == "updates")
+        self.clear()
+        self.status.set_text("")
+        if key == "featured":
+            for cat, apps in FEATURED:
+                self.heading(cat)
+                for name, title, desc in apps:
+                    self.add_row(name, title, desc)
+        elif key == "search":
+            self.status.set_text("Type a name above and press Enter")
+            if self.search.get_text().strip():
+                self.do_search()
+        elif key == "installed":
+            self.status.set_text("Loading...")
+            self.thread(explicit_installed, lambda r: self.fill(r, "installed", "Nothing installed by you yet"))
+        elif key == "updates":
+            self.status.set_text("Checking for updates...")
+            self.thread(pending_updates, lambda r: self.fill(r, "updates", "Everything is up to date"))
+
+    def fill(self, rows, for_tab, empty):
+        if self.tab != for_tab:
+            return
+        self.clear()
+        self.status.set_text("" if rows else empty)
+        for name, version, desc, _repo in rows[:300]:
+            if for_tab == "updates":
+                self.add_row_plain(name, version)
+            else:
+                self.add_row(name, name, desc, version)
+        if for_tab == "updates":
+            self.update_btn.set_sensitive(bool(rows) and not self.busy)
+
+    def add_row_plain(self, name, version):
+        row = Gtk.ListBoxRow(activatable=False, selectable=False)
+        box = Gtk.Box(spacing=12)
+        for m in ("top", "bottom"):
+            getattr(box, f"set_margin_{m}")(8)
+        box.set_margin_start(6)
+        box.append(Gtk.Label(label=name, xalign=0, hexpand=True))
+        v = Gtk.Label(label=version, xalign=1)
+        v.add_css_class("tools-sub")
+        box.append(v)
+        row.set_child(box)
+        self.list.append(row)
+
+    def do_search(self):
+        q = self.search.get_text().strip()
+        if not q:
+            return
+        if self.tab != "search":
+            self.tab_buttons["search"].set_active(True)
+            return
+        self.clear()
+        self.status.set_text("Searching...")
+        self.thread(lambda: search(q), self.show_results)
+
+    def show_results(self, rows):
+        if self.tab != "search":
+            return
+        self.clear()
+        self.status.set_text("" if rows else "Nothing found")
+        for name, version, desc, repo in rows[:80]:
+            self.add_row(name, name, desc, version)
+
+    # ---- install / remove / update
+    def set_busy(self, busy, text=""):
+        self.busy = busy
+        self.status.set_text(text)
+        self.repaint()
+        self.update_btn.set_sensitive(not busy)
+
+    def toggle(self, name):
+        if self.busy:
+            return
+        removing = name in self.installed
+        if shutil.which("pkexec") is None:
+            self.status.set_text("Needs polkit (pkexec) to ask for your password: sudo pacman -S polkit")
+            return
+        self.set_busy(True, f"{'Removing' if removing else 'Installing'} {name}... (a password prompt may appear)")
+        cmd = (["pkexec", "pacman", "-Rns", "--noconfirm", name] if removing
+               else ["pkexec", "pacman", "-S", "--needed", "--noconfirm", name])
+
+        def work():
+            ok, out = sh(cmd, 900)
+            return ok, out, installed_set()
+
+        def done(res):
+            ok, out, now = res
+            self.installed = now
+            tail = [ln for ln in out.strip().splitlines() if ln.strip()][-1:] or ["failed"]
+            self.set_busy(False, f"Done: {name}" if ok else f"Could not finish: {tail[0][:90]}")
+            self.repaint()
+        self.thread(work, done)
+
+    def update_all(self):
+        script = "sudo pacman -Syu; echo; read -rp 'Done. Press Enter to close.'"
+        if not run_in_terminal(script):
+            self.status.set_text("No terminal found. Run: sudo pacman -Syu")
+
+
+class StoreApp(Gtk.Application):
+    def __init__(self):
+        super().__init__(application_id=APP_ID, flags=Gio.ApplicationFlags.FLAGS_NONE)
+        self.win = None
+
+    def do_startup(self):
+        Gtk.Application.do_startup(self)
+        try:
+            with open(CSS_FILE, "rb") as f:
+                data = f.read()
+            prov = Gtk.CssProvider()
+            prov.load_from_data(data)
+            Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), prov,
+                                                      Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        except Exception:
+            pass
+
+    def do_activate(self):
+        if self.win is None:
+            self.win = StoreWindow(self)
+        self.win.present()
+
+
+if __name__ == "__main__":
+    sys.exit(StoreApp().run([sys.argv[0]]))

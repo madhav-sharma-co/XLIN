@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Store
+GenericName=App store
+Comment=Find, install and remove apps
+Exec=xlin-store
+Icon=xlin-store
+Terminal=false
+Categories=System;PackageManager;
+StartupWMClass=dev.xlin.Store

@@ -1,3 +1,5 @@
+<img width="1366" height="768" alt="IMG-20261029-WA0001" src="https://github.com/user-attachments/assets/bc88359e-5beb-4298-af17-064a573082b5" />
+<img width="1366" height="768" alt="IMG-20261029-WA0000" src="https://github.com/user-attachments/assets/ff2e9042-aa86-46ce-9401-deab74657cf6" />
 # XLIN for Hyprland
 
 A calm, clean, iPhone-style desktop for Hyprland on Arch Linux: light and dark themes, glass

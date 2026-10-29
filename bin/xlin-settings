@@ -623,7 +623,7 @@ def general_page(win):
     c2.append(row("Night light", "Warmer screen colour in the evening", switch(
         os.path.exists(os.path.join(STATE, "nightlight")) and read_state("nightlight", "") != "",
         lambda s: in_thread(lambda: run(["xlin", "nightlight", "on" if s else "off"], 20)))))
-    c2.append(row("Keep apps ready", "Settings, Files, Store, Launcher and App drawer wait out of sight so they open instantly", switch(
+    c2.append(row("Keep apps ready", "Settings, Files, Store and the Launcher wait out of sight so they open instantly", switch(
         not os.path.exists(os.path.join(STATE, "warm_off")),
         lambda s: in_thread(lambda: run(["xlin", "warm", "on" if s else "off"], 20)))))
     c2.append(row("Terminal", "What Super+Return opens", segmented(
@@ -745,7 +745,7 @@ def desktop_page(win):
 
 
 def launcher_page(win):
-    box = page_box("Launcher and App Drawer", "Pin apps to the Launcher and to the Run Bar separately")
+    box = page_box("Launcher and App Drawer", "Right-click an app in the Launcher to pin it to the Launcher or the Run Bar")
     c = card()
     box.append(c)
     pins = []
@@ -759,7 +759,7 @@ def launcher_page(win):
         h.add_css_class("xlin-sub")
         c.append(h)
         if not ids:
-            c.append(row(empty, "Right-click an app in the App drawer to pin it"))
+            c.append(row(empty, "Right-click an app in the Launcher to pin it"))
         for pid in ids:
             app = Gio.DesktopAppInfo.new(pid + ".desktop")
             c.append(row(app.get_display_name() if app else pid, None, button("Unpin", lambda p=pid: unpin(p))))
@@ -774,13 +774,11 @@ def launcher_page(win):
     section("Pinned on the Run Bar", pins, "Nothing pinned on the Run Bar", unpin_bar)
     c2 = card()
     box.append(c2)
-    c2.append(row("Pin an app", "Opens the App drawer: right-click an app to pin it", button(
-        "Choose...", lambda: subprocess.Popen(["xlin", "launcher", "pin"]))))
     c2.append(row("Clear recent apps", "Empties the Recent list in the Launcher", button(
         "Clear", lambda: in_thread(lambda: (
             os.path.exists(os.path.join(STATE, "recent")) and os.remove(os.path.join(STATE, "recent")))))))
-    c2.append(row("Open the App drawer", "The grid of every app (also the Run Bar button)", button(
-        "Open", lambda: subprocess.Popen(["xlin", "drawer"]))))
+    c2.append(row("Open the Launcher", "Search, pinned, recent and all apps (tap Super)", button(
+        "Open", lambda: subprocess.Popen(["xlin", "launcher"]))))
     return box
 
 

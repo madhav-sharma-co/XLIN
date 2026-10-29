@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.46.0
+- The App drawer is removed. The Launcher (tap Super, Super+Space or the Run Bar button) now shows Pinned, Recent and a full All apps list below, like the Windows Start menu. `xlin drawer` still works and opens the Launcher
+
 ## 0.45.1
 - Terminal apps (btop, htop...) opened from the Launcher or drawer now open in the XLIN terminal instead of failing with "Unable to find terminal"
 

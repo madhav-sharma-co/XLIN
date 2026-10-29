@@ -2,7 +2,7 @@
 """XLIN Launcher - the Start menu (Super+Space, or the X button on the top bar).
 
 Search, your pinned apps, recent apps, and quick buttons for Settings and Power.
-"All apps" opens the App drawer. Esc or a click outside closes it. Needs gtk4-layer-shell.
+Below them is the full list of apps (All apps), like the Windows Start menu. Esc or a click outside closes it. Needs gtk4-layer-shell.
 """
 import glob
 import getpass
@@ -44,7 +44,6 @@ WIDTH = 600
 class Start(Gtk.Window):
     def __init__(self, app):
         super().__init__(application=app, title="XLIN Launcher")
-        self.add_css_class("xlin-launcher")
         self.add_css_class("xlin-start")
         self.set_decorated(False)
         self.set_resizable(False)
@@ -87,10 +86,10 @@ class Start(Gtk.Window):
         self.stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
         self.stack.set_transition_duration(120)
         self.home = self.home_page()
-        self.stack.add_named(self.home, "home")
+        self.stack.add_named(self.home_scroll(), "home")
         self.results_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         self.stack.add_named(self.results_box, "results")
-        self.stack.set_size_request(-1, 400)       # the App drawer has exactly the same height
+        self.stack.set_size_request(-1, 480)
         box.append(self.stack)
 
         box.append(self.footer())
@@ -146,7 +145,7 @@ class Start(Gtk.Window):
 
     def home_page(self):
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        page.append(self.section("Pinned", ("All apps  ›", self.open_drawer)))
+        page.append(self.section("Pinned"))
         pins = xlin_ui.launcher_pins()
         if pins is None:                    # nothing pinned here yet: start with the Run Bar's apps
             pins = xlin_ui.read_ids(PINS) or [a[0] for a in self.apps]
@@ -169,7 +168,22 @@ class Start(Gtk.Window):
             for n, aid in enumerate(recent):
                 rg.attach(self.row_for(aid), n % 2, n // 2, 1, 1)
             page.append(rg)
+
+        page.append(self.section("All apps"))
+        ag = Gtk.Grid(row_spacing=6, column_spacing=6, halign=Gtk.Align.START)
+        for n, a in enumerate(sorted(self.apps, key=lambda a: a[1].lower())):
+            cell = self.app_cell(a[0])
+            if cell:
+                ag.attach(cell, n % PIN_COLS, n // PIN_COLS, 1, 1)
+        page.append(ag)
         return page
+
+    def home_scroll(self):
+        """The home page inside a scroller (Pinned, Recent, then every app)."""
+        self.home_sw = Gtk.ScrolledWindow()
+        self.home_sw.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        self.home_sw.set_child(self.home)
+        return self.home_sw
 
     def row_for(self, aid):
         app = self.by_id[aid]
@@ -205,9 +219,7 @@ class Start(Gtk.Window):
         self.menu_open = state
 
     def rebuild_home(self):
-        self.stack.remove(self.home)
-        self.home = self.home_page()
-        self.stack.add_named(self.home, "home")
+        self.home_sw.set_child(self.home_page())
         if not self.entry.get_text().strip():
             self.stack.set_visible_child_name("home")
 
@@ -268,10 +280,6 @@ class Start(Gtk.Window):
         if 0 <= idx < len(self.results):
             self.launch(self.results[idx])
 
-    def open_drawer(self):
-        xlin_ui.run(["xlin", "drawer"])
-        self.close()
-
     def on_key(self, _c, keyval, _code, _state):
         if keyval == Gdk.KEY_Escape:
             self.close()
@@ -286,9 +294,9 @@ class Start(Gtk.Window):
         """Show the menu again: fresh pinned and recent apps, empty search."""
         self.apps = xlin_ui.load_apps()
         self.by_id = {a[0]: a for a in self.apps}
-        self.stack.remove(self.home)
         self.home = self.home_page()
-        self.stack.add_named(self.home, "home")
+        self.home_sw.set_child(self.home)
+        self.home_sw.get_vadjustment().set_value(0)
         self.was_active = False
         self.entry.set_text("")
         self.stack.set_visible_child_name("home")

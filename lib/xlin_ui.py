@@ -1,6 +1,6 @@
 """Shared pieces for the XLIN apps: the three window buttons (hide, fullscreen, close) and the title bar.
 
-Panels (control panel, launcher, app drawer) are not windows: they only get a close button.
+Panels (control panel, launcher) are not windows: they only get a close button.
 """
 import json
 import os
@@ -84,7 +84,7 @@ def titlebar(win, title, hide=True, full=True):
     return label
 
 
-# ---- app list helpers shared by the Launcher (Start menu) and the App drawer
+# ---- app list helpers shared by the Launcher (Start menu)
 def read_ids(path):
     try:
         with open(path) as f:

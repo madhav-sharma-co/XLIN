@@ -40,7 +40,6 @@ sudo install -m 755 "$SRC/bin/xlin-media" /usr/local/bin/xlin-media
 sudo install -m 755 "$SRC/bin/xlin-debug" /usr/local/bin/xlin-debug
 sudo install -m 755 "$SRC/bin/xlin-terminal" /usr/local/bin/xlin-terminal
 sudo install -m 755 "$SRC/bin/xlin-desktop" /usr/local/bin/xlin-desktop
-sudo install -m 755 "$SRC/bin/xlin-launcher" /usr/local/bin/xlin-launcher
 sudo install -m 755 "$SRC/bin/xlin-start" /usr/local/bin/xlin-start
 sudo install -D -m 644 "$SRC/lib/xlin_ui.py" /usr/local/lib/xlin/xlin_ui.py
 mkdir -p "$HOME/.local/share/applications"

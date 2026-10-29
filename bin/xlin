@@ -383,21 +383,6 @@ launch_id() {
   fi
 }
 
-# The app drawer is XLIN's own (xlin-launcher); rofi is only a fallback if it cannot start
-cmd_drawer() {
-  local mode="${1:-}"
-  if have xlin-launcher; then
-    mkdir -p "$HOME/.cache/xlin"
-    [[ "$mode" == pin ]] && touch "$HOME/.cache/xlin/drawer-pin"
-    local rc=0
-    xlin-launcher >>"$HOME/.cache/xlin/launcher.log" 2>&1 || rc=$?      # shows it, or hides it if it is open
-    [[ $rc -eq 3 ]] || return 0
-  fi
-  have rofi || { notify "App drawer could not start" "Install: sudo pacman -S gtk4-layer-shell"; return 1; }
-  pgrep -x rofi >/dev/null && { pkill -x rofi; [[ "$mode" == pin ]] || return 0; sleep 0.15; }
-  cmd_launcher_rofi "$mode"
-}
-
 # Bring back the window hidden most recently (xlin unhide all: every hidden window)
 cmd_unhide() {
   have hyprctl && have jq || return 1
@@ -410,17 +395,17 @@ cmd_unhide() {
   done < <(hyprctl clients -j | jq -r '[.[] | select(.workspace.name=="special:xlin-hidden")] | sort_by(.focusHistoryID) | .[].address')
 }
 
-# The Launcher is the Start menu (xlin-start); the App drawer (xlin drawer) is the grid of every app
+# The Launcher is the Start menu (xlin-start): search, pinned, recent and every app. rofi is only a fallback.
 cmd_launcher() {
-  local mode="${1:-}"
-  [[ "$mode" == pin ]] && { cmd_drawer pin; return; }
   if have xlin-start; then
     mkdir -p "$HOME/.cache/xlin"
     local rc=0
     xlin-start >>"$HOME/.cache/xlin/launcher.log" 2>&1 || rc=$?
     [[ $rc -eq 3 ]] || return 0
   fi
-  cmd_drawer
+  have rofi || { notify "Launcher could not start" "Install: sudo pacman -S gtk4-layer-shell"; return 1; }
+  pgrep -x rofi >/dev/null && { pkill -x rofi; return 0; }
+  cmd_launcher_rofi
 }
 
 cmd_launch_app() { record_recent "${1%.desktop}"; launch_id "${1%.desktop}"; }
@@ -590,7 +575,7 @@ dock_start() {
     [[ -f "$f" ]] && { ico=(-ico "$f"); break; }
   done
   local isize; isize="$(cat "$STATE/dock_icon" 2>/dev/null || echo 40)"
-  setsid nwg-dock-hyprland "${hide[@]}" -i "$isize" -mb 12 -c "xlin drawer" "${ico[@]}" \
+  setsid nwg-dock-hyprland "${hide[@]}" -i "$isize" -mb 12 -c "xlin launcher" "${ico[@]}" \
     -s style.css >>"$HOME/.cache/xlin/dock.log" 2>&1 &
 }
 
@@ -665,10 +650,10 @@ cmd_doctor() {
   b=nwg-dock-hyprland; have "$b" && echo "  ok       $b" || { echo "  MISSING  $b   (AUR: nwg-dock-hyprland)"; missing=1; }
   python3 -c 'import gi; gi.require_version("Gtk","4.0")' 2>/dev/null \
     && echo "  ok       GTK4 for Python" || { echo "  MISSING  GTK4 for Python   (sudo pacman -S gtk4 python-gobject)"; missing=1; }
-  if desktop_ok; then echo "  ok       gtk4-layer-shell (Launcher, App drawer, desktop)"
+  if desktop_ok; then echo "  ok       gtk4-layer-shell (Launcher, desktop)"
   else echo "  MISSING  gtk4-layer-shell   (sudo pacman -S gtk4-layer-shell); the desktop menu and widgets need it"; missing=1; fi
   echo "XLIN commands:"
-  for b in xlin xlin-dock-watch xlin-settings xlin-tools xlin-welcome xlin-files xlin-monitor xlin-terminal xlin-desktop xlin-launcher xlin-start xlin-store xlin-media xlin-debug; do
+  for b in xlin xlin-dock-watch xlin-settings xlin-tools xlin-welcome xlin-files xlin-monitor xlin-terminal xlin-desktop xlin-start xlin-store xlin-media xlin-debug; do
     have "$b" && printf '  ok       %s\n' "$b" || { printf '  MISSING  %s   (run ./update.sh)\n' "$b"; missing=1; }
   done
   echo "Extras (features that need them):"
@@ -884,13 +869,13 @@ cmd_panel() {
 }
 
 # Start everything now (also used at login). Safe to run repeatedly.
-# Keep Settings, Files, the Store, the Launcher and the App drawer running out of sight so they open at once (xlin warm on|off)
+# Keep Settings, Files, the Store, the Launcher running out of sight so they open at once (xlin warm on|off)
 warm_start() {
   [[ -f "$STATE/warm_off" ]] && return 0
   local avail; avail="$(awk '/MemAvailable/ {print int($2/1024)}' /proc/meminfo 2>/dev/null)"
   [[ "${avail:-0}" -ge 1500 ]] || return 0          # low on memory: skip it
   local a
-  for a in xlin-settings xlin-files xlin-store xlin-start xlin-launcher; do
+  for a in xlin-settings xlin-files xlin-store xlin-start; do
     have "$a" && ! pgrep -f "[x]${a#x}( |\$)" >/dev/null && setsid "$a" --background >>"$HOME/.cache/xlin/warm.log" 2>&1 &
   done
 }
@@ -968,7 +953,7 @@ cmd_start() {
 }
 
 # ================================================================= XLIN CLI
-XLIN_VERSION="0.45.1"
+XLIN_VERSION="0.46.0"
 
 if [[ -t 1 ]]; then B=$'\e[1m'; D=$'\e[2m'; R=$'\e[0m'; else B=""; D=""; R=""; fi
 die() { echo "xlin: $*" >&2; return 1; }
@@ -1497,7 +1482,7 @@ EOT
 # mods|key|command  (the Hyprland binds that start XLIN things; terminal and window keys are not listed)
 keys_expected() {
   cat <<'EOT'
-SUPER|SPACE|xlin drawer
+SUPER|SPACE|xlin launcher
 SUPER|E|xlin files
 SUPER|S|xlin settings
 SUPER|C|xlin panel
@@ -1610,8 +1595,7 @@ cmd_deps() {
 }
 
 # Shortcut list. Edit config/hypr/xlin.conf to change keys; keep this table in step.
-KEYS_TABLE='Apps|Super (tap)|Launcher (Start menu)
-Apps|Super+Space|App drawer (all apps)
+KEYS_TABLE='Apps|Super (tap) / Super+Space|Launcher (Start menu with all apps)
 Apps|Super+Return / Super+T|Terminal
 Apps|Super+E|Files (Explorer) - XLIN Files
 Apps|Super+S|Settings
@@ -1764,7 +1748,7 @@ ${B}Look and feel${R}              (xlin help theme)
   xlin terminal [font|banner]
 
 ${B}Apps and panels${R}
-  xlin launcher    xlin drawer    xlin settings [page]    xlin panel    xlin power    xlin lock
+  xlin launcher    xlin settings [page]    xlin panel    xlin power    xlin lock
   xlin session (power menu)   xlin sleep | logout | poweroff | reboot
   xlin tools [calculator|calendar|notes|screenshot]   xlin files    xlin pin|unpin <app>
 
@@ -1810,7 +1794,7 @@ case "${1:-help}" in
   theme)     shift; cmd_theme "${1:-}" ;;
   wallpaper) shift; cmd_wallpaper "${1:-next}" ;;
   launcher)  shift; cmd_launcher "${1:-}" ;;
-  drawer)    shift; cmd_drawer "${1:-}" ;;
+  drawer)    cmd_launcher ;;     # the App drawer was merged into the Launcher
   unhide)    shift; cmd_unhide "${1:-}" ;;
   launch-app) shift; cmd_launch_app "${1:?usage: xlin launch-app <desktop-id>}" ;;
   pin)       shift; cmd_pin "${1:-}" ;;

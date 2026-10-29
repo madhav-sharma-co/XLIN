@@ -35,16 +35,15 @@ Remove everything (your old Waybar, swaync and Kitty configs are put back):
 |-----------------|-----------------------------------------------------------------------|
 | Lock screen     | hyprlock with your blurred wallpaper, time, date, battery, name and password (Super+L); auto-lock when idle |
 | Top bar         | X launcher, the current app, settings, tools, Wi-Fi, Bluetooth, sound, battery, date and time, power, control panel; every button can be hidden |
-| Launcher        | A Start menu (tap Super): search, pinned apps, recent apps, Settings / Power, and All apps. Right-click an app to pin it |
-| App drawer      | Every app in a narrow, tall panel (Super+Space), in the Launcher's style. Right-click: Open, pin to the Run Bar, pin to the Launcher |
-| Run Bar         | The bar at the bottom: pinned and running apps, the app drawer; auto-hides |
+| Launcher        | A Start menu (tap Super, or Super+Space): search, pinned apps, recent apps, and a full All apps list. Right-click an app: Open, pin to the Run Bar, pin to the Launcher |
+| Run Bar         | The bar at the bottom: pinned and running apps, the Launcher button; auto-hides |
 | Control panel   | Wi-Fi, Bluetooth, airplane, theme, night light, volume, brightness, power mode and notifications (Super+C) |
 | Desktop         | Right-click: Apps and widgets gallery (clock, calendar, system, battery, media, notes, to-do, timer), new folder, wallpaper, icon size. Files in ~/Desktop show up too |
 | Settings        | General, Connectivity, Desktop, Status Bar and Run Bar, Launcher and App Drawer, Personalization (theme, fonts, sizes), About (update, reset) |
 | Tools           | Clock, Calendar, Calculator, Notes and Screenshot as small floating windows (Super+U) |
 | Apps            | Terminal (tabs, Super+Return), Files (Super+E), System Monitor (Super+M), Media player, Store (pacman and AUR), SysDebug (checks, logs, repairs) |
 | Windows         | Every app has hide, fullscreen and close buttons; Super+H brings back hidden windows; Super+Shift+D shows the desktop |
-| Fast            | Settings, Files, the Store, the Launcher and the drawer wait out of sight, so they open instantly (`xlin warm off` to disable) |
+| Fast            | Settings, Files, the Store, the Launcher waits out of sight, so they open instantly (`xlin warm off` to disable) |
 | Look and feel   | light / dark, accent colours, system font and size, XLIN cursor, app icons, eight built-in wallpapers (Super+W) |
 | Daily basics    | screenshots, clipboard history, night light, quick notes, volume/brightness popup |
 

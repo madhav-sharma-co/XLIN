@@ -28,7 +28,8 @@ source "$SRC/scripts/deps.sh"
 xlin_deps || echo "(some packages are missing; the message above says which)"
 
 say "Installing the xlin commands (asks for your password once)"
-for b in xlin xlin-dock-watch xlin-settings xlin-tools xlin-welcome xlin-files xlin-monitor xlin-terminal xlin-desktop xlin-launcher xlin-start xlin-store xlin-media xlin-debug; do
+sudo rm -f /usr/local/bin/xlin-launcher      # the App drawer was merged into the Launcher
+for b in xlin xlin-dock-watch xlin-settings xlin-tools xlin-welcome xlin-files xlin-monitor xlin-terminal xlin-desktop xlin-start xlin-store xlin-media xlin-debug; do
   sudo install -m 755 "$SRC/bin/$b" "/usr/local/bin/$b"
 done
 

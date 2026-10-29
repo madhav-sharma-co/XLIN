@@ -163,8 +163,8 @@ popover.files-menu > contents { background-color: @C_PANEL@; color: @C_INK@; bor
 .files-menu-item { background-image: none; background-color: transparent; color: @C_INK@; border: none; box-shadow: none; border-radius: 6px; padding: 6px 14px; }
 .files-menu-item:hover { background-color: @C_ACCENT_SOFT@; }
 
-/* ---- the Launcher (xlin-start) and the App drawer (xlin-launcher) share this look ---- */
-window.xlin-launcher {
+/* ---- the Launcher (xlin-start) ---- */
+window.xlin-start {
   background-color: @C_PANEL@;
   color: @C_INK@;
   border: 1px solid @C_LINE_SOLID@;
@@ -173,15 +173,15 @@ window.xlin-launcher {
   font-family: "@C_FONT@";
   font-size: @C_PT11@pt;
 }
-window.xlin-launcher * { font-family: "@C_FONT@"; text-shadow: none; }
-window.xlin-launcher entry.launcher-search {
+window.xlin-start * { font-family: "@C_FONT@"; text-shadow: none; }
+window.xlin-start entry.launcher-search {
   padding: 11px 13px; margin: 0; min-height: 0;
   background-image: none; background-color: @C_SOFT@;
   color: @C_INK@; border: none; box-shadow: none; outline: none; border-radius: 8px;
   font-size: @C_PT11@pt;
 }
-window.xlin-launcher entry.launcher-search text { color: @C_INK@; padding: 0; margin: 0; min-height: 0; }
-window.xlin-launcher entry.launcher-search placeholder { color: @C_MUTED@; }
+window.xlin-start entry.launcher-search text { color: @C_INK@; padding: 0; margin: 0; min-height: 0; }
+window.xlin-start entry.launcher-search placeholder { color: @C_MUTED@; }
 
 /* ---- the Launcher / Start menu (xlin-start) ---- */
 .start-section { color: @C_MUTED@; font-size: @C_PT11@pt; font-weight: 700; }
@@ -196,9 +196,9 @@ window.xlin-launcher entry.launcher-search placeholder { color: @C_MUTED@; }
 .launcher-item:hover { background-color: @C_SOFT@; }
 
 .launcher-msg { color: @C_MUTED@; font-size: @C_PT11@pt; padding: 0; }
-window.xlin-launcher scrolledwindow, window.xlin-launcher grid { background: transparent; }
-window.xlin-launcher .launcher-item {
+window.xlin-start scrolledwindow, window.xlin-start grid { background: transparent; }
+window.xlin-start .launcher-item {
   padding: 12px 4px 8px 4px; border-radius: 8px; background-color: transparent; color: @C_INK@;
 }
-window.xlin-launcher .launcher-item.selected { background-color: @C_SOFT@; }
-window.xlin-launcher .launcher-name { color: @C_INK@; font-size: @C_PT9@pt; font-weight: 700; }
+window.xlin-start .launcher-item.selected { background-color: @C_SOFT@; }
+window.xlin-start .launcher-name { color: @C_INK@; font-size: @C_PT9@pt; font-weight: 700; }

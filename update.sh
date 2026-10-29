@@ -31,7 +31,7 @@ say "Lock screen"
 sudo pacman -S --needed --noconfirm hyprlock || echo "(could not install hyprlock; Super+L will tell you)"
 
 say "Daily-use extras (screenshots, clipboard, auto-lock, night light, portals)"
-for pkg in vte4 gtk4-layer-shell udisks2 gvfs gvfs-smb grim slurp wl-clipboard cliphist hypridle hyprsunset xdg-desktop-portal-hyprland xdg-desktop-portal-gtk hyprpolkitagent; do
+for pkg in vte4 gtk4-layer-shell udisks2 gvfs gvfs-smb grim slurp wl-clipboard cliphist hypridle hyprsunset xdg-desktop-portal-hyprland xdg-desktop-portal-gtk hyprpolkitagent polkit playerctl gst-plugins-good gst-libav; do
   sudo pacman -S --needed --noconfirm "$pkg" >/dev/null 2>&1 || echo "   (could not install $pkg)"
 done
 # XLIN Terminal needs vte4; if that is not possible, install kitty so there is always a terminal

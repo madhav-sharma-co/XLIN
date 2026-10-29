@@ -111,6 +111,12 @@ def debug():
             '<path d="M64 48v44" stroke="#e08a00" stroke-width="5"/>')
 
 
+def clock():
+    return ('<circle cx="64" cy="64" r="38" fill="#fff"/>'
+            '<path d="M64 38v28l18 12" fill="none" stroke="#1c1c1e" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>'
+            '<circle cx="64" cy="64" r="4.5" fill="#ff9f0a"/>')
+
+
 ICONS = {
     "xlin-settings": ("#a3adbf", "#626d82", gear()),
     "xlin-notes": ("#ffd95e", "#ffb300", notes()),
@@ -125,6 +131,7 @@ ICONS = {
     "xlin-store": ("#6fd0ff", "#3b6df0", store()),
     "xlin-media": ("#ff8a7a", "#e5484d", media()),
     "xlin-debug": ("#ffc857", "#ef8a17", debug()),
+    "xlin-clock": ("#8a8d99", "#3a3b44", clock()),
     "xlin-power": ("#ff6b5e", "#d62f2f", power("#d62f2f")),
 }
 

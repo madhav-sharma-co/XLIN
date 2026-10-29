@@ -5,7 +5,6 @@ Starts by itself on the first login after installing; run `xlin welcome` to see 
 """
 import os
 import re
-import shutil
 import subprocess
 import sys
 import threading

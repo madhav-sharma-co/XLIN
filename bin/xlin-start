@@ -8,6 +8,7 @@ import glob
 import getpass
 import os
 import sys
+import time
 
 # gtk4-layer-shell must be loaded before libwayland-client: preload it once, then restart ourselves
 if not os.environ.get("XLIN_START_REEXEC"):
@@ -48,6 +49,8 @@ class Start(Gtk.Window):
         self.set_decorated(False)
         self.set_resizable(False)
         self.was_active = False
+        self.hidden_at = 0.0
+        self.connect("notify::visible", lambda w, _p: (not w.get_visible()) and setattr(w, "hidden_at", time.monotonic()))
         self.sel = 0
         self.results = []
         self.rows = []
@@ -86,6 +89,7 @@ class Start(Gtk.Window):
         self.stack.add_named(self.home, "home")
         self.results_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         self.stack.add_named(self.results_box, "results")
+        self.stack.set_size_request(-1, 400)       # the App drawer has exactly the same height
         box.append(self.stack)
 
         box.append(self.footer())
@@ -182,20 +186,7 @@ class Start(Gtk.Window):
         return row
 
     def footer(self):
-        bar = Gtk.Box(spacing=6)
-        bar.add_css_class("start-footer")
-        name = Gtk.Label(label=self.display_name(), xalign=0, hexpand=True)
-        name.add_css_class("start-user")
-        bar.append(name)
-        for glyph, tip, cmd in (("🗀", "Files", ["xlin", "files"]), ("⚙", "Settings", ["xlin", "settings"]),
-                                ("🔒", "Lock", ["xlin", "lock"]), ("⏻", "Power", ["xlin", "session"])):
-            b = Gtk.Button(label=glyph)
-            b.add_css_class("win-btn")
-            b.set_tooltip_text(tip)
-            b.set_focusable(False)
-            b.connect("clicked", lambda _b, c=cmd: (xlin_ui.run(c), self.close()))
-            bar.append(b)
-        return bar
+        return xlin_ui.footer(self.close)
 
     @staticmethod
     def display_name():
@@ -315,6 +306,8 @@ class StartApp(Gtk.Application):
             self.win.show_fresh()
         elif self.win.get_visible():
             self.win.close()                 # the same key again closes it
+        elif time.monotonic() - self.win.hidden_at < 0.4:
+            return                           # a click on the button that just closed it (focus loss): stay closed
         else:
             self.win.show_fresh()
 

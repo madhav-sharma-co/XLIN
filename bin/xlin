@@ -476,7 +476,20 @@ menu_pick() {   # menu_pick X Y item...   -> the chosen item on stdout
       inputbar { enabled: false; } message { enabled: false; }"
 }
 
+# If the desktop layer died (or never started), bring it back (at most once a minute)
+desktop_heal() {
+  [[ -f "$STATE/desktop_off" ]] && return 0
+  pgrep -f '[x]lin-desktop$' >/dev/null && return 0
+  local stamp="$HOME/.cache/xlin/desktop-heal" now last=0
+  now="$(date +%s)"; mkdir -p "$HOME/.cache/xlin"
+  [[ -f "$stamp" ]] && last="$(cat "$stamp" 2>/dev/null || echo 0)"
+  (( now - last < 60 )) && return 0
+  echo "$now" >"$stamp"
+  cmd_desktop start quiet >/dev/null 2>&1 || true
+}
+
 cmd_desktop_menu() {
+  desktop_heal
   have hyprctl && have jq && have rofi || return 0
   if [[ "${1:-}" != force ]] && pgrep -x rofi >/dev/null; then return 0; fi
   local pos x y ws theme dm
@@ -644,6 +657,8 @@ cmd_doctor() {
   b=nwg-dock-hyprland; have "$b" && echo "  ok       $b" || { echo "  MISSING  $b   (AUR: nwg-dock-hyprland)"; missing=1; }
   python3 -c 'import gi; gi.require_version("Gtk","4.0")' 2>/dev/null \
     && echo "  ok       GTK4 for Python" || { echo "  MISSING  GTK4 for Python   (sudo pacman -S gtk4 python-gobject)"; missing=1; }
+  if desktop_ok; then echo "  ok       gtk4-layer-shell (Launcher, App drawer, desktop)"
+  else echo "  MISSING  gtk4-layer-shell   (sudo pacman -S gtk4-layer-shell); the desktop menu and widgets need it"; missing=1; fi
   echo "XLIN commands:"
   for b in xlin xlin-dock-watch xlin-settings xlin-tools xlin-welcome xlin-files xlin-monitor xlin-terminal xlin-desktop xlin-launcher xlin-start xlin-store xlin-media xlin-debug; do
     have "$b" && printf '  ok       %s\n' "$b" || { printf '  MISSING  %s   (run ./update.sh)\n' "$b"; missing=1; }
@@ -653,6 +668,7 @@ cmd_doctor() {
   chk optional grim grim;              chk optional slurp slurp;          chk optional wl-copy wl-clipboard
   chk optional cliphist cliphist;      chk optional powerprofilesctl power-profiles-daemon
   chk optional bluetoothctl "bluez bluez-utils"
+  chk optional pkexec polkit;          chk optional playerctl playerctl
   echo "Services:"
   local svc
   for svc in NetworkManager bluetooth power-profiles-daemon; do
@@ -661,6 +677,9 @@ cmd_doctor() {
   echo "Running now:"
   pgrep -x waybar >/dev/null && echo "  ok       waybar" || echo "  NOT RUNNING  waybar      (fix: xlin start)"
   pgrep -x swaync >/dev/null && echo "  ok       swaync (control panel)" || echo "  NOT RUNNING  swaync      (fix: xlin start)"
+  if [[ -f "$STATE/desktop_off" ]]; then echo "  off      desktop layer (xlin desktop on)"
+  elif pgrep -f '[x]lin-desktop$' >/dev/null; then echo "  ok       desktop layer (right-click menu and widgets)"
+  else echo "  NOT RUNNING  desktop layer (fix: xlin desktop restart; see ~/.cache/xlin/desktop.log)"; fi
   pgrep -f xlin-dock-watch >/dev/null && echo "  ok       run bar watcher" || echo "  NOT RUNNING  run bar watcher (fix: xlin start)"
   pgrep -f '^nwg-dock-hyprland' >/dev/null && echo "  ok       run bar visible" || echo "  not running  run bar (normal if nothing is open or pinned)"
   pgrep -x hypridle >/dev/null && echo "  ok       auto-lock" || echo "  off      auto-lock (xlin idle on)"
@@ -931,7 +950,7 @@ cmd_start() {
 }
 
 # ================================================================= XLIN CLI
-XLIN_VERSION="0.41.0"
+XLIN_VERSION="0.42.0"
 
 if [[ -t 1 ]]; then B=$'\e[1m'; D=$'\e[2m'; R=$'\e[0m'; else B=""; D=""; R=""; fi
 die() { echo "xlin: $*" >&2; return 1; }
@@ -1789,7 +1808,9 @@ case "${1:-help}" in
   terminal)  shift; cmd_terminal "${1:-}" "${2:-}" "${3:-}" ;;
   tools)     shift; cmd_tools "${1:-}" ;;
   start)     cmd_start ;;
-  restart)   pkill -x waybar 2>/dev/null; pkill -x swaync 2>/dev/null; sleep 0.5; cmd_start ;;
+  restart)   pkill -x waybar 2>/dev/null; pkill -x swaync 2>/dev/null
+             pkill -f '[x]lin-(launcher|start|store|settings|files)( |$)' 2>/dev/null   # waiting apps load the new version
+             sleep 0.5; cmd_start ;;
   toggle)    shift; cmd_toggle "${1:-}" ;;
   settings)  shift; cmd_settings "${1:-}" ;;
   panel)     cmd_panel ;;

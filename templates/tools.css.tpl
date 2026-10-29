@@ -196,8 +196,10 @@ window.xlin-launcher /* ---- the Launcher / Start menu (xlin-start) ---- */
 
 /* ---- the App drawer: a phone-style grid of every app ---- */
 window.xlin-launcher entry.drawer-search { border-radius: 22px; padding: 11px 18px; }
-.drawer-item { padding: 14px 4px 10px 4px; border-radius: 16px; background-color: transparent; border: none; box-shadow: none; }
-.drawer-item.selected, .drawer-item:hover { background-color: @C_SOFT@; }
+.drawer-item { padding: 10px 4px 8px 4px; border-radius: 16px; background-color: transparent; border: none; box-shadow: none; }
+.drawer-icon { padding: 10px; border-radius: 18px; background-color: @C_SOFT@; }
+.drawer-item.selected .drawer-icon, .drawer-item:hover .drawer-icon { background-color: @C_ACCENT_SOFT@; }
+.drawer-item.selected, .drawer-item:hover { background-color: transparent; }
 .drawer-name { color: @C_INK@; font-size: @C_PT9@pt; font-weight: 500; }
 
 .launcher-msg { color: @C_MUTED@; font-size: @C_PT11@pt; padding: 0; }

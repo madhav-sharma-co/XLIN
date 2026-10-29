@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Desktop
+GenericName=Apps and widgets
+Comment=Choose desktop apps and widgets
+Exec=xlin desktop restart
+Icon=xlin-tools
+Terminal=false
+NoDisplay=true
+Categories=System;
+StartupWMClass=dev.xlin.Desktop

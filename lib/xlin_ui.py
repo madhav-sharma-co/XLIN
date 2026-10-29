@@ -152,3 +152,31 @@ def keep_warm(app, win):
             return True
         return False
     win.connect("close-request", closing)
+
+
+def user_name():
+    import getpass
+    try:
+        import pwd
+        full = pwd.getpwnam(getpass.getuser()).pw_gecos.split(",")[0].strip()
+        return full or getpass.getuser()
+    except Exception:
+        return getpass.getuser()
+
+
+def footer(close):
+    """The bottom row of the Launcher and the App drawer: your name, then Files, Settings, Lock and Power."""
+    bar = Gtk.Box(spacing=6)
+    bar.add_css_class("start-footer")
+    name = Gtk.Label(label=user_name(), xalign=0, hexpand=True)
+    name.add_css_class("start-user")
+    bar.append(name)
+    for glyph, tip, cmd in (("🗀", "Files", ["xlin", "files"]), ("⚙", "Settings", ["xlin", "settings"]),
+                            ("🔒", "Lock", ["xlin", "lock"]), ("⏻", "Power", ["xlin", "session"])):
+        b = Gtk.Button(label=glyph)
+        b.add_css_class("win-btn")
+        b.set_tooltip_text(tip)
+        b.set_focusable(False)
+        b.connect("clicked", lambda _b, c=cmd: (run(c), close()))
+        bar.append(b)
+    return bar

@@ -76,7 +76,7 @@ fi
 # the name to a huge "all Google fonts" package.
 
 # Daily-use extras: screenshots, clipboard history, auto-lock, night light, screen-share portal
-for pkg in vte4 gtk4-layer-shell udisks2 gvfs gvfs-smb grim slurp wl-clipboard cliphist hypridle hyprsunset xdg-desktop-portal-hyprland xdg-desktop-portal-gtk hyprpolkitagent; do
+for pkg in vte4 gtk4-layer-shell udisks2 gvfs gvfs-smb grim slurp wl-clipboard cliphist hypridle hyprsunset xdg-desktop-portal-hyprland xdg-desktop-portal-gtk hyprpolkitagent polkit playerctl gst-plugins-good gst-libav; do
   sudo pacman -S --needed --noconfirm "$pkg" >/dev/null 2>&1 || echo "   (could not install $pkg)"
 done
 

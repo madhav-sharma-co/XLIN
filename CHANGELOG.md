@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.42.0
+- App drawer now looks like the Launcher (same panel, same height, "All apps" title with a Back button, same bottom row with your name, Files, Settings, Lock and Power) with a phone-style grid: every app icon sits on a soft rounded tile
+- Fix: `xlin restart` (and so every update) also restarts the apps that wait out of sight, so a new Launcher, drawer, Settings, Files or Store shows up straight away instead of the old one
+
+## 0.41.1
+- Fix: clicking the Run Bar button while the App drawer (or Launcher) is open closed and re-opened it; now it just closes
+- Fix: the Clock tool and the Apps and widgets window had no app icon on the Run Bar (an orange X)
+- Right-clicking the desktop restarts the desktop layer if it had stopped (at most once a minute)
+- `xlin doctor` also checks gtk4-layer-shell, polkit, playerctl and whether the desktop layer is running; the installer adds polkit, playerctl and the media codecs
+
 ## 0.41.0
 - Show desktop (Super+Shift+D, `xlin showdesktop`): hides every window on the workspace, again brings them back
 - Touchpad: three fingers left/right switch workspace, up opens the Launcher, down shows the desktop

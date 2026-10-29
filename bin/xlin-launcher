@@ -8,6 +8,7 @@ import glob
 import os
 import subprocess
 import sys
+import time
 
 # gtk4-layer-shell must be loaded before libwayland-client: preload it once, then restart ourselves
 if not os.environ.get("XLIN_LAUNCHER_REEXEC"):
@@ -37,6 +38,7 @@ CSS_FILE = os.path.join(HOME, ".config/xlin/tools.css")
 PINS = os.path.join(HOME, ".cache/nwg-dock-pinned")
 RECENT = os.path.join(HOME, ".config/xlin/state/recent")
 COLUMNS = 5
+SCROLL_H = 342        # + the title row = the Launcher's 400px of content
 CELL_W = (600 - 2 * 16 - 2) // COLUMNS
 PIN_FLAG = os.path.join(HOME, ".cache/xlin/drawer-pin")     # `xlin launcher pin` leaves this for us
 MSG_NORMAL = ""
@@ -83,6 +85,8 @@ class Launcher(Gtk.Window):
         self.set_decorated(False)
         self.set_resizable(False)
         self.was_active = False
+        self.hidden_at = 0.0
+        self.connect("notify::visible", lambda w, _p: (not w.get_visible()) and setattr(w, "hidden_at", time.monotonic()))
         self.pin = False
         self.menu_open = False
 
@@ -118,6 +122,17 @@ class Launcher(Gtk.Window):
         top.append(xlin_ui.close_button(self))       # panels only get a close button
         box.append(top)
 
+        head = Gtk.Box(spacing=8)
+        title = Gtk.Label(label="All apps", xalign=0, hexpand=True)
+        title.add_css_class("start-section")
+        head.append(title)
+        back = Gtk.Button(label="‹  Launcher")
+        back.add_css_class("start-link")
+        back.set_focusable(False)
+        back.connect("clicked", lambda _b: (xlin_ui.run(["xlin", "launcher"]), self.close()))
+        head.append(back)
+        box.append(head)
+
         self.msg = Gtk.Label(label=MSG_NORMAL, xalign=0)
         self.msg.add_css_class("launcher-msg")
         self.msg.set_visible(False)
@@ -131,6 +146,7 @@ class Launcher(Gtk.Window):
         self.cell_h = 0
         self.scroll.set_child(self.grid)
         box.append(self.scroll)
+        box.append(xlin_ui.footer(self.close))        # same bottom row as the Launcher
 
         keys = Gtk.EventControllerKey()
         keys.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
@@ -180,7 +196,8 @@ class Launcher(Gtk.Window):
             cell.set_size_request(CELL_W, -1)      # 5 fixed columns even when few apps match
             cell.add_css_class("drawer-item")
             img = Gtk.Image()
-            img.set_pixel_size(52)
+            img.set_pixel_size(40)
+            img.add_css_class("drawer-icon")             # a soft rounded tile behind every icon, like a phone
             img.set_halign(Gtk.Align.CENTER)
             if icon is not None:
                 img.set_from_gicon(icon)
@@ -215,14 +232,14 @@ class Launcher(Gtk.Window):
                 (c.add_css_class if i == idx else c.remove_css_class)("selected")
 
     def fix_height(self):
-        """Always four rows tall (about as tall as the Launcher), whatever the font makes one row."""
+        """Same height as the Launcher, whatever the font makes one row."""
         if not self.cells:
             return
         if not self.cell_h:
             _m, nat, _b, _c = self.cells[0].measure(Gtk.Orientation.VERTICAL, -1)
             self.cell_h = max(nat, 70)
-            self.scroll.set_min_content_height(4 * self.cell_h + 3 * 6)
-            self.scroll.set_max_content_height(4 * self.cell_h + 3 * 6)
+            self.scroll.set_min_content_height(SCROLL_H)
+            self.scroll.set_max_content_height(SCROLL_H)
 
     def mark(self):
         for i, c in enumerate(self.cells):
@@ -262,7 +279,7 @@ class Launcher(Gtk.Window):
             return
         self.sel = idx
         self.mark()
-        aid, name = self.shown[idx][0], self.shown[idx][1]
+        aid = self.shown[idx][0]
         pinned = aid in read_ids(PINS)
         pop = Gtk.Popover()
         pop.add_css_class("files-menu")
@@ -369,6 +386,8 @@ class LauncherApp(Gtk.Application):
             self.win.show_fresh(pin)
         elif self.win.get_visible() and not pin:
             self.win.close()                 # the same key again closes it
+        elif not pin and time.monotonic() - self.win.hidden_at < 0.4:
+            return                           # a click on the button that just closed it (focus loss): stay closed
         else:
             self.win.show_fresh(pin)
 

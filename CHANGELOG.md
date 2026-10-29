@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.44.0
+- Install and update now install any missing dependency automatically (one shared list in scripts/deps.sh; asks for the password only when something is missing). Falls back to the AUR, retries packages one by one, starts the Wi-Fi/Bluetooth/power services
+- New command: `xlin deps` repairs missing packages any time
+
 ## 0.43.0
 - Tap the Super key: opens the Launcher (Start menu). Super+Space opens the App drawer. (A tap is ignored when Super was just part of another shortcut)
 - App drawer uses the Launcher's own app style (same icons, names and highlight, six per row), not a different one

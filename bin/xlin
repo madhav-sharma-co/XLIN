@@ -960,7 +960,7 @@ cmd_start() {
 }
 
 # ================================================================= XLIN CLI
-XLIN_VERSION="0.43.0"
+XLIN_VERSION="0.44.0"
 
 if [[ -t 1 ]]; then B=$'\e[1m'; D=$'\e[2m'; R=$'\e[0m'; else B=""; D=""; R=""; fi
 die() { echo "xlin: $*" >&2; return 1; }
@@ -1594,6 +1594,13 @@ cmd_update() {
   (cd "$src" && ./update.sh)
 }
 
+# xlin deps: install anything XLIN needs that is missing (same step as install.sh / update.sh)
+cmd_deps() {
+  local src; src="$(head -n1 "$STATE/source" 2>/dev/null || true)"
+  [[ -f "$src/scripts/deps.sh" ]] || { echo "Run this from the XLIN folder: ./scripts/deps.sh"; return 3; }
+  bash "$src/scripts/deps.sh"
+}
+
 # Shortcut list. Edit config/hypr/xlin.conf to change keys; keep this table in step.
 KEYS_TABLE='Apps|Super (tap)|Launcher (Start menu)
 Apps|Super+Space|App drawer (all apps)
@@ -1813,6 +1820,7 @@ case "${1:-help}" in
   bar)       shift; cmd_bar "$@" ;;
   opacity)   shift; cmd_opacity "${1:-}" ;;
   superkey)  cmd_superkey ;;
+  deps)      cmd_deps ;;
   reset)     cmd_reset ;;
   showdesktop|show-desktop) cmd_showdesktop ;;
   warm)      shift; cmd_warm "${1:-}" ;;

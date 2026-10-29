@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Update XLIN from this folder WITHOUT installing packages.
-# Use this after downloading a newer xlin.tar.gz:   ./update.sh
+# Update XLIN from this folder. Missing dependencies are installed automatically.
+#   ./update.sh
 set -euo pipefail
 
 SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -23,21 +23,9 @@ cp "$SRC/config/waybar/config.jsonc" "$HOME/.config/waybar/config.jsonc"
 cp "$SRC/config/waybar/config.jsonc" "$XLIN_HOME/waybar-base.jsonc"
 cp "$SRC/config/swaync/config.json" "$HOME/.config/swaync/config.json"
 
-say "Power modes need power-profiles-daemon (skipped if you have it)"
-sudo pacman -S --needed --noconfirm power-profiles-daemon || echo "(could not install it; the battery menu will show how)"
-sudo systemctl enable --now power-profiles-daemon 2>/dev/null || true
-
-say "Lock screen"
-sudo pacman -S --needed --noconfirm hyprlock || echo "(could not install hyprlock; Super+L will tell you)"
-
-say "Daily-use extras (screenshots, clipboard, auto-lock, night light, portals)"
-for pkg in vte4 gtk4-layer-shell udisks2 gvfs gvfs-smb grim slurp wl-clipboard cliphist hypridle hyprsunset xdg-desktop-portal-hyprland xdg-desktop-portal-gtk hyprpolkitagent polkit playerctl gst-plugins-good gst-libav; do
-  sudo pacman -S --needed --noconfirm "$pkg" >/dev/null 2>&1 || echo "   (could not install $pkg)"
-done
-# XLIN Terminal needs vte4; if that is not possible, install kitty so there is always a terminal
-python3 -c "import gi; gi.require_version('Vte','3.91')" >/dev/null 2>&1 || \
-  sudo pacman -S --needed --noconfirm kitty >/dev/null 2>&1 || echo "   (no terminal could be installed: sudo pacman -S vte4)"
-systemctl --user enable --now hyprpolkitagent.service >/dev/null 2>&1 || true
+say "Checking dependencies (installs anything that is missing)"
+source "$SRC/scripts/deps.sh"
+xlin_deps || echo "(some packages are missing; the message above says which)"
 
 say "Installing the xlin commands (asks for your password once)"
 for b in xlin xlin-dock-watch xlin-settings xlin-tools xlin-welcome xlin-files xlin-monitor xlin-terminal xlin-desktop xlin-launcher xlin-start xlin-store xlin-media xlin-debug; do

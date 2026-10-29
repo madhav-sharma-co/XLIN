@@ -370,8 +370,16 @@ load_apps() {
 }
 
 launch_id() {
+  local f exec_line
+  f="$(find /usr/share/applications "$HOME/.local/share/applications" -name "$1.desktop" 2>/dev/null | head -1)"
+  # terminal apps (btop, htop, ...): open them in the XLIN terminal; gtk-launch cannot find one on its own
+  if [[ -n "$f" ]] && grep -qix 'Terminal=true' "$f"; then
+    exec_line="$(grep -m1 '^Exec=' "$f" | cut -d= -f2- | sed -E 's/ %[a-zA-Z]//g')"
+    # shellcheck disable=SC2086
+    [[ -n "$exec_line" ]] && { cmd_term -e $exec_line; return; }
+  fi
   if have gtk-launch; then gtk-launch "$1" >/dev/null 2>&1 &
-  else gio launch "$(find /usr/share/applications "$HOME/.local/share/applications" -name "$1.desktop" | head -1)" >/dev/null 2>&1 &
+  else gio launch "$f" >/dev/null 2>&1 &
   fi
 }
 
@@ -960,7 +968,7 @@ cmd_start() {
 }
 
 # ================================================================= XLIN CLI
-XLIN_VERSION="0.45.0"
+XLIN_VERSION="0.45.1"
 
 if [[ -t 1 ]]; then B=$'\e[1m'; D=$'\e[2m'; R=$'\e[0m'; else B=""; D=""; R=""; fi
 die() { echo "xlin: $*" >&2; return 1; }

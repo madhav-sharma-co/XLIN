@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.45.1
+- Terminal apps (btop, htop...) opened from the Launcher or drawer now open in the XLIN terminal instead of failing with "Unable to find terminal"
+
 ## 0.45.0
 - App drawer rebuilt from the Launcher's own code: same panel, search box, app cells and colours; narrower and taller (like a phone), apps only. Right-click an app: Open, Pin / Unpin on the Run Bar, Pin / Unpin in the Launcher
 - Launcher footer: Files and Lock buttons removed (name, Settings and Power remain)

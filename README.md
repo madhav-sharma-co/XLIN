@@ -70,7 +70,7 @@ Tab completion works in the XLIN terminal.
 
 ## Notes
 
-- Hyprland 0.53+ window and layer rule syntax is used.
+- Hyprland 0.53+ window and layer rule syntax is used. Hyprland 0.55+ with the new Lua config (`hyprland.lua`, the only format from 0.57) is supported: the installer detects it, adds `pcall(require, "xlin")` as the last line of `hyprland.lua` (keeping a backup) and creates the file if it is missing. Older Hyprland keeps using `hyprland.conf`. Shortcuts not working? Run `xlin hook` then `hyprctl reload`.
 - Dock flags can differ between nwg-dock-hyprland versions; see `dock_start` in `bin/xlin`.
 - Logs are in `~/.cache/xlin/`.
 

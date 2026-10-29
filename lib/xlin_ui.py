@@ -9,11 +9,31 @@ import subprocess
 from gi.repository import Gtk
 
 
+_MODE = None
+
+
+def hypr_is_lua():
+    """True when Hyprland reads a Lua config (hyprland.lua, always the case from Hyprland 0.57)."""
+    global _MODE
+    if _MODE is None:
+        try:
+            out = subprocess.run(["xlin", "hypr-mode"], capture_output=True, text=True, timeout=3).stdout.strip()
+        except Exception:
+            out = ""
+        _MODE = out or ("lua" if os.path.exists(os.path.expanduser("~/.config/hypr/hyprland.lua")) else "conf")
+    return _MODE == "lua"
+
+
 def _hypr(*args):
     try:
         subprocess.Popen(["hyprctl", *args], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except OSError:
         pass
+
+
+def hypr_lua(code):
+    """Run Lua inside Hyprland (hyprctl eval)."""
+    _hypr("eval", code)
 
 
 def _address(win):
@@ -34,14 +54,22 @@ def hide_window(win=None):
     """Send this window out of sight (Super+H or `xlin unhide` brings it back)."""
     addr = _address(win)
     if addr:
-        _hypr("dispatch", "movetoworkspacesilent", f"special:xlin-hidden,address:{addr}")
+        if hypr_is_lua():
+            hypr_lua('hl.dispatch(hl.dsp.window.move({ workspace = "special:xlin-hidden", follow = false, '
+                     f'window = "address:{addr}" }}))')
+        else:
+            _hypr("dispatch", "movetoworkspacesilent", f"special:xlin-hidden,address:{addr}")
 
 
 def toggle_fullscreen(win=None):
     """Real fullscreen, exactly like Super+F; press again to leave it."""
     addr = _address(win)
     if addr:
-        _hypr("--batch", f"dispatch focuswindow address:{addr} ; dispatch fullscreen 0")
+        if hypr_is_lua():
+            hypr_lua(f'hl.dispatch(hl.dsp.focus({{ window = "address:{addr}" }})); '
+                     'hl.dispatch(hl.dsp.window.fullscreen({ mode = "fullscreen", action = "toggle" }))')
+        else:
+            _hypr("--batch", f"dispatch focuswindow address:{addr} ; dispatch fullscreen 0")
 
 
 def _button(glyph, tip, css, fn):

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.47.0
+- Hyprland 0.57 support: it dropped the old hyprland.conf format, so a fresh install showed XLIN's bars but Hyprland's default keys and settings. XLIN now ships a Lua config (config/hypr/xlin.lua, generated colours and opacity as .lua too) and the installer / `xlin hook` detect the Hyprland version, create or extend `hyprland.lua` and keep XLIN loaded last. Older versions keep using hyprland.conf
+- Window hide / fullscreen / show-desktop, screen-off (`xlin dpms`), opacity and shortcut repair work on both config kinds
+- `xlin start` re-checks the hook at every login, so XLIN's settings are re-applied after a reboot (never reset)
+- Tap Super uses Hyprland's modifier-key bind in the Lua config
+
 ## 0.46.0
 - The App drawer is removed. The Launcher (tap Super, Super+Space or the Run Bar button) now shows Pinned, Recent and a full All apps list below, like the Windows Start menu. `xlin drawer` still works and opens the Launcher
 

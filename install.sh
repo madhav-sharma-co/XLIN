@@ -66,13 +66,15 @@ cp "$SRC/config/waybar/config.jsonc" "$HOME/.config/waybar/config.jsonc"
 cp "$SRC/config/waybar/config.jsonc" "$XLIN_HOME/waybar-base.jsonc"
 backup "$HOME/.config/swaync/config.json"
 cp "$SRC/config/swaync/config.json" "$HOME/.config/swaync/config.json"
-cp "$SRC/config/hypr/xlin.conf" "$HOME/.config/hypr/xlin.conf"
+cp "$SRC/config/hypr/xlin.conf" "$SRC/config/hypr/xlin.lua" "$HOME/.config/hypr/"
 
-# ------------------------------------------------------- hyprland.conf hook
-HC="$HOME/.config/hypr/hyprland.conf"
-touch "$HC"
-backup "$HC"
-/usr/local/bin/xlin hook      # puts the XLIN line last in hyprland.conf, so the shortcuts always work
+# ----------------------------------------------- hook XLIN into the Hyprland config
+# Hyprland 0.55+ reads hyprland.lua (0.57 dropped hyprland.conf); older versions read hyprland.conf.
+# `xlin hook` picks the right one, keeps a backup, and puts XLIN last so its shortcuts always work.
+for hc in "$HOME/.config/hypr/hyprland.lua" "$HOME/.config/hypr/hyprland.conf"; do
+  [[ -f "$hc" ]] && backup "$hc"
+done
+/usr/local/bin/xlin hook
 
 # ------------------------------------------------------------------- theme
 say "Applying light theme"

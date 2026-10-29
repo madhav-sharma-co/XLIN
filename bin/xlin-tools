@@ -638,8 +638,12 @@ def place_window(app_id, stagger, center=False):
             y = int(mon["y"] + top + 8 + 26 * n)
         if abs(me["at"][0] - x) <= 6 and abs(me["at"][1] - y) <= 6:
             return False   # the window rule already opened it there: no jump, no animation
-        subprocess.run(["hyprctl", "dispatch", "movewindowpixel",
-                        f"exact {x} {y},address:{me['address']}"], capture_output=True, timeout=3)
+        if xlin_ui.hypr_is_lua():
+            subprocess.run(["hyprctl", "eval", f'hl.dispatch(hl.dsp.window.move({{ window = "address:{me["address"]}", '
+                            f'x = {x}, y = {y} }}))'], capture_output=True, timeout=3)
+        else:
+            subprocess.run(["hyprctl", "dispatch", "movewindowpixel",
+                            f"exact {x} {y},address:{me['address']}"], capture_output=True, timeout=3)
     except Exception:
         pass  # not on Hyprland, or the window rules already placed it
     return False

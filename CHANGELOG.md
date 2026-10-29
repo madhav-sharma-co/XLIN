@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.47.1
+- Fixed the Hyprland error "gesture will be overshadowed by a previous gesture" on top of the screen (Hyprland's example config already has the same three-finger swipe)
+
 ## 0.47.0
 - Hyprland 0.57 support: it dropped the old hyprland.conf format, so a fresh install showed XLIN's bars but Hyprland's default keys and settings. XLIN now ships a Lua config (config/hypr/xlin.lua, generated colours and opacity as .lua too) and the installer / `xlin hook` detect the Hyprland version, create or extend `hyprland.lua` and keep XLIN loaded last. Older versions keep using hyprland.conf
 - Window hide / fullscreen / show-desktop, screen-off (`xlin dpms`), opacity and shortcut repair work on both config kinds

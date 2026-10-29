@@ -178,6 +178,16 @@ for d, xy in pairs(resize) do
 end
 
 -- workspaces; touchpad: three fingers left / right = workspace, up = Launcher, down = show desktop
+-- Hyprland's own example config already has the same three-finger swipe; drop it first, or Hyprland
+-- shows a "gesture will be overshadowed" error. (Only when it is really there.)
+do
+    local f = io.open((os.getenv("HOME") or "") .. "/.config/hypr/hyprland.lua", "r")
+    local text = f and f:read("*a") or ""
+    if f then f:close() end
+    if text:find('direction%s*=%s*"horizontal"') then
+        hl.gesture({ fingers = 3, direction = "horizontal", action = "unset" })
+    end
+end
 hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
 hl.gesture({ fingers = 3, direction = "up", action = function() hl.exec_cmd("xlin launcher") end })
 hl.gesture({ fingers = 3, direction = "down", action = function() hl.exec_cmd("xlin showdesktop") end })

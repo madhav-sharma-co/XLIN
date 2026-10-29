@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.43.0
+- Tap the Super key: opens the Launcher (Start menu). Super+Space opens the App drawer. (A tap is ignored when Super was just part of another shortcut)
+- App drawer uses the Launcher's own app style (same icons, names and highlight, six per row), not a different one
+- Pins are separate now: right-click an app (in the drawer or the Launcher) for Open, Pin / Unpin on the Run Bar, and Pin / Unpin in the Launcher. The Launcher's Pinned area shows what you pinned there; Settings -> Launcher lists both
+
 ## 0.42.0
 - App drawer now looks like the Launcher (same panel, same height, "All apps" title with a Back button, same bottom row with your name, Files, Settings, Lock and Power) with a phone-style grid: every app icon sits on a soft rounded tile
 - Fix: `xlin restart` (and so every update) also restarts the apps that wait out of sight, so a new Launcher, drawer, Settings, Files or Store shows up straight away instead of the old one

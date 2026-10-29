@@ -50,6 +50,7 @@ class Start(Gtk.Window):
         self.set_resizable(False)
         self.was_active = False
         self.hidden_at = 0.0
+        self.menu_open = False
         self.connect("notify::visible", lambda w, _p: (not w.get_visible()) and setattr(w, "hidden_at", time.monotonic()))
         self.sel = 0
         self.results = []
@@ -125,6 +126,9 @@ class Start(Gtk.Window):
         click = Gtk.GestureClick(button=1)
         click.connect("released", lambda _g, _n, _x, _y, a=aid: self.launch(a))
         cell.add_controller(click)
+        right = Gtk.GestureClick(button=3)
+        right.connect("pressed", lambda g, _n, x, y, a=aid, c=cell: self.menu(g, c, x, y, a))
+        cell.add_controller(right)
         return cell
 
     def section(self, text, button=None):
@@ -143,9 +147,14 @@ class Start(Gtk.Window):
     def home_page(self):
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         page.append(self.section("Pinned", ("All apps  ›", self.open_drawer)))
-        pinned = [i for i in xlin_ui.read_ids(PINS) if i in self.by_id]
+        pins = xlin_ui.launcher_pins()
+        if pins is None:                    # nothing pinned here yet: start with the Run Bar's apps
+            pins = xlin_ui.read_ids(PINS) or [a[0] for a in self.apps]
+        pinned = [i for i in pins if i in self.by_id]
         if not pinned:
-            pinned = [a[0] for a in self.apps]
+            hint = Gtk.Label(label="Nothing pinned yet. Open All apps and right-click an app to pin it here.", xalign=0)
+            hint.add_css_class("launcher-msg")
+            page.append(hint)
         grid = Gtk.Grid(row_spacing=6, column_spacing=6, halign=Gtk.Align.START)
         for n, aid in enumerate(pinned[:PIN_MAX]):
             cell = self.app_cell(aid)
@@ -180,10 +189,27 @@ class Start(Gtk.Window):
         click = Gtk.GestureClick(button=1)
         click.connect("released", lambda _g, _n, _x, _y, a=aid: self.launch(a))
         row.add_controller(click)
+        right = Gtk.GestureClick(button=3)
+        right.connect("pressed", lambda g, _n, x, y, a=aid, r=row: self.menu(g, r, x, y, a))
+        row.add_controller(right)
         hover = Gtk.EventControllerMotion()
         hover.connect("enter", lambda _c, _x, _y, r=row: self.hover_row(r))
         row.add_controller(hover)
         return row
+
+    def menu(self, gesture, widget, x, y, aid):
+        gesture.set_state(Gtk.EventSequenceState.CLAIMED)
+        xlin_ui.app_menu(widget, x, y, aid, refresh=self.rebuild_home, hold=self.set_menu)
+
+    def set_menu(self, state):
+        self.menu_open = state
+
+    def rebuild_home(self):
+        self.stack.remove(self.home)
+        self.home = self.home_page()
+        self.stack.add_named(self.home, "home")
+        if not self.entry.get_text().strip():
+            self.stack.set_visible_child_name("home")
 
     def footer(self):
         return xlin_ui.footer(self.close)
@@ -272,7 +298,7 @@ class Start(Gtk.Window):
     def on_active(self, *_a):
         if self.is_active():
             self.was_active = True
-        elif self.was_active:
+        elif self.was_active and not self.menu_open:
             self.close()
 
 

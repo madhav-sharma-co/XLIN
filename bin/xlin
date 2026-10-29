@@ -921,6 +921,16 @@ cmd_showdesktop() {
   return 0
 }
 
+# Tapping the Super key opens the Launcher. Hyprland also reports the release of Super at the end of every
+# Super+key shortcut, so it is ignored when something else just happened (xlin-dock-watch stamps every event).
+cmd_superkey() {
+  local f="${XDG_RUNTIME_DIR:-/tmp}/xlin-last-event" last now
+  now="${EPOCHREALTIME/./}"
+  last="$(cat "$f" 2>/dev/null)"; last="${last/./}"
+  if [[ -n "$last" ]] && (( now - last < 1200000 )); then return 0; fi
+  cmd_launcher
+}
+
 cmd_warm() {
   case "${1:-}" in
     on)  rm -f "$STATE/warm_off"; warm_start; echo "keep apps ready: on" ;;
@@ -950,7 +960,7 @@ cmd_start() {
 }
 
 # ================================================================= XLIN CLI
-XLIN_VERSION="0.42.0"
+XLIN_VERSION="0.43.0"
 
 if [[ -t 1 ]]; then B=$'\e[1m'; D=$'\e[2m'; R=$'\e[0m'; else B=""; D=""; R=""; fi
 die() { echo "xlin: $*" >&2; return 1; }
@@ -1479,7 +1489,7 @@ EOT
 # mods|key|command  (the Hyprland binds that start XLIN things; terminal and window keys are not listed)
 keys_expected() {
   cat <<'EOT'
-SUPER|SPACE|xlin launcher
+SUPER|SPACE|xlin drawer
 SUPER|E|xlin files
 SUPER|S|xlin settings
 SUPER|C|xlin panel
@@ -1585,7 +1595,8 @@ cmd_update() {
 }
 
 # Shortcut list. Edit config/hypr/xlin.conf to change keys; keep this table in step.
-KEYS_TABLE='Apps|Super+Space|Launcher
+KEYS_TABLE='Apps|Super (tap)|Launcher (Start menu)
+Apps|Super+Space|App drawer (all apps)
 Apps|Super+Return / Super+T|Terminal
 Apps|Super+E|Files (Explorer) - XLIN Files
 Apps|Super+S|Settings
@@ -1801,6 +1812,7 @@ case "${1:-help}" in
              esac ;;
   bar)       shift; cmd_bar "$@" ;;
   opacity)   shift; cmd_opacity "${1:-}" ;;
+  superkey)  cmd_superkey ;;
   reset)     cmd_reset ;;
   showdesktop|show-desktop) cmd_showdesktop ;;
   warm)      shift; cmd_warm "${1:-}" ;;

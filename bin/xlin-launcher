@@ -37,9 +37,9 @@ HOME = os.path.expanduser("~")
 CSS_FILE = os.path.join(HOME, ".config/xlin/tools.css")
 PINS = os.path.join(HOME, ".cache/nwg-dock-pinned")
 RECENT = os.path.join(HOME, ".config/xlin/state/recent")
-COLUMNS = 5
+COLUMNS = 6
 SCROLL_H = 342        # + the title row = the Launcher's 400px of content
-CELL_W = (600 - 2 * 16 - 2) // COLUMNS
+CELL_W = (600 - 2 * 16 - 2 - 5 * 6) // COLUMNS      # the same cells as the Launcher's pinned apps
 PIN_FLAG = os.path.join(HOME, ".cache/xlin/drawer-pin")     # `xlin launcher pin` leaves this for us
 MSG_NORMAL = ""
 MSG_PIN = "Pick an app to pin to the run bar"
@@ -112,7 +112,6 @@ class Launcher(Gtk.Window):
 
         self.entry = Gtk.Entry()
         self.entry.add_css_class("launcher-search")
-        self.entry.add_css_class("drawer-search")
         self.entry.set_placeholder_text("Search apps")
         self.entry.connect("changed", lambda _e: self.rebuild())
         self.entry.connect("activate", lambda _e: self.activate_selected())
@@ -192,21 +191,20 @@ class Launcher(Gtk.Window):
             self.grid.remove(c)
         self.cells = []
         for i, (aid, name, icon) in enumerate(self.shown):
-            cell = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=7)
-            cell.set_size_request(CELL_W, -1)      # 5 fixed columns even when few apps match
-            cell.add_css_class("drawer-item")
+            cell = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+            cell.set_size_request(CELL_W, -1)      # fixed columns even when few apps match
+            cell.add_css_class("launcher-item")      # exactly the Launcher's app style
             img = Gtk.Image()
-            img.set_pixel_size(40)
-            img.add_css_class("drawer-icon")             # a soft rounded tile behind every icon, like a phone
+            img.set_pixel_size(36)
             img.set_halign(Gtk.Align.CENTER)
             if icon is not None:
                 img.set_from_gicon(icon)
             else:
                 img.set_from_icon_name("application-x-executable")
             lab = Gtk.Label(label=name)
-            lab.add_css_class("drawer-name")
+            lab.add_css_class("launcher-name")
             lab.set_ellipsize(Pango.EllipsizeMode.END)
-            lab.set_max_width_chars(12)
+            lab.set_max_width_chars(10)
             lab.set_justify(Gtk.Justification.CENTER)
             cell.append(img)
             cell.append(lab)
@@ -273,36 +271,13 @@ class Launcher(Gtk.Window):
         self.close()
 
     def app_menu(self, gesture, idx, cell, x, y):
-        """Right-click an app: Open, Pin to the Run Bar or Unpin from it."""
+        """Right-click an app: Open, pin or unpin on the Run Bar, pin or unpin in the Launcher."""
         gesture.set_state(Gtk.EventSequenceState.CLAIMED)
         if not 0 <= idx < len(self.shown):
             return
         self.sel = idx
         self.mark()
-        aid = self.shown[idx][0]
-        pinned = aid in read_ids(PINS)
-        pop = Gtk.Popover()
-        pop.add_css_class("files-menu")
-        pop.set_parent(cell)
-        pop.set_has_arrow(False)
-        rect = Gdk.Rectangle()
-        rect.x, rect.y, rect.width, rect.height = int(x), int(y), 1, 1
-        pop.set_pointing_to(rect)
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        box.set_size_request(190, -1)
-        items = [("Open", lambda: run(["xlin", "launch-app", aid])),
-                 ("Unpin from the Run Bar" if pinned else "Pin to the Run Bar",
-                  lambda: run(["xlin", "unpin" if pinned else "pin", aid]))]
-        for label, fn in items:
-            b = Gtk.Button(label=label, halign=Gtk.Align.FILL)
-            b.get_child().set_xalign(0)
-            b.add_css_class("files-menu-item")
-            b.connect("clicked", lambda _b, f=fn: (pop.popdown(), f(), GLib.timeout_add(120, self.close_later)))
-            box.append(b)
-        pop.set_child(box)
-        pop.connect("closed", lambda p: (setattr(self, "menu_open", False), GLib.idle_add(p.unparent)))
-        self.menu_open = True
-        pop.popup()
+        xlin_ui.app_menu(cell, x, y, self.shown[idx][0], hold=lambda state: setattr(self, "menu_open", state))
 
     def close_later(self):
         self.close()

@@ -10,4 +10,5 @@ socat -U - "UNIX-CONNECT:$sock" | while read -r line; do
   case "$line" in
     openwindow*|closewindow*) xlin dock check ;;
   esac
+  printf '%s' "$EPOCHREALTIME" >"${XDG_RUNTIME_DIR:-/tmp}/xlin-last-event"
 done

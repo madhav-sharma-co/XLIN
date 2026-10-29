@@ -745,7 +745,7 @@ def desktop_page(win):
 
 
 def launcher_page(win):
-    box = page_box("Launcher and App Drawer", "Pinned apps show in the Launcher and on the Run Bar")
+    box = page_box("Launcher and App Drawer", "Pin apps to the Launcher and to the Run Bar separately")
     c = card()
     box.append(c)
     pins = []
@@ -754,16 +754,24 @@ def launcher_page(win):
             pins = [ln.strip() for ln in f if ln.strip()]
     except OSError:
         pass
-    head = Gtk.Label(label="Pinned apps", xalign=0, margin_top=10)
-    head.add_css_class("xlin-sub")
-    c.append(head)
-    if not pins:
-        c.append(row("Nothing pinned yet", "Pin an app below, or press Alt+P in the App drawer"))
-    for pid in pins:
-        app = Gio.DesktopAppInfo.new(pid + ".desktop")
-        name = app.get_display_name() if app else pid
-        c.append(row(name, None, button("Unpin", lambda p=pid: in_thread(
-            lambda: run(["xlin", "unpin", p], 15), lambda _r: win.rebuild("launcher")))))
+    def section(title, ids, empty, unpin):
+        h = Gtk.Label(label=title, xalign=0, margin_top=10)
+        h.add_css_class("xlin-sub")
+        c.append(h)
+        if not ids:
+            c.append(row(empty, "Right-click an app in the App drawer to pin it"))
+        for pid in ids:
+            app = Gio.DesktopAppInfo.new(pid + ".desktop")
+            c.append(row(app.get_display_name() if app else pid, None, button("Unpin", lambda p=pid: unpin(p))))
+
+    def unpin_bar(p):
+        in_thread(lambda: run(["xlin", "unpin", p], 15), lambda _r: win.rebuild("launcher"))
+
+    def unpin_start(p):
+        xlin_ui.set_launcher_pin(p, False)
+        win.rebuild("launcher")
+    section("Pinned in the Launcher", xlin_ui.launcher_pins() or [], "Nothing pinned in the Launcher", unpin_start)
+    section("Pinned on the Run Bar", pins, "Nothing pinned on the Run Bar", unpin_bar)
     c2 = card()
     box.append(c2)
     c2.append(row("Pin an app", "Opens the App drawer: pick an app to pin", button(

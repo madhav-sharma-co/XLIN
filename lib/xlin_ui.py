@@ -180,3 +180,63 @@ def footer(close):
         b.connect("clicked", lambda _b, c=cmd: (run(c), close()))
         bar.append(b)
     return bar
+
+
+# ---- pins: apps pinned in the Launcher (Start menu) and apps pinned on the Run Bar
+LPINS = os.path.join(STATE_DIR, "launcher_pins")
+RPINS = os.path.expanduser("~/.cache/nwg-dock-pinned")
+
+
+def launcher_pins():
+    """None if nothing was ever pinned in the Launcher, else the list of app ids."""
+    return read_ids(LPINS) if os.path.exists(LPINS) else None
+
+
+def set_launcher_pin(aid, on):
+    ids = [i for i in (launcher_pins() or []) if i != aid]
+    if on:
+        ids.append(aid)
+    os.makedirs(STATE_DIR, exist_ok=True)
+    with open(LPINS, "w") as f:
+        f.write("".join(i + "\n" for i in ids))
+
+
+def app_menu(parent, x, y, aid, refresh=None, hold=None):
+    """Right-click menu for an app: Open, pin / unpin on the Run Bar, pin / unpin in the Launcher."""
+    from gi.repository import Gdk, GLib
+    on_bar = aid in read_ids(RPINS)
+    in_start = aid in (launcher_pins() or [])
+    pop = Gtk.Popover()
+    pop.add_css_class("files-menu")
+    pop.set_parent(parent)
+    pop.set_has_arrow(False)
+    rect = Gdk.Rectangle()
+    rect.x, rect.y, rect.width, rect.height = int(x), int(y), 1, 1
+    pop.set_pointing_to(rect)
+    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+    box.set_size_request(210, -1)
+
+    def pin_launcher():
+        set_launcher_pin(aid, not in_start)
+        if refresh:
+            refresh()
+    entries = [("Open", lambda: run(["xlin", "launch-app", aid])),
+               ("Unpin from the Run Bar" if on_bar else "Pin to the Run Bar",
+                lambda: run(["xlin", "unpin" if on_bar else "pin", aid])),
+               ("Unpin from the Launcher" if in_start else "Pin to the Launcher", pin_launcher)]
+    for label, fn in entries:
+        b = Gtk.Button(label=label, halign=Gtk.Align.FILL)
+        b.get_child().set_xalign(0)
+        b.add_css_class("files-menu-item")
+        b.connect("clicked", lambda _b, f=fn: (pop.popdown(), f()))
+        box.append(b)
+    pop.set_child(box)
+
+    def closed(p):
+        if hold:
+            GLib.timeout_add(250, lambda: (hold(False), False)[1])
+        GLib.idle_add(p.unparent)
+    pop.connect("closed", closed)
+    if hold:
+        hold(True)
+    pop.popup()

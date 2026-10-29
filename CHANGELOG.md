@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.45.0
+- App drawer rebuilt from the Launcher's own code: same panel, search box, app cells and colours; narrower and taller (like a phone), apps only. Right-click an app: Open, Pin / Unpin on the Run Bar, Pin / Unpin in the Launcher
+- Launcher footer: Files and Lock buttons removed (name, Settings and Power remain)
+- Fixed a broken line in the generated stylesheet
+
 ## 0.44.0
 - Install and update now install any missing dependency automatically (one shared list in scripts/deps.sh; asks for the password only when something is missing). Falls back to the AUR, retries packages one by one, starts the Wi-Fi/Bluetooth/power services
 - New command: `xlin deps` repairs missing packages any time

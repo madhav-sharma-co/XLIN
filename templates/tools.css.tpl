@@ -163,7 +163,7 @@ popover.files-menu > contents { background-color: @C_PANEL@; color: @C_INK@; bor
 .files-menu-item { background-image: none; background-color: transparent; color: @C_INK@; border: none; box-shadow: none; border-radius: 6px; padding: 6px 14px; }
 .files-menu-item:hover { background-color: @C_ACCENT_SOFT@; }
 
-/* ---- the app drawer (xlin-launcher): same look as the old rofi theme ---- */
+/* ---- the Launcher (xlin-start) and the App drawer (xlin-launcher) share this look ---- */
 window.xlin-launcher {
   background-color: @C_PANEL@;
   color: @C_INK@;
@@ -182,7 +182,8 @@ window.xlin-launcher entry.launcher-search {
 }
 window.xlin-launcher entry.launcher-search text { color: @C_INK@; padding: 0; margin: 0; min-height: 0; }
 window.xlin-launcher entry.launcher-search placeholder { color: @C_MUTED@; }
-window.xlin-launcher /* ---- the Launcher / Start menu (xlin-start) ---- */
+
+/* ---- the Launcher / Start menu (xlin-start) ---- */
 .start-section { color: @C_MUTED@; font-size: @C_PT11@pt; font-weight: 700; }
 .start-link { background-image: none; background-color: transparent; color: @C_MUTED@; border: none; box-shadow: none;
   border-radius: 8px; padding: 2px 10px; min-height: 0; }

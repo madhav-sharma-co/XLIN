@@ -774,7 +774,7 @@ def launcher_page(win):
     section("Pinned on the Run Bar", pins, "Nothing pinned on the Run Bar", unpin_bar)
     c2 = card()
     box.append(c2)
-    c2.append(row("Pin an app", "Opens the App drawer: pick an app to pin", button(
+    c2.append(row("Pin an app", "Opens the App drawer: right-click an app to pin it", button(
         "Choose...", lambda: subprocess.Popen(["xlin", "launcher", "pin"]))))
     c2.append(row("Clear recent apps", "Empties the Recent list in the Launcher", button(
         "Clear", lambda: in_thread(lambda: (

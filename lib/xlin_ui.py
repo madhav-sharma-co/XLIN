@@ -165,14 +165,13 @@ def user_name():
 
 
 def footer(close):
-    """The bottom row of the Launcher and the App drawer: your name, then Files, Settings, Lock and Power."""
+    """The bottom row of the Launcher: your name, then Settings and Power."""
     bar = Gtk.Box(spacing=6)
     bar.add_css_class("start-footer")
     name = Gtk.Label(label=user_name(), xalign=0, hexpand=True)
     name.add_css_class("start-user")
     bar.append(name)
-    for glyph, tip, cmd in (("🗀", "Files", ["xlin", "files"]), ("⚙", "Settings", ["xlin", "settings"]),
-                            ("🔒", "Lock", ["xlin", "lock"]), ("⏻", "Power", ["xlin", "session"])):
+    for glyph, tip, cmd in (("⚙", "Settings", ["xlin", "settings"]), ("⏻", "Power", ["xlin", "session"])):
         b = Gtk.Button(label=glyph)
         b.add_css_class("win-btn")
         b.set_tooltip_text(tip)

@@ -33,9 +33,9 @@ echo "All config backup tests passed."
 
 # Existing files must be restored after XLIN replaces them.
 existing="$TMP/config/existing.css"
-printf 'user stylesheet\\n' >"$existing"
+printf 'user stylesheet\n' >"$existing"
 track_generated_file "$existing"
-printf 'XLIN stylesheet\\n' >"$existing"
+printf 'XLIN stylesheet\n' >"$existing"
 restore_generated_file "$existing" >/dev/null
 [[ "$(cat "$existing")" == "user stylesheet" ]] || { echo "FAIL: original generated-file backup was not restored" >&2; exit 1; }
 [[ ! -e "$existing.xlin-backup" ]] || { echo "FAIL: generated-file backup sidecar remained" >&2; exit 1; }
@@ -43,17 +43,17 @@ restore_generated_file "$existing" >/dev/null
 # Files created by XLIN must be removed when no original existed.
 created="$TMP/config/created.css"
 track_generated_file "$created"
-printf 'XLIN-created file\\n' >"$created"
+printf 'XLIN-created file\n' >"$created"
 restore_generated_file "$created" >/dev/null
 [[ ! -e "$created" && ! -e "$created.xlin-created" ]] || { echo "FAIL: XLIN-created file was not removed" >&2; exit 1; }
 
 # Symlinks must be restored as symlinks, not flattened into regular files.
 target="$TMP/config/target.css"
 link="$TMP/config/link.css"
-printf 'symlink target\\n' >"$target"
+printf 'symlink target\n' >"$target"
 ln -s "$target" "$link"
 track_generated_file "$link"
-printf 'generated regular file\\n' >"$link"
+printf 'generated regular file\n' >"$link"
 restore_generated_file "$link" >/dev/null
 [[ -L "$link" && "$(readlink "$link")" == "$target" ]] || { echo "FAIL: original symlink was not restored" >&2; exit 1; }
 

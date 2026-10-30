@@ -112,15 +112,12 @@ printf '[Settings]\ngtk-theme-name=UserTheme\n' >"$HOME/.config/gtk-3.0/settings
 C_GTK_SCHEME=prefer-dark
 have() { return 1; } # Keep the test independent of the host's dconf/gsettings.
 apply_gtk_theme dark
-[[ "$(cat "$HOME/.config/gtk-3.0/settings.ini.xlin-backup")" == 
-[Settings]\ngtk-theme-name=UserTheme' ]] || { echo "FAIL: GTK3 settings backup missing" >&2; exit 1; }
-[[ "$(grep -c '^gtk-application-prefer-dark-theme=1
- "$HOME/.config/gtk-3.0/settings.ini")" == 1 ]] || { echo "FAIL: GTK3 dark preference was not applied" >&2; exit 1; }
+[[ "$(cat "$HOME/.config/gtk-3.0/settings.ini.xlin-backup")" == "$(printf '[Settings]\ngtk-theme-name=UserTheme\n')" ]] || { echo "FAIL: GTK3 settings backup missing" >&2; exit 1; }
+[[ "$(grep -c '^gtk-application-prefer-dark-theme=1$' "$HOME/.config/gtk-3.0/settings.ini")" == 1 ]] || { echo "FAIL: GTK3 dark preference was not applied" >&2; exit 1; }
 [[ -f "$HOME/.config/gtk-4.0/settings.ini.xlin-created" ]] || { echo "FAIL: GTK4 created-file marker missing" >&2; exit 1; }
 restore_generated_file "$HOME/.config/gtk-3.0/settings.ini" >/dev/null
 restore_generated_file "$HOME/.config/gtk-4.0/settings.ini" >/dev/null
-[[ "$(cat "$HOME/.config/gtk-3.0/settings.ini")" == 
-[Settings]\ngtk-theme-name=UserTheme' ]] || { echo "FAIL: GTK3 settings were not restored" >&2; exit 1; }
+[[ "$(cat "$HOME/.config/gtk-3.0/settings.ini")" == "$(printf '[Settings]\ngtk-theme-name=UserTheme\n')" ]] || { echo "FAIL: GTK3 settings were not restored" >&2; exit 1; }
 [[ ! -e "$HOME/.config/gtk-4.0/settings.ini" ]] || { echo "FAIL: XLIN-created GTK4 settings file was not removed" >&2; exit 1; }
 
 echo "Generated-file backup tests passed."

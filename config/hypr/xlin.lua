@@ -33,7 +33,6 @@ hl.config({
         blur = { enabled = true, size = 8, passes = 3, vibrancy = 0.15 },
         shadow = { enabled = true, range = 30, render_power = 3 },
     },
-    animations = { enabled = true },
     misc = {
         disable_hyprland_logo = true,
         disable_splash_rendering = true,
@@ -41,17 +40,8 @@ hl.config({
     dwindle = { preserve_split = true },
 })
 
-hl.curve("xlinOut",  { type = "bezier", points = { { 0.22, 1 }, { 0.36, 1 } } })
-hl.curve("xlinSoft", { type = "bezier", points = { { 0.4, 0 },  { 0.2, 1 } } })
-hl.animation({ leaf = "windows",          enabled = true, speed = 5, bezier = "xlinOut",  style = "popin 90%" })
-hl.animation({ leaf = "windowsOut",       enabled = true, speed = 4, bezier = "xlinSoft", style = "popin 90%" })
-hl.animation({ leaf = "fade",             enabled = true, speed = 4, bezier = "xlinSoft" })
-hl.animation({ leaf = "layersIn",         enabled = true, speed = 4, bezier = "xlinOut",  style = "popin 94%" })
-hl.animation({ leaf = "layersOut",        enabled = true, speed = 3, bezier = "xlinSoft", style = "popin 94%" })
-hl.animation({ leaf = "fadeLayers",       enabled = true, speed = 4, bezier = "xlinSoft" })
-hl.animation({ leaf = "windowsMove",      enabled = true, speed = 4, bezier = "xlinOut" })
-hl.animation({ leaf = "specialWorkspace", enabled = true, speed = 5, bezier = "xlinOut",  style = "slidevert" })
-hl.animation({ leaf = "workspaces",       enabled = true, speed = 5, bezier = "xlinOut",  style = "slide" })
+-- Animations are generated (xlin animations off | subtle | smooth): soft springs, scale and fade, like a MacBook
+pcall(require, "xlin-anim")
 
 pcall(require, "xlin-opacity")  -- window transparency (generated)
 

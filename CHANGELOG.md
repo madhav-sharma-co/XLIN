@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.49.0
+- New animations, MacBook style: windows open with a soft spring (scale up from 88% while fading in), close quickly, workspaces slide and fade, menus and panels pop in gently
+- Settings -> Personalization -> Animations: Off / Subtle / Smooth, and `xlin animations off|subtle|smooth`. Off also turns off animations in GTK apps. (Older Hyprland without springs uses matching curves)
+
 ## 0.48.0
 - Removing a desktop widget (or icon) no longer leaves a stuck ghost on the screen: the right-click menu is fully closed before the widget is deleted. Same fix for the Launcher's app menu
 - Font and size changes now fit everywhere: window sizes are no longer fixed by Hyprland rules; each app picks a size that grows with the chosen font size and with its content. The Launcher, desktop widgets, fixed side panels and the control panel scale too

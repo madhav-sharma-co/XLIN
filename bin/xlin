@@ -263,6 +263,41 @@ cmd_font() {
   echo "font: $(cat "$STATE/ui_font" 2>/dev/null || echo "DM Sans")   size: $(cat "$STATE/ui_size" 2>/dev/null || echo normal)"
 }
 
+# Preserve the user's original file across theme changes and updates.
+# Sidecars live beside the generated file so they survive XLIN settings purges.
+track_generated_file() {
+  local file="$1"
+  [[ -e "$file.xlin-backup" || -e "$file.xlin-created" ]] && return 0
+  if [[ -L "$file" ]]; then
+    cp -a -- "$file" "$file.xlin-backup" || return 1
+    rm -f -- "$file"
+  elif [[ -f "$file" ]]; then
+    cp -a -- "$file" "$file.xlin-backup" || return 1
+  elif [[ -e "$file" ]]; then
+    echo "refusing to replace non-file: $file" >&2
+    return 1
+  else
+    : >"$file.xlin-created"
+  fi
+}
+
+restore_generated_file() {
+  local file="$1"
+  if [[ -e "$file.xlin-backup" || -L "$file.xlin-backup" ]]; then
+    rm -f -- "$file"
+    cp -a -- "$file.xlin-backup" "$file" || return 1
+    rm -f -- "$file.xlin-backup" "$file.xlin-created"
+    echo "restored ${file/#$HOME/~}"
+  elif [[ -e "$file.xlin-created" ]]; then
+    rm -f -- "$file" "$file.xlin-created"
+    echo "removed XLIN-created ${file/#$HOME/~}"
+  else
+    # Older XLIN installs did not track generated files. Preserve them rather
+    # than guessing whether they replaced a user's pre-existing file.
+    [[ ! -e "$file" ]] || echo "kept untracked file ${file/#$HOME/~}"
+  fi
+}
+
 render_all() {
   local theme="$1" v expr="" tpl out
   # shellcheck disable=SC1090
@@ -293,6 +328,7 @@ render_all() {
   for tpl in "${!targets[@]}"; do
     out="${targets[$tpl]}"
     mkdir -p "$(dirname "$out")"
+    track_generated_file "$out" || { echo "cannot safely replace $out" >&2; continue; }
     sed "$expr" "$XLIN_HOME/templates/$tpl" >"$out"
   done
   lock_wallpaper_patch "$theme"
@@ -1631,8 +1667,18 @@ EOT
     bak=$(ls -1t "$f".bak-* 2>/dev/null | tail -1)       # the oldest backup = your original
     [[ -n "$bak" ]] && cp -a "$bak" "$f" && echo "restored ${f/#$HOME/~}"
   done
-  rm -f "$HOME/.config/waybar/style.css" "$HOME/.config/swaync/style.css" \
-        "$HOME/.config/rofi/xlin.rasi" "$HOME/.config/nwg-dock-hyprland/style.css"
+  for f in \
+    "$HOME/.config/waybar/style.css" \
+    "$HOME/.config/rofi/xlin.rasi" \
+    "$HOME/.config/swaync/style.css" \
+    "$HOME/.config/nwg-dock-hyprland/style.css" \
+    "$HOME/.config/hypr/xlin-colors.conf" \
+    "$HOME/.config/hypr/xlin-colors.lua" \
+    "$HOME/.config/kitty/xlin-theme.conf" \
+    "$HOME/.config/hypr/xlin-hyprlock.conf" \
+    "$XLIN_HOME/tools.css"; do
+    restore_generated_file "$f"
+  done
   if [[ -f "$HOME/.config/kitty/kitty.conf.xlin-backup" ]]; then
     cp -a "$HOME/.config/kitty/kitty.conf.xlin-backup" "$HOME/.config/kitty/kitty.conf" && echo "restored ~/.config/kitty/kitty.conf"
   fi

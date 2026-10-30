@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # ---- Hyprland 0.55+ uses a Lua config (hyprland.lua); 0.57 dropped hyprland.conf. XLIN speaks both.
 hypr_version() {   # e.g. 0.57.0
   local v=""

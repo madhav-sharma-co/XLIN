@@ -150,6 +150,18 @@ ui_font_vars() {
   C_PT9=$(( (9 * pct + 50) / 100 )); C_PT10=$(( (10 * pct + 50) / 100 )); C_PT11=$(( (11 * pct + 50) / 100 ))
 }
 
+# The control panel's size follows the font size (swaync keeps it in config.json)
+swaync_scale() {
+  local f="$HOME/.config/swaync/config.json" pct w h
+  have jq && [[ -f "$f" ]] || return 0
+  case "$(cat "$STATE/ui_size" 2>/dev/null || echo normal)" in small) pct=92 ;; large) pct=112 ;; huge) pct=125 ;; *) pct=100 ;; esac
+  w=$((330 * pct / 100)); h=$((560 * pct / 100))
+  jq --argjson w "$w" --argjson h "$h" '.["control-center-width"]=$w | .["control-center-height"]=$h | .["notification-window-width"]=($w + 10)' \
+    "$f" >"$f.tmp" 2>/dev/null && mv "$f.tmp" "$f" || rm -f "$f.tmp"
+  [[ "${1:-}" == reload ]] && have swaync-client && { swaync-client -R >/dev/null 2>&1; swaync-client -rs >/dev/null 2>&1; }
+  return 0
+}
+
 cmd_font() {
   local sz
   case "${1:-}" in
@@ -166,6 +178,9 @@ cmd_font() {
            echo "$name" >"$STATE/ui_font" ;;
   esac
   cmd_theme "$(cat "$STATE/theme" 2>/dev/null || echo light)" >/dev/null
+  # waiting apps are built for the old size: let them start again at the new one (Settings stays, it is in use)
+  pkill -f '[x]lin-(start|store|files)( |$)' 2>/dev/null || true
+  swaync_scale reload
   echo "font: $(cat "$STATE/ui_font" 2>/dev/null || echo "DM Sans")   size: $(cat "$STATE/ui_size" 2>/dev/null || echo normal)"
 }
 
@@ -203,6 +218,7 @@ render_all() {
   done
   lock_wallpaper_patch "$theme"
   grid_icon
+  swaync_scale
 }
 
 # The run bar's app-drawer button: a 3x3 grid in the theme's ink colour (instead of the orange default)
@@ -283,6 +299,26 @@ reload_all() {
   fi
 }
 
+# Dark / light for every GTK and portal-aware app (GTK3, GTK4, libadwaita, Electron, browsers), not only XLIN's own
+apply_gtk_theme() {
+  local dark=0 name=Adwaita f
+  [[ "$1" == dark ]] && { dark=1; name=Adwaita-dark; }
+  if have gsettings; then
+    gsettings set org.gnome.desktop.interface color-scheme "$C_GTK_SCHEME" 2>/dev/null || true
+    gsettings set org.gnome.desktop.interface gtk-theme "$name" 2>/dev/null || true
+  fi
+  for f in "$HOME/.config/gtk-3.0/settings.ini" "$HOME/.config/gtk-4.0/settings.ini"; do
+    mkdir -p "$(dirname "$f")"
+    [[ -f "$f" ]] || printf '[Settings]\n' >"$f"
+    grep -q '^\[Settings\]' "$f" || sed -i '1i [Settings]' "$f"
+    if grep -q '^gtk-application-prefer-dark-theme' "$f"; then
+      sed -i "s/^gtk-application-prefer-dark-theme.*/gtk-application-prefer-dark-theme=$dark/" "$f"
+    else
+      sed -i "/^\[Settings\]/a gtk-application-prefer-dark-theme=$dark" "$f"
+    fi
+  done
+}
+
 cmd_theme() {
   local want="${1:-}" cur
   cur="$(cat "$STATE/theme" 2>/dev/null || echo light)"
@@ -295,7 +331,7 @@ cmd_theme() {
   echo "$want" >"$STATE/theme"
   # shellcheck disable=SC1090
   source "$XLIN_HOME/themes/$want.sh"
-  have gsettings && gsettings set org.gnome.desktop.interface color-scheme "$C_GTK_SCHEME" 2>/dev/null || true
+  apply_gtk_theme "$want"
   reload_all
   apply_cursor "$want"
   cmd_wallpaper restore
@@ -1009,7 +1045,7 @@ cmd_start() {
 }
 
 # ================================================================= XLIN CLI
-XLIN_VERSION="0.47.1"
+XLIN_VERSION="0.48.0"
 
 if [[ -t 1 ]]; then B=$'\e[1m'; D=$'\e[2m'; R=$'\e[0m'; else B=""; D=""; R=""; fi
 die() { echo "xlin: $*" >&2; return 1; }

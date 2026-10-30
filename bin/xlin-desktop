@@ -108,12 +108,15 @@ def theme_name():
 
 def desktop_css():
     dark = theme_name() == "dark"
+    k = xlin_ui.ui_scale()          # widget text follows the font size setting
+    def px(n):
+        return f"{round(n * k)}px"
     ink = "#f2f4fa" if dark else "#182035"
     card = "rgba(28,30,38,.62)" if dark else "rgba(255,255,255,.66)"
     shadow = "0 1px 3px rgba(0,0,0,.65)" if dark else "0 1px 2px rgba(255,255,255,.6)"
     return f"""
     window.xlin-desktop {{ background: transparent; }}
-    .desk-label {{ color: {ink}; text-shadow: {shadow}; font-size: 12px; }}
+    .desk-label {{ color: {ink}; text-shadow: {shadow}; font-size: {px(12)}; }}
     .desk-icon {{ padding: 8px 6px; border-radius: 12px; border: 1px solid transparent; }}
     .desk-icon:hover {{ background-color: alpha({ink}, .10); }}
     .desk-icon.selected {{ background-color: alpha({ink}, .20); border-color: alpha({ink}, .30); }}
@@ -125,11 +128,11 @@ def desktop_css():
     .desk-card button:hover {{ background-color: alpha({ink}, .20); }}
     .desk-card entry {{ background-color: alpha({ink}, .08); color: {ink}; border: none; border-radius: 8px;
         min-height: 0; padding: 4px 8px; box-shadow: none; }}
-    .desk-time {{ font-size: 56px; font-weight: 300; }}
-    .desk-date {{ font-size: 15px; opacity: .8; }}
-    .desk-big {{ font-size: 34px; font-weight: 300; }}
-    .desk-title {{ font-size: 11px; opacity: .6; }}
-    .desk-dim {{ opacity: .65; font-size: 12px; }}
+    .desk-time {{ font-size: {px(56)}; font-weight: 300; }}
+    .desk-date {{ font-size: {px(15)}; opacity: .8; }}
+    .desk-big {{ font-size: {px(34)}; font-weight: 300; }}
+    .desk-title {{ font-size: {px(11)}; opacity: .6; }}
+    .desk-dim {{ opacity: .65; font-size: {px(12)}; }}
     .desk-done {{ opacity: .45; text-decoration: line-through; }}
     .desk-card calendar {{ background: transparent; color: {ink}; border: none; }}
     .desk-card levelbar block.filled {{ background-color: {ink}; border-radius: 4px; }}
@@ -317,7 +320,7 @@ class DesktopWindow(Gtk.Window):
         return 0, 0
 
     def refresh_theme(self):
-        name = theme_name()
+        name = (theme_name(), xlin_ui.ui_scale())      # restyle on a theme or font-size change
         if name != self.theme:
             self.theme = name
             try:
@@ -621,9 +624,9 @@ class DesktopWindow(Gtk.Window):
             for name in ("Processor", "Memory", "Disk"):
                 row = Gtk.Box(spacing=10)
                 lab = Gtk.Label(label=name, xalign=0)
-                lab.set_size_request(80, -1)
+                lab.set_size_request(xlin_ui.scaled(80), -1)
                 bar = Gtk.LevelBar(min_value=0, max_value=1, hexpand=True, valign=Gtk.Align.CENTER)
-                bar.set_size_request(150, -1)
+                bar.set_size_request(xlin_ui.scaled(150), -1)
                 row.append(lab)
                 row.append(bar)
                 card.append(row)
@@ -634,7 +637,7 @@ class DesktopWindow(Gtk.Window):
             refs["status"] = Gtk.Label(label="", xalign=0)
             refs["status"].add_css_class("desk-dim")
             refs["bar"] = Gtk.LevelBar(min_value=0, max_value=100)
-            refs["bar"].set_size_request(200, -1)
+            refs["bar"].set_size_request(xlin_ui.scaled(200), -1)
             for w in (refs["pct"], refs["bar"], refs["status"]):
                 card.append(w)
         elif key == "media":
@@ -658,7 +661,7 @@ class DesktopWindow(Gtk.Window):
             card.append(refs["list"])
             entry = Gtk.Entry()
             entry.set_placeholder_text("Quick note, press Enter")
-            entry.set_size_request(230, -1)
+            entry.set_size_request(xlin_ui.scaled(230), -1)
             entry.connect("activate", self.quick_note)
             card.append(entry)
             more = Gtk.Button(label="Open Notes", halign=Gtk.Align.START)
@@ -670,7 +673,7 @@ class DesktopWindow(Gtk.Window):
             card.append(refs["list"])
             entry = Gtk.Entry()
             entry.set_placeholder_text("Add a task, press Enter")
-            entry.set_size_request(230, -1)
+            entry.set_size_request(xlin_ui.scaled(230), -1)
             entry.connect("activate", self.add_todo)
             card.append(entry)
             clear = Gtk.Button(label="Clear done", halign=Gtk.Align.START)
@@ -864,10 +867,19 @@ class DesktopWindow(Gtk.Window):
         rect.x, rect.y, rect.width, rect.height = int(x), int(y), 1, 1
         pop.set_pointing_to(rect)
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        box.set_size_request(220, -1)
+        box.set_size_request(xlin_ui.scaled(220), -1)
         build(box, pop)
         pop.set_child(box)
-        pop.connect("closed", lambda p: GLib.idle_add(p.unparent))
+        pop.pending = []
+
+        def closed(p):
+            def finish():
+                p.unparent()
+                for fn in p.pending:      # e.g. "Remove widget": only now, so no menu is left hanging on a deleted widget
+                    fn()
+                return False
+            GLib.idle_add(finish)
+        pop.connect("closed", closed)
         pop.popup()
 
     @staticmethod
@@ -875,7 +887,7 @@ class DesktopWindow(Gtk.Window):
         b = Gtk.Button(label=label, halign=Gtk.Align.FILL)
         b.get_child().set_xalign(0)
         b.add_css_class("files-menu-item")
-        b.connect("clicked", lambda _b: (pop.popdown(), GLib.idle_add(lambda: (fn(), False)[1])))
+        b.connect("clicked", lambda _b: (pop.pending.append(fn), pop.popdown()))
         box.append(b)
 
     @staticmethod
@@ -997,7 +1009,7 @@ class DesktopWindow(Gtk.Window):
             return
         win = Gtk.Window(title="Apps and widgets")
         self.gallery = win
-        win.set_default_size(640, 600)
+        win.set_default_size(xlin_ui.scaled(640), xlin_ui.scaled(600))
         win.add_css_class("xlin-tools")
         xlin_ui.titlebar(win, "Apps and widgets", hide=False)
         win.connect("close-request", lambda _w: (setattr(self, "gallery", None), False)[1])
@@ -1117,7 +1129,7 @@ class DesktopWindow(Gtk.Window):
 
     def choose_app(self):
         win = Gtk.Window(title="Add app shortcut")
-        win.set_default_size(380, 520)
+        win.set_default_size(xlin_ui.scaled(380), xlin_ui.scaled(520))
         win.add_css_class("xlin-tools")
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         for m in ("top", "bottom", "start", "end"):
@@ -1165,6 +1177,7 @@ class DesktopApp(Gtk.Application):
 
     def do_startup(self):
         Gtk.Application.do_startup(self)
+        xlin_ui.live_css()      # restyle at once when the theme or font changes (warm apps too)
         try:
             with open(CSS_FILE, "rb") as f:
                 data = f.read()

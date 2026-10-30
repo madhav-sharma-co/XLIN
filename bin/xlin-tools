@@ -983,7 +983,7 @@ class ToolWindow(Gtk.ApplicationWindow):
 
     def __init__(self, app, title, width, height, with_close):
         super().__init__(application=app, title=title)
-        self.set_default_size(width, height)
+        self.set_default_size(xlin_ui.scaled(width), xlin_ui.scaled(height))
         self.set_resizable(False)
         self.set_decorated(False)
         self.add_css_class("xlin-tools")
@@ -1278,6 +1278,7 @@ class ToolsApp(Gtk.Application):
 
     def do_startup(self):
         Gtk.Application.do_startup(self)
+        xlin_ui.live_css()      # restyle at once when the theme or font changes (warm apps too)
         display = Gdk.Display.get_default()
         for data in (FALLBACK_CSS, self.read_theme_css()):
             if not data:

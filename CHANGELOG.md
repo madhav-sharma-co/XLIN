@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.48.0
+- Removing a desktop widget (or icon) no longer leaves a stuck ghost on the screen: the right-click menu is fully closed before the widget is deleted. Same fix for the Launcher's app menu
+- Font and size changes now fit everywhere: window sizes are no longer fixed by Hyprland rules; each app picks a size that grows with the chosen font size and with its content. The Launcher, desktop widgets, fixed side panels and the control panel scale too
+- Dark / light (and the font) now apply at once to every XLIN app, including apps waiting in the background and every right-click menu: they watch the theme file and restyle themselves. Other GTK apps follow too (GTK theme, GTK3/4 settings and the colour scheme)
+
 ## 0.47.1
 - Fixed the Hyprland error "gesture will be overshadowed by a previous gesture" on top of the screen (Hyprland's example config already has the same three-finger swipe)
 

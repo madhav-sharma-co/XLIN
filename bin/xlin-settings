@@ -131,7 +131,7 @@ def switch(active, on_change):
 def slider(value, on_change, lo=0, hi=100):
     sc = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, lo, hi, 1)
     sc.set_value(value)
-    sc.set_size_request(240, -1)
+    sc.set_size_request(xlin_ui.scaled(240), -1)
     sc.set_draw_value(False)
     pending = {"id": 0}
 
@@ -233,7 +233,7 @@ class WifiPage(Gtk.Box):
 
     def ask_password(self, ssid):
         d = Gtk.Window(title=f"Password for {ssid}", modal=True, transient_for=self.win)
-        d.set_default_size(340, 120)
+        d.set_default_size(xlin_ui.scaled(340), xlin_ui.scaled(120))
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
         for m in ("top", "bottom", "start", "end"):
             getattr(box, f"set_margin_{m}")(18)
@@ -453,7 +453,7 @@ def font_picker(families, current, on_pick):
     dd = Gtk.DropDown.new_from_strings(families or [current or "DM Sans"])
     dd.set_enable_search(True)
     dd.set_expression(Gtk.PropertyExpression.new(Gtk.StringObject, None, "string"))
-    dd.set_size_request(220, -1)
+    dd.set_size_request(xlin_ui.scaled(220), -1)
     if current in families:
         dd.set_selected(families.index(current))
     state = {"ready": False}
@@ -893,14 +893,14 @@ def about_page(win):
 class SettingsWindow(Gtk.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app, title="Settings")
-        self.set_default_size(920, 640)
+        self.set_default_size(xlin_ui.scaled(920), xlin_ui.scaled(640))
         xlin_ui.titlebar(self, "Settings")
         root = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         self.set_child(root)
 
         self.side = Gtk.ListBox()
         self.side.add_css_class("xlin-side")
-        self.side.set_size_request(210, -1)
+        self.side.set_size_request(xlin_ui.scaled(210), -1)
         root.append(self.side)
         root.append(Gtk.Separator(orientation=Gtk.Orientation.VERTICAL))
 
@@ -993,6 +993,7 @@ class SettingsApp(Gtk.Application):
 
     def do_startup(self):
         Gtk.Application.do_startup(self)
+        xlin_ui.live_css()      # restyle at once when the theme or font changes (warm apps too)
         from gi.repository import Gdk
         prov = Gtk.CssProvider()
         prov.load_from_data(CSS)

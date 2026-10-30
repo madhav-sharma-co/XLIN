@@ -38,7 +38,7 @@ CSS_FILE = os.path.join(HOME, ".config/xlin/tools.css")
 PINS = os.path.join(HOME, ".cache/nwg-dock-pinned")
 RECENT = os.path.join(HOME, ".config/xlin/state/recent")
 PIN_COLS, PIN_MAX = 6, 12
-WIDTH = 600
+WIDTH = xlin_ui.scaled(600)      # grows with the font size
 
 
 class Start(Gtk.Window):
@@ -89,7 +89,7 @@ class Start(Gtk.Window):
         self.stack.add_named(self.home_scroll(), "home")
         self.results_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         self.stack.add_named(self.results_box, "results")
-        self.stack.set_size_request(-1, 480)
+        self.stack.set_size_request(-1, xlin_ui.scaled(480))
         box.append(self.stack)
 
         box.append(self.footer())
@@ -320,6 +320,7 @@ class StartApp(Gtk.Application):
 
     def do_startup(self):
         Gtk.Application.do_startup(self)
+        xlin_ui.live_css()      # restyle at once when the theme or font changes (warm apps too)
         try:
             with open(CSS_FILE, "rb") as f:
                 data = f.read()

@@ -35,7 +35,7 @@ def media_files(paths):
 class MediaWindow(Gtk.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app, title="Media")
-        self.set_default_size(900, 560)
+        self.set_default_size(xlin_ui.scaled(900), xlin_ui.scaled(560))
         self.add_css_class("xlin-tools")
         xlin_ui.titlebar(self, "Media")
         self.playlist = []
@@ -61,7 +61,7 @@ class MediaWindow(Gtk.ApplicationWindow):
         root.append(left)
 
         side = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        side.set_size_request(250, -1)
+        side.set_size_request(xlin_ui.scaled(250), -1)
         bar = Gtk.Box(spacing=6)
         for label, fn in (("Open files", self.pick_files), ("Open folder", self.pick_folder)):
             b = Gtk.Button(label=label, hexpand=True)
@@ -193,6 +193,7 @@ class MediaApp(Gtk.Application):
 
     def do_startup(self):
         Gtk.Application.do_startup(self)
+        xlin_ui.live_css()      # restyle at once when the theme or font changes (warm apps too)
         try:
             with open(CSS_FILE, "rb") as f:
                 data = f.read()

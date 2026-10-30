@@ -60,33 +60,21 @@ for _, ns in ipairs({ "^waybar$", "^rofi$", "^xlin-start$", "^swaync-control-cen
     hl.layer_rule({ match = { namespace = ns }, blur = true, ignore_alpha = 0.3 })
 end
 
--- ---- XLIN windows: floating, centred, a fixed size ---------------------------
-local function app(name, w, h, extra)
-    local rule = { match = { class = "^(dev\\.xlin\\." .. name .. ")$" }, float = true, size = { w, h }, center = true }
+-- ---- XLIN windows: floating and centred. No fixed sizes: every app picks its own size, which grows with
+-- the font size (Settings -> Personalization), so nothing is ever cut off.
+local function app(name, extra)
+    local rule = { match = { class = "^(dev\\.xlin\\." .. name .. ")$" }, float = true, center = true }
     for k, v in pairs(extra or {}) do rule[k] = v end
     hl.window_rule(rule)
 end
-app("Settings", 920, 640)
-app("Debug", 840, 620)
-app("Media", 900, 560)
-app("Store", 820, 620)
-app("Monitor", 760, 600)
-app("Welcome", 600, 500)
-app("Calculator", 300, 420)
-app("Notes", 360, 470)
-app("Clock", 320, 420)
-app("Calendar", 340, 430)
-app("Screenshot", 300, 336)
--- the Files window gets the big size, not its small rename / new-folder dialogs
-hl.window_rule({ match = { class = "^(dev\\.xlin\\.Files)$" }, float = true, center = true })
-hl.window_rule({ match = { class = "^(dev\\.xlin\\.Files)$", title = "^(Files)$" }, size = { 900, 600 } })
--- the "Add app shortcut" picker and the "Apps and widgets" gallery of the desktop
-app("Desktop", 380, 520)
-hl.window_rule({ match = { class = "^(dev\\.xlin\\.Desktop)$", title = "^(Apps and widgets)$" }, size = { 640, 600 } })
+for _, name in ipairs({ "Settings", "Debug", "Media", "Store", "Monitor", "Welcome", "Calculator", "Notes", "Clock",
+                        "Calendar", "Screenshot", "Files", "Desktop" }) do
+    app(name)
+end
 -- menus: they open in place, top right under the bar
-app("Tools", 300, 380, { center = false })
-app("Power", 290, 300, { center = false })
-app("Session", 200, 282, { center = false })
+for _, name in ipairs({ "Tools", "Power", "Session" }) do
+    app(name, { center = false })
+end
 hl.window_rule({ match = { class = "^(dev\\.xlin\\.(Tools|Power|Session))$" }, move = "(monitor_w-window_w-12) 46" })
 
 -- ---- shortcuts ---------------------------------------------------------------------

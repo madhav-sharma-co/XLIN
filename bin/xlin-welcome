@@ -108,7 +108,7 @@ class WelcomeWindow(Gtk.ApplicationWindow):
     def __init__(self, app, reload_css):
         super().__init__(application=app, title="Welcome to XLIN")
         self.reload_css = reload_css
-        self.set_default_size(600, 500)
+        self.set_default_size(xlin_ui.scaled(600), xlin_ui.scaled(500))
         self.set_resizable(False)
         self.set_decorated(False)
         self.add_css_class("xlin-tools")
@@ -243,7 +243,7 @@ class WelcomeWindow(Gtk.ApplicationWindow):
                           ("Super + U", "Notes, calculator and calendar")):
             r = Gtk.Box(spacing=14, margin_top=8)
             k = Gtk.Label(label=key, xalign=0)
-            k.set_size_request(120, -1)
+            k.set_size_request(xlin_ui.scaled(120), -1)
             k.add_css_class("welcome-keys")
             r.append(k)
             r.append(Gtk.Label(label=text, xalign=0))
@@ -397,6 +397,7 @@ class WelcomeApp(Gtk.Application):
 
     def do_startup(self):
         Gtk.Application.do_startup(self)
+        xlin_ui.live_css()      # restyle at once when the theme or font changes (warm apps too)
         display = Gdk.Display.get_default()
         base = Gtk.CssProvider()
         base.load_from_data(self.css())

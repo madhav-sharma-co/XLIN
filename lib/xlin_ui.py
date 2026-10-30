@@ -161,6 +161,59 @@ def fuzzy(query, text):
     return 2 + gaps / 100
 
 
+# ---- the theme: tools.css is rewritten by `xlin theme` / `xlin font`; apps restyle themselves at once
+CSS_PATH = os.path.expanduser("~/.config/xlin/tools.css")
+_LIVE = {}
+
+
+def live_css():
+    """Load XLIN's stylesheet and keep it current. Warm (hidden) apps and open menus follow a theme or font
+    change immediately, so dark / light and the font size apply everywhere without restarting anything."""
+    if _LIVE:
+        return
+    from gi.repository import Gdk, Gio, GLib
+    prov = Gtk.CssProvider()
+    state = {"pending": False}
+
+    def load():
+        state["pending"] = False
+        try:
+            with open(CSS_PATH, "rb") as f:
+                prov.load_from_data(f.read())
+        except Exception:
+            pass
+        return False
+
+    def changed(_m, _f, _o, _ev):
+        if not state["pending"]:          # one reload per burst of write events
+            state["pending"] = True
+            GLib.timeout_add(150, load)
+    load()
+    display = Gdk.Display.get_default()
+    if display is None:
+        return
+    Gtk.StyleContext.add_provider_for_display(display, prov, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1)
+    try:
+        mon = Gio.File.new_for_path(CSS_PATH).monitor_file(Gio.FileMonitorFlags.NONE, None)
+        mon.connect("changed", changed)
+        _LIVE.update(provider=prov, monitor=mon)
+    except Exception:
+        _LIVE.update(provider=prov)
+
+
+def ui_scale():
+    """1.0 normally; the Settings -> Font size choice scales window sizes the same way as the text."""
+    try:
+        with open(os.path.join(os.path.expanduser("~/.config/xlin/state"), "ui_size")) as f:
+            return {"small": 0.92, "large": 1.12, "huge": 1.25}.get(f.read().strip(), 1.0)
+    except OSError:
+        return 1.0
+
+
+def scaled(n):
+    return int(n * ui_scale()) if n > 0 else n
+
+
 # ---- "keep apps ready": a closed window is only hidden, so it opens instantly next time
 STATE_DIR = os.path.expanduser("~/.config/xlin/state")
 
@@ -240,8 +293,9 @@ def app_menu(parent, x, y, aid, refresh=None, hold=None):
     rect = Gdk.Rectangle()
     rect.x, rect.y, rect.width, rect.height = int(x), int(y), 1, 1
     pop.set_pointing_to(rect)
+    pending = []
     box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-    box.set_size_request(210, -1)
+    box.set_size_request(scaled(210), -1)
 
     def pin_launcher():
         set_launcher_pin(aid, not in_start)
@@ -255,14 +309,19 @@ def app_menu(parent, x, y, aid, refresh=None, hold=None):
         b = Gtk.Button(label=label, halign=Gtk.Align.FILL)
         b.get_child().set_xalign(0)
         b.add_css_class("files-menu-item")
-        b.connect("clicked", lambda _b, f=fn: (pop.popdown(), f()))
+        b.connect("clicked", lambda _b, f=fn: (pending.append(f), pop.popdown()))
         box.append(b)
     pop.set_child(box)
 
     def closed(p):
+        def finish():
+            p.unparent()
+            for f in pending:          # the chosen action runs once the menu is gone (it may rebuild this very list)
+                f()
+            return False
         if hold:
             GLib.timeout_add(250, lambda: (hold(False), False)[1])
-        GLib.idle_add(p.unparent)
+        GLib.idle_add(finish)
     pop.connect("closed", closed)
     if hold:
         hold(True)

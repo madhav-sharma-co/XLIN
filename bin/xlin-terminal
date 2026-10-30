@@ -469,6 +469,7 @@ class TermApp(Gtk.Application):
 
     def do_startup(self):
         Gtk.Application.do_startup(self)
+        xlin_ui.live_css()      # restyle at once when the theme or font changes (warm apps too)
         try:
             with open(CSS_FILE, "rb") as f:
                 data = f.read()

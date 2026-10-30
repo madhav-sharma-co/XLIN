@@ -274,7 +274,7 @@ def delete_forever(item):
 
 def confirm(parent, title, text, ok_label, on_ok):
     win = Gtk.Window(title=title, transient_for=parent, modal=True)
-    win.set_default_size(380, -1)
+    win.set_default_size(xlin_ui.scaled(380), xlin_ui.scaled(-1))
     win.set_resizable(False)
     win.set_decorated(False)
     win.add_css_class("xlin-tools")
@@ -384,7 +384,7 @@ def apps_for(path):
 def open_with_dialog(parent, path, on_msg):
     ctype, apps = apps_for(path)
     win = Gtk.Window(title="Open with", transient_for=parent, modal=True)
-    win.set_default_size(340, -1)
+    win.set_default_size(xlin_ui.scaled(340), xlin_ui.scaled(-1))
     win.set_resizable(False)
     win.set_decorated(False)
     win.add_css_class("xlin-tools")
@@ -435,7 +435,7 @@ def open_with_dialog(parent, path, on_msg):
 
 def ask_text(parent, title, initial, ok_label, on_ok, select_stem=False):
     win = Gtk.Window(title=title, transient_for=parent, modal=True)
-    win.set_default_size(380, -1)
+    win.set_default_size(xlin_ui.scaled(380), xlin_ui.scaled(-1))
     win.set_resizable(False)
     win.set_decorated(False)
     win.add_css_class("xlin-tools")
@@ -481,7 +481,7 @@ def ask_text(parent, title, initial, ok_label, on_ok, select_stem=False):
 class FilesWindow(Gtk.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app, title="Files")
-        self.set_default_size(900, 600)
+        self.set_default_size(xlin_ui.scaled(900), xlin_ui.scaled(600))
         self.add_css_class("xlin-tools")
         xlin_ui.titlebar(self, "Files")
         self.cwd = HOME
@@ -499,7 +499,7 @@ class FilesWindow(Gtk.ApplicationWindow):
 
         # ---- sidebar
         side_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-        side_box.set_size_request(190, -1)
+        side_box.set_size_request(xlin_ui.scaled(190), -1)
         for m in ("top", "bottom", "start", "end"):
             getattr(side_box, f"set_margin_{m}")(12)
         title = Gtk.Label(label="Files", xalign=0, margin_bottom=8)
@@ -1212,6 +1212,7 @@ class FilesApp(Gtk.Application):
 
     def do_startup(self):
         Gtk.Application.do_startup(self)
+        xlin_ui.live_css()      # restyle at once when the theme or font changes (warm apps too)
         display = Gdk.Display.get_default()
         for data in (FALLBACK_CSS, self.theme_css()):
             if not data:

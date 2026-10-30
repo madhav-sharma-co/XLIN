@@ -133,7 +133,7 @@ def run_in_terminal(script):
 class StoreWindow(Gtk.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app, title="Store")
-        self.set_default_size(820, 620)
+        self.set_default_size(xlin_ui.scaled(820), xlin_ui.scaled(620))
         self.add_css_class("xlin-tools")
         xlin_ui.titlebar(self, "Store")
         self.installed = set()
@@ -382,6 +382,7 @@ class StoreApp(Gtk.Application):
 
     def do_startup(self):
         Gtk.Application.do_startup(self)
+        xlin_ui.live_css()      # restyle at once when the theme or font changes (warm apps too)
         try:
             with open(CSS_FILE, "rb") as f:
                 data = f.read()

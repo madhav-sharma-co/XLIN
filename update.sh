@@ -19,8 +19,24 @@ cp "$SRC"/assets/wallpapers/*.jpg "$XLIN_HOME/wallpapers/"
 cp "$SRC/config/shell/xlin.bash" "$XLIN_HOME/shell.bash"
 cp "$SRC/config/kitty/kitty.conf" "$XLIN_HOME/kitty.conf"
 cp "$SRC/config/hypr/xlin.conf" "$SRC/config/hypr/xlin.lua" "$HOME/.config/hypr/"
+# Keep the first user-config backup across repeated updates. The installer uses
+# the same .bak- timestamp convention, so its original backup is respected.
+STAMP="$(date +%Y%m%d-%H%M%S)"
+backup_once() {
+  local file="$1"
+  [[ -e "$file" || -L "$file" ]] || return 0
+  if compgen -G "$file.bak-*" >/dev/null; then
+    echo "   existing backup preserved for $file"
+    return 0
+  fi
+  cp -a -- "$file" "$file.bak-$STAMP"
+  echo "   backed up $file"
+}
+
+backup_once "$HOME/.config/waybar/config.jsonc"
 cp "$SRC/config/waybar/config.jsonc" "$HOME/.config/waybar/config.jsonc"
 cp "$SRC/config/waybar/config.jsonc" "$XLIN_HOME/waybar-base.jsonc"
+backup_once "$HOME/.config/swaync/config.json"
 cp "$SRC/config/swaync/config.json" "$HOME/.config/swaync/config.json"
 
 say "Checking dependencies (installs anything that is missing)"

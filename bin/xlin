@@ -1416,7 +1416,11 @@ EOT
 idle_start() {
   have hypridle || return 1
   [[ -f "$(idle_conf)" ]] || idle_write "$(cat "$STATE/idle_minutes" 2>/dev/null || echo 5)"
-  pgrep -x hypridle >/dev/null || setsid hypridle -c "$(idle_conf)" >>"$HOME/.cache/xlin/hypridle.log" 2>&1 &
+  if ! pgrep -x hypridle >/dev/null; then
+    mkdir -p "$STATE" "$HOME/.cache/xlin"
+    setsid hypridle -c "$(idle_conf)" >>"$HOME/.cache/xlin/hypridle.log" 2>&1 &
+    echo "$!" >"$STATE/hypridle.pid"
+  fi
 }
 cmd_idle() {
   case "${1:-status}" in
@@ -1446,7 +1450,9 @@ cmd_nightlight() {
     *)   [[ "$t" =~ ^[0-9]{4}$ && "$t" -ge 1500 && "$t" -le 6500 ]] || { echo "usage: xlin nightlight [on|off|1500-6500]"; return 1; }
          pkill -x hyprsunset 2>/dev/null; sleep 0.2
          echo "$t" >"$STATE/nightlight"
+         mkdir -p "$STATE" "$HOME/.cache/xlin"
          setsid hyprsunset -t "$t" >>"$HOME/.cache/xlin/hyprsunset.log" 2>&1 &
+         echo "$!" >"$STATE/hyprsunset.pid"
          echo "night light on (${t}K)" ;;
   esac
 }
@@ -1660,8 +1666,885 @@ EOT
   [[ -f "$hc" ]] && sed -i '/^# XLIN/d;/hypr\/xlin\.conf/d' "$hc"
   [[ -f "$HOME/.config/hypr/hyprland.lua" ]] && sed -i '/require.*"xlin")/d;/^-- XLIN/d' "$HOME/.config/hypr/hyprland.lua"
   rm -f "$HOME"/.config/hypr/xlin{,-colors,-opacity,-hyprlock,-hypridle}.{conf,lua}
-  pkill -f '[x]lin-dock-watch$' 2>/dev/null; pkill -f '[x]lin-desktop$' 2>/dev/null; pkill -f '[x]lin-desktop$' 2>/dev/null; pkill -f '^nwg-dock-hyprland' 2>/dev/null
-  pkill -x hypridle 2>/dev/null; pkill -x hyprsunset 2>/dev/null
+  pkill -f '[x]lin-dock-watch "$HOME/.config/waybar/config.jsonc" "$HOME/.config/swaync/config.json"; do
+    bak=$(ls -1t "$f".bak-* 2>/dev/null | tail -1)       # the oldest backup = your original
+    [[ -n "$bak" ]] && cp -a "$bak" "$f" && echo "restored ${f/#$HOME/~}"
+  done
+  for f in \
+    "$HOME/.config/waybar/style.css" \
+    "$HOME/.config/rofi/xlin.rasi" \
+    "$HOME/.config/swaync/style.css" \
+    "$HOME/.config/nwg-dock-hyprland/style.css" \
+    "$HOME/.config/hypr/xlin-colors.conf" \
+    "$HOME/.config/hypr/xlin-colors.lua" \
+    "$HOME/.config/kitty/xlin-theme.conf" \
+    "$HOME/.config/hypr/xlin-hyprlock.conf" \
+    "$XLIN_HOME/tools.css"; do
+    restore_generated_file "$f"
+  done
+  if [[ -f "$HOME/.config/kitty/kitty.conf.xlin-backup" ]]; then
+    cp -a "$HOME/.config/kitty/kitty.conf.xlin-backup" "$HOME/.config/kitty/kitty.conf" && echo "restored ~/.config/kitty/kitty.conf"
+  fi
+  rm -f "$HOME"/.config/kitty/xlin-{theme,font,opacity}.conf
+  rm -f "$HOME/.config/bashrc/99-xlin" "$HOME"/.local/share/applications/dev.xlin.*.desktop
+  rm -f "$HOME"/.local/share/icons/hicolor/scalable/apps/xlin-*.svg
+  rm -rf "$HOME/.local/share/icons/XLIN" "$HOME/.local/share/icons/XLIN-Dark"
+  [[ -f "$HOME/.bashrc" ]] && sed -i '/xlin\/shell\.bash/d' "$HOME/.bashrc"
+  ((purge)) && rm -rf "$HOME/.config/xlin"
+  have hyprctl && hyprctl reload >/dev/null 2>&1
+  echo "XLIN removed. Start your own bar with e.g. 'waybar &'. Log out and in again for a clean session."
+  # last step replaces this shell, because it deletes the very script that is running
+  sudo rm -rf /usr/local/lib/xlin
+  sudo rm -f /usr/local/bin/xlin-launcher /usr/local/bin/xlin-start /usr/local/bin/xlin-store /usr/local/bin/xlin-media /usr/local/bin/xlin-debug
+  exec sudo rm -f /usr/local/bin/xlin /usr/local/bin/xlin-dock-watch /usr/local/bin/xlin-settings \
+                  /usr/local/bin/xlin-tools /usr/local/bin/xlin-welcome /usr/local/bin/xlin-files /usr/local/bin/xlin-monitor /usr/local/bin/xlin-terminal /usr/local/bin/xlin-desktop
+}
+
+# ---- keeping the XLIN shortcuts working: xlin keys check | fix, and xlin hook
+# mods|key|command  (the Hyprland binds that start XLIN things; terminal and window keys are not listed)
+keys_expected() {
+  cat <<'EOT'
+SUPER|SPACE|xlin launcher
+SUPER|E|xlin files
+SUPER|S|xlin settings
+SUPER|C|xlin panel
+SUPER|U|xlin tools
+SUPER|M|xlin monitor
+SUPER|H|xlin unhide
+SUPER SHIFT|D|xlin showdesktop
+SUPER|N|xlin tools notes
+SUPER SHIFT|N|xlin note
+SUPER|B|xlin power
+SUPER|L|xlin lock
+SUPER|P|xlin session
+SUPER|V|xlin clipboard
+SUPER|D|xlin theme toggle
+SUPER|W|xlin wallpaper next
+SUPER|slash|xlin keys menu
+|Print|xlin screenshot region
+SHIFT|Print|xlin screenshot full
+ALT|Print|xlin screenshot window
+SUPER SHIFT|S|xlin screenshot region
+EOT
+}
+
+modmask_of() {   # "SUPER SHIFT" -> 65
+  local m=0 w
+  for w in $1; do
+    case "$w" in SHIFT) ((m += 1)) ;; CTRL|CONTROL) ((m += 4)) ;; ALT) ((m += 8)) ;; SUPER|MOD4) ((m += 64)) ;; esac
+  done
+  echo "$m"
+}
+
+# xlin keys check: report every XLIN shortcut. xlin keys fix: re-assert the ones another config took over.
+cmd_keys_check() {
+  local fix="${1:-}" quiet="${2:-}" mods key cmd mask bound ok=0 bad=0 binds
+  have hyprctl && have jq || { echo "needs hyprctl and jq"; return 1; }
+  binds="$(hyprctl binds -j 2>/dev/null)" || true
+  [[ -n "$binds" ]] || { echo "Hyprland is not running"; return 1; }
+  while IFS='|' read -r mods key cmd; do
+    mask="$(modmask_of "$mods")"
+    bound="$(jq -r --argjson m "$mask" --arg k "$key" \
+      '[.[] | select(.modmask == $m and ((.key | ascii_downcase) == ($k | ascii_downcase))) | (.dispatcher + " " + .arg)] | join(" ;; ")' <<<"$binds")"
+    if [[ "$bound" == "exec $cmd" ]] || { is_lua && [[ -n "$bound" ]]; }; then
+      ((ok++)); [[ -n "$quiet" ]] || printf '  ok       %-14s %s\n' "${mods:+${mods// /+}+}$key" "$cmd"
+    else
+      ((bad++))
+      printf '  %-8s %-14s wanted: %s   found: %s\n' "$([[ $fix == fix ]] && echo fixing || echo PROBLEM)" "${mods:+${mods// /+}+}$key" "$cmd" "${bound:-nothing}"
+      if [[ "$fix" == fix ]]; then
+        if is_lua; then
+          local lk="${mods:+${mods// / + } + }$key"
+          hy_lua "hl.unbind(\"$lk\"); hl.bind(\"$lk\", hl.dsp.exec_cmd(\"$cmd\"))"
+        else
+          hyprctl keyword unbind "${mods// /_},$key" >/dev/null 2>&1
+          hyprctl keyword unbind "$mods,$key" >/dev/null 2>&1
+          hyprctl keyword bind "$mods,$key,exec,$cmd" >/dev/null 2>&1
+        fi
+      fi
+    fi
+  done < <(keys_expected)
+  echo "shortcuts: $ok ok, $bad $([[ $fix == fix ]] && echo re-set || echo to fix)"
+  [[ $fix == fix ]] || ((bad == 0))
+}
+
+# Make sure Hyprland loads XLIN as the LAST thing in its config, so nothing below it can take XLIN's keys back.
+# Hyprland 0.55+ reads hyprland.lua (0.57 dropped hyprland.conf); older versions read hyprland.conf.
+cmd_hook() {
+  local quiet="${1:-}" say=echo
+  [[ "$quiet" == quiet ]] && say=:
+  if is_lua; then
+    local hl="$HOME/.config/hypr/hyprland.lua" line='pcall(require, "xlin")' last n
+    mkdir -p "$(dirname "$hl")"
+    if [[ ! -f "$hl" ]]; then
+      cat >"$hl" <<'LUA'
+-- Hyprland config. XLIN is loaded by the last line; add your own settings ABOVE it.
+-- (Hyprland 0.57 no longer reads the old hyprland.conf.)
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = "auto" })
+hl.config({ input = { kb_layout = "us", follow_mouse = 1 } })
+LUA
+      [[ -f "$HOME/.config/hypr/hyprland.conf" ]] && $say "note: Hyprland 0.57 no longer reads ~/.config/hypr/hyprland.conf (kept as a backup)"
+    fi
+    last="$(grep -v '^[[:space:]]*$' "$hl" | tail -1)"
+    n="$(grep -c 'require, "xlin"' "$hl")"
+    if [[ "$last" == "$line" && "$n" -eq 1 ]]; then $say "hyprland.lua: XLIN is already loaded last"; return 0; fi
+    [[ -e "$hl.xlin-bak" ]] || cp -a "$hl" "$hl.xlin-bak"
+    sed -i '/require.*"xlin")/d;/^-- XLIN/d;/autogenerated = true/d' "$hl"
+    printf '\n-- XLIN (keep this line last, so the XLIN shortcuts always win)\n%s\n' "$line" >>"$hl"
+    $say "hyprland.lua: XLIN is now loaded last"
+    return 0
+  fi
+  local hc="$HOME/.config/hypr/hyprland.conf" cline='source = ~/.config/hypr/xlin.conf' last n
+  mkdir -p "$(dirname "$hc")"; touch "$hc"
+  last="$(grep -v '^[[:space:]]*$' "$hc" | tail -1)"
+  n="$(grep -c 'hypr/xlin\.conf' "$hc")"
+  if [[ "$last" == "$cline" && "$n" -eq 1 ]]; then $say "hyprland.conf: XLIN is already loaded last"; return 0; fi
+  [[ -e "$hc.xlin-bak" ]] || cp -a "$hc" "$hc.xlin-bak"
+  sed -i '/hypr\/xlin\.conf/d;/^# XLIN/d' "$hc"
+  printf '\n# XLIN (keep this line last, so the XLIN shortcuts always win)\n%s\n' "$cline" >>"$hc"
+  $say "hyprland.conf: XLIN is now loaded last"
+}
+
+# ---- updates: xlin update [check]   (needs XLIN installed from a git clone)
+cmd_update() {
+  local src ver n up
+  src="$(head -n1 "$STATE/source" 2>/dev/null || true)"
+  if [[ -z "$src" || ! -d "$src/.git" ]]; then
+    # source file missing or damaged: look for the clone in the usual places
+    local d
+    for d in "$HOME/XLIN" "$HOME/Downloads/XLIN" "$HOME/Documents/XLIN" "$HOME/projects/XLIN" "$HOME/src/XLIN" "$HOME/Desktop/XLIN"; do
+      if [[ -d "$d/.git" && -x "$d/update.sh" ]] && git -C "$d" remote get-url origin 2>/dev/null | grep -qi 'XLIN'; then
+        src="$d"; echo "$src" >"$STATE/source"; break
+      fi
+    done
+  fi
+  if [[ -z "$src" || ! -d "$src/.git" ]]; then
+    echo "Updates need XLIN installed from its git folder: git clone https://github.com/madhav-sharma-co/XLIN.git && cd XLIN && ./install.sh"
+    return 3
+  fi
+  have git || { echo "git is not installed (sudo pacman -S git)"; return 3; }
+  if [[ "${1:-}" == check ]]; then
+    git -C "$src" fetch -q origin 2>/dev/null || { echo "Could not reach GitHub (are you online?)"; return 2; }
+    n="$(git -C "$src" rev-list --count 'HEAD..@{u}' 2>/dev/null || echo 0)"
+    if [[ "${n:-0}" -gt 0 ]]; then
+      up="$(git -C "$src" show '@{u}:bin/xlin' 2>/dev/null | grep -m1 '^XLIN_VERSION=' | cut -d'"' -f2)"
+      echo "Update available: ${up:-newer version} (you have $XLIN_VERSION)"
+      return 10
+    fi
+    echo "XLIN is up to date ($XLIN_VERSION)"
+    return 0
+  fi
+  echo "Updating XLIN from $src ..."
+  git -C "$src" pull --ff-only || { echo "Could not update: you changed files in $src. Run: git -C $src status"; return 1; }
+  (cd "$src" && ./update.sh)
+}
+
+# xlin deps: install anything XLIN needs that is missing (same step as install.sh / update.sh)
+cmd_deps() {
+  local src; src="$(head -n1 "$STATE/source" 2>/dev/null || true)"
+  [[ -f "$src/scripts/deps.sh" ]] || { echo "Run this from the XLIN folder: ./scripts/deps.sh"; return 3; }
+  bash "$src/scripts/deps.sh"
+}
+
+# Shortcut list. Edit config/hypr/xlin.conf to change keys; keep this table in step.
+KEYS_TABLE='Apps|Super (tap) / Super+Space|Launcher (Start menu with all apps)
+Apps|Super+Return / Super+T|Terminal
+Apps|Super+E|Files (Explorer) - XLIN Files
+Apps|Super+S|Settings
+Apps|Super+C|Control panel
+Apps|Super+U|Utilities (Tools: calculator, calendar)
+Apps|Super+M|System Monitor (CPU, memory, end a stuck app)
+Apps|Super+B|Battery and power mode
+Apps|Super+N|Notes (Super+Shift+N: quick note)
+System|Super+L|Lock the screen
+System|Super+P|Power menu (lock, sleep, log out, restart, power off)
+System|Super+D|Switch dark / light
+System|Super+W|Next wallpaper
+System|Super+/|Show this list
+System|Super+Shift+Q|Quit Hyprland (log out)
+Daily|Print|Screenshot: select an area
+Daily|Shift+Print|Screenshot: whole screen
+Daily|Alt+Print|Screenshot: active window
+Daily|Super+V|Clipboard history
+Daily|Volume/Brightness keys|With an on-screen popup
+Windows|Super+Q|Close window
+Windows|Super+F|Fullscreen
+Windows|Super+H|Bring back hidden windows
+Windows|Super+Shift+D|Show the desktop (again: bring windows back)
+Workspaces|3-finger swipe|Left / right: workspace, up: Launcher, down: show desktop
+Windows|Super+Shift+F|Floating on / off
+Windows|Alt+Tab|Next window
+Windows|Super+Arrows|Move focus
+Windows|Super+Shift+Arrows|Move the window
+Windows|Super+Ctrl+Arrows|Resize the window
+Windows|Super+Mouse drag|Move (left) / resize (right)
+Workspaces|Super+1..4|Go to workspace
+Workspaces|Super+Shift+1..4|Send window to workspace
+Workspaces|Super+Scroll|Next / previous workspace'
+
+cmd_keys() {
+  case "${1:-}" in check|fix) cmd_keys_check "$1" "${2:-}"; return $? ;; esac
+  if [[ "${1:-}" == menu ]]; then
+    pgrep -x rofi >/dev/null && { pkill -x rofi; return 0; }
+    have rofi || { cmd_keys; return 0; }
+    local n; n=$(wc -l <<<"$KEYS_TABLE")
+    awk -F'|' '{printf "%-26s %s\n", $2, $3}' <<<"$KEYS_TABLE" \
+      | rofi -dmenu -i -p "Shortcuts" -theme "$HOME/.config/rofi/xlin.rasi" \
+          -theme-str "listview { columns: 1; lines: $((n > 14 ? 14 : n)); } window { width: 520px; } element { padding: 6px 12px; } element-text { font: \"JetBrainsMono Nerd Font 10\"; } inputbar { enabled: false; }" >/dev/null
+    return 0
+  fi
+  local last=""
+  while IFS='|' read -r grp key what; do
+    [[ "$grp" != "$last" ]] && { [[ -n "$last" ]] && echo; echo "${B}$grp${R}"; last="$grp"; }
+    printf '  %-26s %s\n' "$key" "$what"
+  done <<<"$KEYS_TABLE"
+}
+
+# ------------------------------------------------------------------ help
+cmd_help() {
+  case "${1:-}" in
+    wifi) cat <<EOT
+${B}xlin wifi${R}   Wi-Fi from the terminal
+  xlin wifi                      status (on/off, network, address)
+  xlin wifi list                 scan and list networks
+  xlin wifi connect <name> [pw]  connect (asks for the password if needed)
+  xlin wifi disconnect           disconnect
+  xlin wifi forget <name>        forget a saved network
+  xlin wifi on | off             turn Wi-Fi on or off
+  xlin wifi ip                   show your address
+EOT
+    ;;
+    bluetooth|bt) cat <<EOT
+${B}xlin bluetooth${R}  (short: xlin bt)
+  xlin bt                        status and connected devices
+  xlin bt on | off               turn Bluetooth on or off
+  xlin bt list                   known devices (* = connected)
+  xlin bt scan [seconds]         look for new devices (default 8)
+  xlin bt pair <name|MAC>        pair, trust and connect
+  xlin bt connect <name|MAC>     connect a known device
+  xlin bt disconnect [name|MAC]  disconnect
+  xlin bt remove <name|MAC>      forget a device
+You can type part of a device name instead of the MAC address.
+EOT
+    ;;
+    sound|volume) cat <<EOT
+${B}xlin sound${R}  (short: xlin volume)
+  xlin sound                     show the volume
+  xlin sound set <0-150>         set the volume in percent
+  xlin sound up|down [n]         change by n percent (default 5)
+  xlin sound mute|unmute|toggle  mute control
+  xlin sound outputs             list audio outputs
+EOT
+    ;;
+    brightness|display) cat <<EOT
+${B}xlin brightness${R}
+  xlin brightness                show the screen brightness
+  xlin brightness set <1-100>    set it in percent
+  xlin brightness up|down [n]    change by n percent (default 5)
+EOT
+    ;;
+    battery|power) cat <<EOT
+${B}xlin battery${R}
+  xlin battery                   charge level and power mode
+  xlin battery mode              show the power mode
+  xlin battery mode saver|balanced|performance
+  xlin power                     open the battery dropdown (GUI)
+EOT
+    ;;
+    theme|look) cat <<EOT
+${B}Look and feel${R}
+  xlin theme [light|dark|toggle]   switch appearance everywhere
+  xlin wallpaper [next|<image>]    change the wallpaper
+  xlin opacity <0.3-1.0>           window transparency
+  xlin runbar autohide on|off      run bar (the bottom bar): hide when not used
+  xlin runbar size 32|40|48        run bar icon size
+  xlin bar [show|hide <name>]      top bar buttons: settings tools wifi bluetooth sound battery power panel
+  xlin term [-d folder] [-e cmd]   open a terminal window
+  xlin desktop [on|off|restart]    right-click desktop menu, shortcuts and widgets
+  xlin terminal use xlin|kitty     which terminal Super+Return opens
+  xlin terminal font ["Name" 12]   terminal font
+  xlin terminal banner on|off      terminal welcome card
+EOT
+    ;;
+    *) cat <<EOT
+${B}xlin $XLIN_VERSION${R} - the XLIN desktop
+
+${B}System${R}
+  xlin status                      one-screen overview
+  xlin screenshot [region|full|window]   saved to ~/Pictures/Screenshots and copied
+  xlin idle [on|off|set <min>]     auto-lock after idle (default 5 min)
+  xlin nightlight [on|off|<K>]     warm screen colour (1500-6500K)
+  xlin clipboard                   clipboard history
+  xlin monitor                     System Monitor (Super+M)
+  xlin store                       XLIN Store: find, install and remove apps
+  xlin font [name|size ...]        System font and size
+  xlin showdesktop                 Hide all windows to show the desktop (Super+Shift+D)
+  xlin reset                       Put XLIN's settings back to the defaults
+  xlin warm on|off                 Keep apps ready (instant open)
+  xlin media [files]               XLIN Media: music and video player
+  xlin debug                       SysDebug: health checks, logs, quick repairs
+  xlin files [folder|default]      XLIN Files (default = use it for "show in folder")
+  xlin notes [list|dir]            Notes window (Super+N); xlin note "text" saves a quick note
+  xlin keys [check|fix]            all keyboard shortcuts (Super+/ shows them); check/fix repairs clashes
+  xlin wifi [..]                   Wi-Fi          (xlin wifi help)
+  xlin bluetooth [..]   (xlin bt)  Bluetooth      (xlin bt help)
+  xlin sound [..]       (volume)   volume         (xlin sound help)
+  xlin brightness [..]             screen brightness
+  xlin battery [..]                charge and power mode
+  xlin toggle wifi|bluetooth|airplane
+
+${B}Look and feel${R}              (xlin help theme)
+  xlin theme [light|dark|toggle]   xlin accent [teal|green|rose|orange|graphite|#hex]
+  xlin wallpaper [next|<image>]    xlin welcome (first-run tour)
+  xlin opacity <0.3-1.0>           xlin runbar autohide on|off
+  xlin terminal [font|banner]
+
+${B}Apps and panels${R}
+  xlin launcher    xlin settings [page]    xlin panel    xlin power    xlin lock
+  xlin session (power menu)   xlin sleep | logout | poweroff | reboot
+  xlin tools [calculator|calendar|notes|screenshot]   xlin files    xlin pin|unpin <app>
+
+${B}Session${R}
+  xlin start | restart | reload            xlin doctor     xlin version
+  xlin cursor [24|32|48|64]                mouse cursor size
+  xlin update [check]                      get the newest XLIN from GitHub (check = look only)
+  xlin uninstall [--purge]                 remove XLIN and restore your old configs
+
+Every command has its own help:  xlin <command> help      Tab completes commands.
+EOT
+    ;;
+  esac
+}
+
+# "xlin <command> help" shows that command's help
+case "${2:-}" in help|-h|--help) cmd_help "${1:-}"; exit 0 ;; esac
+
+case "${1:-help}" in
+  help|-h|--help) shift; cmd_help "${1:-}" ;;
+  version|-v|--version) echo "xlin $XLIN_VERSION" ;;
+  status)    cmd_status ;;
+  screenshot) shift; cmd_screenshot "${1:-region}" ;;
+  osd)       shift; cmd_osd "${1:-}" "${2:-}" ;;
+  idle)      shift; cmd_idle "$@" ;;
+  nightlight|night) shift; cmd_nightlight "${1:-toggle}" ;;
+  clipboard) cmd_clipboard ;;
+  note)      shift; cmd_note "$@" ;;
+  notes)     shift; cmd_notes "${1:-}" ;;
+  adapt)     cmd_adapt ;;
+  hook)      cmd_hook ;;
+  update)    shift; cmd_update "${1:-}" ;;
+  cursor)    shift; cmd_cursor "${1:-}" ;;
+  uninstall) shift; cmd_uninstall "$@" ;;
+  accent)    shift; cmd_accent "${1:-}" ;;
+  welcome)   shift; cmd_welcome "${1:-}" ;;
+  keys|shortcuts) shift; cmd_keys "${1:-}" ;;
+  wifi)      shift; cmd_wifi "$@" ;;
+  bluetooth|bt) shift; cmd_bluetooth "$@" ;;
+  sound|volume) shift; cmd_sound "$@" ;;
+  brightness) shift; cmd_brightness "$@" ;;
+  battery)   shift; cmd_battery "$@" ;;
+  theme)     shift; cmd_theme "${1:-}" ;;
+  wallpaper) shift; cmd_wallpaper "${1:-next}" ;;
+  launcher)  shift; cmd_launcher "${1:-}" ;;
+  drawer)    cmd_launcher ;;     # the App drawer was merged into the Launcher
+  unhide)    shift; cmd_unhide "${1:-}" ;;
+  launch-app) shift; cmd_launch_app "${1:?usage: xlin launch-app <desktop-id>}" ;;
+  pin)       shift; cmd_pin "${1:-}" ;;
+  unpin)     shift; cmd_unpin "${1:-}" ;;
+  dock|runbar) shift; case "${1:-check}" in
+               check) dock_check ;;
+               restart) dock_restart ;;
+               autohide) echo "${2:-on}" >"$STATE/dock_autohide"; dock_restart; echo "run bar autohide: ${2:-on}" ;;
+               size) case "${2:-}" in
+                       32|40|48) echo "$2" >"$STATE/dock_icon"; dock_restart; echo "run bar icon size: $2" ;;
+                       *) echo "usage: xlin runbar size 32|40|48   (now: $(cat "$STATE/dock_icon" 2>/dev/null || echo 40))" ;;
+                     esac ;;
+               *) echo "usage: xlin runbar [autohide on|off | size 32|40|48 | restart]" ;;
+             esac ;;
+  bar)       shift; cmd_bar "$@" ;;
+  opacity)   shift; cmd_opacity "${1:-}" ;;
+  superkey)  cmd_superkey ;;
+  hypr-mode) hypr_mode ;;
+  animations|animation|anim) shift; cmd_animations "${1:-}" ;;
+  deps)      cmd_deps ;;
+  reset)     cmd_reset ;;
+  showdesktop|show-desktop) cmd_showdesktop ;;
+  warm)      shift; cmd_warm "${1:-}" ;;
+  font)      shift; cmd_font "$@" ;;
+  terminal)  shift; cmd_terminal "${1:-}" "${2:-}" "${3:-}" ;;
+  tools)     shift; cmd_tools "${1:-}" ;;
+  start)     cmd_start ;;
+  restart)   pkill -x waybar 2>/dev/null; pkill -x swaync 2>/dev/null
+             pkill -f '[x]lin-(launcher|start|store|settings|files)( |$)' 2>/dev/null   # waiting apps load the new version
+             sleep 0.5; cmd_start ;;
+  toggle)    shift; cmd_toggle "${1:-}" ;;
+  settings)  shift; cmd_settings "${1:-}" ;;
+  panel)     cmd_panel ;;
+  power)     cmd_power ;;
+  lock)      cmd_lock ;;
+  session)   cmd_session ;;
+  sleep|suspend) cmd_sleep ;;
+  logout)    hy_exit ;;
+  dpms)      hy_dpms "${2:-on}" ;;
+  poweroff|shutdown) systemctl poweroff ;;
+  reboot|restart-pc) systemctl reboot ;;
+  files)     shift; cmd_files "$@" ;;
+  store)     cmd_store ;;
+  debug)     cmd_debug ;;
+  media)     shift; cmd_media "$@" ;;
+  monitor)   cmd_monitor ;;
+  desktop-menu) shift; cmd_desktop_menu "${1:-}" ;;
+  term)      shift; cmd_term "$@" ;;
+  desktop)   shift; cmd_desktop "$@" ;;
+  reload)    reload_all ;;
+  doctor)    cmd_doctor ;;
+  *) echo "xlin: unknown command '$1'" >&2; echo >&2; cmd_help >&2; exit 1 ;;
+esac
+ 2>/dev/null; pkill -f '[x]lin-desktop "$HOME/.config/waybar/config.jsonc" "$HOME/.config/swaync/config.json"; do
+    bak=$(ls -1t "$f".bak-* 2>/dev/null | tail -1)       # the oldest backup = your original
+    [[ -n "$bak" ]] && cp -a "$bak" "$f" && echo "restored ${f/#$HOME/~}"
+  done
+  for f in \
+    "$HOME/.config/waybar/style.css" \
+    "$HOME/.config/rofi/xlin.rasi" \
+    "$HOME/.config/swaync/style.css" \
+    "$HOME/.config/nwg-dock-hyprland/style.css" \
+    "$HOME/.config/hypr/xlin-colors.conf" \
+    "$HOME/.config/hypr/xlin-colors.lua" \
+    "$HOME/.config/kitty/xlin-theme.conf" \
+    "$HOME/.config/hypr/xlin-hyprlock.conf" \
+    "$XLIN_HOME/tools.css"; do
+    restore_generated_file "$f"
+  done
+  if [[ -f "$HOME/.config/kitty/kitty.conf.xlin-backup" ]]; then
+    cp -a "$HOME/.config/kitty/kitty.conf.xlin-backup" "$HOME/.config/kitty/kitty.conf" && echo "restored ~/.config/kitty/kitty.conf"
+  fi
+  rm -f "$HOME"/.config/kitty/xlin-{theme,font,opacity}.conf
+  rm -f "$HOME/.config/bashrc/99-xlin" "$HOME"/.local/share/applications/dev.xlin.*.desktop
+  rm -f "$HOME"/.local/share/icons/hicolor/scalable/apps/xlin-*.svg
+  rm -rf "$HOME/.local/share/icons/XLIN" "$HOME/.local/share/icons/XLIN-Dark"
+  [[ -f "$HOME/.bashrc" ]] && sed -i '/xlin\/shell\.bash/d' "$HOME/.bashrc"
+  ((purge)) && rm -rf "$HOME/.config/xlin"
+  have hyprctl && hyprctl reload >/dev/null 2>&1
+  echo "XLIN removed. Start your own bar with e.g. 'waybar &'. Log out and in again for a clean session."
+  # last step replaces this shell, because it deletes the very script that is running
+  sudo rm -rf /usr/local/lib/xlin
+  sudo rm -f /usr/local/bin/xlin-launcher /usr/local/bin/xlin-start /usr/local/bin/xlin-store /usr/local/bin/xlin-media /usr/local/bin/xlin-debug
+  exec sudo rm -f /usr/local/bin/xlin /usr/local/bin/xlin-dock-watch /usr/local/bin/xlin-settings \
+                  /usr/local/bin/xlin-tools /usr/local/bin/xlin-welcome /usr/local/bin/xlin-files /usr/local/bin/xlin-monitor /usr/local/bin/xlin-terminal /usr/local/bin/xlin-desktop
+}
+
+# ---- keeping the XLIN shortcuts working: xlin keys check | fix, and xlin hook
+# mods|key|command  (the Hyprland binds that start XLIN things; terminal and window keys are not listed)
+keys_expected() {
+  cat <<'EOT'
+SUPER|SPACE|xlin launcher
+SUPER|E|xlin files
+SUPER|S|xlin settings
+SUPER|C|xlin panel
+SUPER|U|xlin tools
+SUPER|M|xlin monitor
+SUPER|H|xlin unhide
+SUPER SHIFT|D|xlin showdesktop
+SUPER|N|xlin tools notes
+SUPER SHIFT|N|xlin note
+SUPER|B|xlin power
+SUPER|L|xlin lock
+SUPER|P|xlin session
+SUPER|V|xlin clipboard
+SUPER|D|xlin theme toggle
+SUPER|W|xlin wallpaper next
+SUPER|slash|xlin keys menu
+|Print|xlin screenshot region
+SHIFT|Print|xlin screenshot full
+ALT|Print|xlin screenshot window
+SUPER SHIFT|S|xlin screenshot region
+EOT
+}
+
+modmask_of() {   # "SUPER SHIFT" -> 65
+  local m=0 w
+  for w in $1; do
+    case "$w" in SHIFT) ((m += 1)) ;; CTRL|CONTROL) ((m += 4)) ;; ALT) ((m += 8)) ;; SUPER|MOD4) ((m += 64)) ;; esac
+  done
+  echo "$m"
+}
+
+# xlin keys check: report every XLIN shortcut. xlin keys fix: re-assert the ones another config took over.
+cmd_keys_check() {
+  local fix="${1:-}" quiet="${2:-}" mods key cmd mask bound ok=0 bad=0 binds
+  have hyprctl && have jq || { echo "needs hyprctl and jq"; return 1; }
+  binds="$(hyprctl binds -j 2>/dev/null)" || true
+  [[ -n "$binds" ]] || { echo "Hyprland is not running"; return 1; }
+  while IFS='|' read -r mods key cmd; do
+    mask="$(modmask_of "$mods")"
+    bound="$(jq -r --argjson m "$mask" --arg k "$key" \
+      '[.[] | select(.modmask == $m and ((.key | ascii_downcase) == ($k | ascii_downcase))) | (.dispatcher + " " + .arg)] | join(" ;; ")' <<<"$binds")"
+    if [[ "$bound" == "exec $cmd" ]] || { is_lua && [[ -n "$bound" ]]; }; then
+      ((ok++)); [[ -n "$quiet" ]] || printf '  ok       %-14s %s\n' "${mods:+${mods// /+}+}$key" "$cmd"
+    else
+      ((bad++))
+      printf '  %-8s %-14s wanted: %s   found: %s\n' "$([[ $fix == fix ]] && echo fixing || echo PROBLEM)" "${mods:+${mods// /+}+}$key" "$cmd" "${bound:-nothing}"
+      if [[ "$fix" == fix ]]; then
+        if is_lua; then
+          local lk="${mods:+${mods// / + } + }$key"
+          hy_lua "hl.unbind(\"$lk\"); hl.bind(\"$lk\", hl.dsp.exec_cmd(\"$cmd\"))"
+        else
+          hyprctl keyword unbind "${mods// /_},$key" >/dev/null 2>&1
+          hyprctl keyword unbind "$mods,$key" >/dev/null 2>&1
+          hyprctl keyword bind "$mods,$key,exec,$cmd" >/dev/null 2>&1
+        fi
+      fi
+    fi
+  done < <(keys_expected)
+  echo "shortcuts: $ok ok, $bad $([[ $fix == fix ]] && echo re-set || echo to fix)"
+  [[ $fix == fix ]] || ((bad == 0))
+}
+
+# Make sure Hyprland loads XLIN as the LAST thing in its config, so nothing below it can take XLIN's keys back.
+# Hyprland 0.55+ reads hyprland.lua (0.57 dropped hyprland.conf); older versions read hyprland.conf.
+cmd_hook() {
+  local quiet="${1:-}" say=echo
+  [[ "$quiet" == quiet ]] && say=:
+  if is_lua; then
+    local hl="$HOME/.config/hypr/hyprland.lua" line='pcall(require, "xlin")' last n
+    mkdir -p "$(dirname "$hl")"
+    if [[ ! -f "$hl" ]]; then
+      cat >"$hl" <<'LUA'
+-- Hyprland config. XLIN is loaded by the last line; add your own settings ABOVE it.
+-- (Hyprland 0.57 no longer reads the old hyprland.conf.)
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = "auto" })
+hl.config({ input = { kb_layout = "us", follow_mouse = 1 } })
+LUA
+      [[ -f "$HOME/.config/hypr/hyprland.conf" ]] && $say "note: Hyprland 0.57 no longer reads ~/.config/hypr/hyprland.conf (kept as a backup)"
+    fi
+    last="$(grep -v '^[[:space:]]*$' "$hl" | tail -1)"
+    n="$(grep -c 'require, "xlin"' "$hl")"
+    if [[ "$last" == "$line" && "$n" -eq 1 ]]; then $say "hyprland.lua: XLIN is already loaded last"; return 0; fi
+    [[ -e "$hl.xlin-bak" ]] || cp -a "$hl" "$hl.xlin-bak"
+    sed -i '/require.*"xlin")/d;/^-- XLIN/d;/autogenerated = true/d' "$hl"
+    printf '\n-- XLIN (keep this line last, so the XLIN shortcuts always win)\n%s\n' "$line" >>"$hl"
+    $say "hyprland.lua: XLIN is now loaded last"
+    return 0
+  fi
+  local hc="$HOME/.config/hypr/hyprland.conf" cline='source = ~/.config/hypr/xlin.conf' last n
+  mkdir -p "$(dirname "$hc")"; touch "$hc"
+  last="$(grep -v '^[[:space:]]*$' "$hc" | tail -1)"
+  n="$(grep -c 'hypr/xlin\.conf' "$hc")"
+  if [[ "$last" == "$cline" && "$n" -eq 1 ]]; then $say "hyprland.conf: XLIN is already loaded last"; return 0; fi
+  [[ -e "$hc.xlin-bak" ]] || cp -a "$hc" "$hc.xlin-bak"
+  sed -i '/hypr\/xlin\.conf/d;/^# XLIN/d' "$hc"
+  printf '\n# XLIN (keep this line last, so the XLIN shortcuts always win)\n%s\n' "$cline" >>"$hc"
+  $say "hyprland.conf: XLIN is now loaded last"
+}
+
+# ---- updates: xlin update [check]   (needs XLIN installed from a git clone)
+cmd_update() {
+  local src ver n up
+  src="$(head -n1 "$STATE/source" 2>/dev/null || true)"
+  if [[ -z "$src" || ! -d "$src/.git" ]]; then
+    # source file missing or damaged: look for the clone in the usual places
+    local d
+    for d in "$HOME/XLIN" "$HOME/Downloads/XLIN" "$HOME/Documents/XLIN" "$HOME/projects/XLIN" "$HOME/src/XLIN" "$HOME/Desktop/XLIN"; do
+      if [[ -d "$d/.git" && -x "$d/update.sh" ]] && git -C "$d" remote get-url origin 2>/dev/null | grep -qi 'XLIN'; then
+        src="$d"; echo "$src" >"$STATE/source"; break
+      fi
+    done
+  fi
+  if [[ -z "$src" || ! -d "$src/.git" ]]; then
+    echo "Updates need XLIN installed from its git folder: git clone https://github.com/madhav-sharma-co/XLIN.git && cd XLIN && ./install.sh"
+    return 3
+  fi
+  have git || { echo "git is not installed (sudo pacman -S git)"; return 3; }
+  if [[ "${1:-}" == check ]]; then
+    git -C "$src" fetch -q origin 2>/dev/null || { echo "Could not reach GitHub (are you online?)"; return 2; }
+    n="$(git -C "$src" rev-list --count 'HEAD..@{u}' 2>/dev/null || echo 0)"
+    if [[ "${n:-0}" -gt 0 ]]; then
+      up="$(git -C "$src" show '@{u}:bin/xlin' 2>/dev/null | grep -m1 '^XLIN_VERSION=' | cut -d'"' -f2)"
+      echo "Update available: ${up:-newer version} (you have $XLIN_VERSION)"
+      return 10
+    fi
+    echo "XLIN is up to date ($XLIN_VERSION)"
+    return 0
+  fi
+  echo "Updating XLIN from $src ..."
+  git -C "$src" pull --ff-only || { echo "Could not update: you changed files in $src. Run: git -C $src status"; return 1; }
+  (cd "$src" && ./update.sh)
+}
+
+# xlin deps: install anything XLIN needs that is missing (same step as install.sh / update.sh)
+cmd_deps() {
+  local src; src="$(head -n1 "$STATE/source" 2>/dev/null || true)"
+  [[ -f "$src/scripts/deps.sh" ]] || { echo "Run this from the XLIN folder: ./scripts/deps.sh"; return 3; }
+  bash "$src/scripts/deps.sh"
+}
+
+# Shortcut list. Edit config/hypr/xlin.conf to change keys; keep this table in step.
+KEYS_TABLE='Apps|Super (tap) / Super+Space|Launcher (Start menu with all apps)
+Apps|Super+Return / Super+T|Terminal
+Apps|Super+E|Files (Explorer) - XLIN Files
+Apps|Super+S|Settings
+Apps|Super+C|Control panel
+Apps|Super+U|Utilities (Tools: calculator, calendar)
+Apps|Super+M|System Monitor (CPU, memory, end a stuck app)
+Apps|Super+B|Battery and power mode
+Apps|Super+N|Notes (Super+Shift+N: quick note)
+System|Super+L|Lock the screen
+System|Super+P|Power menu (lock, sleep, log out, restart, power off)
+System|Super+D|Switch dark / light
+System|Super+W|Next wallpaper
+System|Super+/|Show this list
+System|Super+Shift+Q|Quit Hyprland (log out)
+Daily|Print|Screenshot: select an area
+Daily|Shift+Print|Screenshot: whole screen
+Daily|Alt+Print|Screenshot: active window
+Daily|Super+V|Clipboard history
+Daily|Volume/Brightness keys|With an on-screen popup
+Windows|Super+Q|Close window
+Windows|Super+F|Fullscreen
+Windows|Super+H|Bring back hidden windows
+Windows|Super+Shift+D|Show the desktop (again: bring windows back)
+Workspaces|3-finger swipe|Left / right: workspace, up: Launcher, down: show desktop
+Windows|Super+Shift+F|Floating on / off
+Windows|Alt+Tab|Next window
+Windows|Super+Arrows|Move focus
+Windows|Super+Shift+Arrows|Move the window
+Windows|Super+Ctrl+Arrows|Resize the window
+Windows|Super+Mouse drag|Move (left) / resize (right)
+Workspaces|Super+1..4|Go to workspace
+Workspaces|Super+Shift+1..4|Send window to workspace
+Workspaces|Super+Scroll|Next / previous workspace'
+
+cmd_keys() {
+  case "${1:-}" in check|fix) cmd_keys_check "$1" "${2:-}"; return $? ;; esac
+  if [[ "${1:-}" == menu ]]; then
+    pgrep -x rofi >/dev/null && { pkill -x rofi; return 0; }
+    have rofi || { cmd_keys; return 0; }
+    local n; n=$(wc -l <<<"$KEYS_TABLE")
+    awk -F'|' '{printf "%-26s %s\n", $2, $3}' <<<"$KEYS_TABLE" \
+      | rofi -dmenu -i -p "Shortcuts" -theme "$HOME/.config/rofi/xlin.rasi" \
+          -theme-str "listview { columns: 1; lines: $((n > 14 ? 14 : n)); } window { width: 520px; } element { padding: 6px 12px; } element-text { font: \"JetBrainsMono Nerd Font 10\"; } inputbar { enabled: false; }" >/dev/null
+    return 0
+  fi
+  local last=""
+  while IFS='|' read -r grp key what; do
+    [[ "$grp" != "$last" ]] && { [[ -n "$last" ]] && echo; echo "${B}$grp${R}"; last="$grp"; }
+    printf '  %-26s %s\n' "$key" "$what"
+  done <<<"$KEYS_TABLE"
+}
+
+# ------------------------------------------------------------------ help
+cmd_help() {
+  case "${1:-}" in
+    wifi) cat <<EOT
+${B}xlin wifi${R}   Wi-Fi from the terminal
+  xlin wifi                      status (on/off, network, address)
+  xlin wifi list                 scan and list networks
+  xlin wifi connect <name> [pw]  connect (asks for the password if needed)
+  xlin wifi disconnect           disconnect
+  xlin wifi forget <name>        forget a saved network
+  xlin wifi on | off             turn Wi-Fi on or off
+  xlin wifi ip                   show your address
+EOT
+    ;;
+    bluetooth|bt) cat <<EOT
+${B}xlin bluetooth${R}  (short: xlin bt)
+  xlin bt                        status and connected devices
+  xlin bt on | off               turn Bluetooth on or off
+  xlin bt list                   known devices (* = connected)
+  xlin bt scan [seconds]         look for new devices (default 8)
+  xlin bt pair <name|MAC>        pair, trust and connect
+  xlin bt connect <name|MAC>     connect a known device
+  xlin bt disconnect [name|MAC]  disconnect
+  xlin bt remove <name|MAC>      forget a device
+You can type part of a device name instead of the MAC address.
+EOT
+    ;;
+    sound|volume) cat <<EOT
+${B}xlin sound${R}  (short: xlin volume)
+  xlin sound                     show the volume
+  xlin sound set <0-150>         set the volume in percent
+  xlin sound up|down [n]         change by n percent (default 5)
+  xlin sound mute|unmute|toggle  mute control
+  xlin sound outputs             list audio outputs
+EOT
+    ;;
+    brightness|display) cat <<EOT
+${B}xlin brightness${R}
+  xlin brightness                show the screen brightness
+  xlin brightness set <1-100>    set it in percent
+  xlin brightness up|down [n]    change by n percent (default 5)
+EOT
+    ;;
+    battery|power) cat <<EOT
+${B}xlin battery${R}
+  xlin battery                   charge level and power mode
+  xlin battery mode              show the power mode
+  xlin battery mode saver|balanced|performance
+  xlin power                     open the battery dropdown (GUI)
+EOT
+    ;;
+    theme|look) cat <<EOT
+${B}Look and feel${R}
+  xlin theme [light|dark|toggle]   switch appearance everywhere
+  xlin wallpaper [next|<image>]    change the wallpaper
+  xlin opacity <0.3-1.0>           window transparency
+  xlin runbar autohide on|off      run bar (the bottom bar): hide when not used
+  xlin runbar size 32|40|48        run bar icon size
+  xlin bar [show|hide <name>]      top bar buttons: settings tools wifi bluetooth sound battery power panel
+  xlin term [-d folder] [-e cmd]   open a terminal window
+  xlin desktop [on|off|restart]    right-click desktop menu, shortcuts and widgets
+  xlin terminal use xlin|kitty     which terminal Super+Return opens
+  xlin terminal font ["Name" 12]   terminal font
+  xlin terminal banner on|off      terminal welcome card
+EOT
+    ;;
+    *) cat <<EOT
+${B}xlin $XLIN_VERSION${R} - the XLIN desktop
+
+${B}System${R}
+  xlin status                      one-screen overview
+  xlin screenshot [region|full|window]   saved to ~/Pictures/Screenshots and copied
+  xlin idle [on|off|set <min>]     auto-lock after idle (default 5 min)
+  xlin nightlight [on|off|<K>]     warm screen colour (1500-6500K)
+  xlin clipboard                   clipboard history
+  xlin monitor                     System Monitor (Super+M)
+  xlin store                       XLIN Store: find, install and remove apps
+  xlin font [name|size ...]        System font and size
+  xlin showdesktop                 Hide all windows to show the desktop (Super+Shift+D)
+  xlin reset                       Put XLIN's settings back to the defaults
+  xlin warm on|off                 Keep apps ready (instant open)
+  xlin media [files]               XLIN Media: music and video player
+  xlin debug                       SysDebug: health checks, logs, quick repairs
+  xlin files [folder|default]      XLIN Files (default = use it for "show in folder")
+  xlin notes [list|dir]            Notes window (Super+N); xlin note "text" saves a quick note
+  xlin keys [check|fix]            all keyboard shortcuts (Super+/ shows them); check/fix repairs clashes
+  xlin wifi [..]                   Wi-Fi          (xlin wifi help)
+  xlin bluetooth [..]   (xlin bt)  Bluetooth      (xlin bt help)
+  xlin sound [..]       (volume)   volume         (xlin sound help)
+  xlin brightness [..]             screen brightness
+  xlin battery [..]                charge and power mode
+  xlin toggle wifi|bluetooth|airplane
+
+${B}Look and feel${R}              (xlin help theme)
+  xlin theme [light|dark|toggle]   xlin accent [teal|green|rose|orange|graphite|#hex]
+  xlin wallpaper [next|<image>]    xlin welcome (first-run tour)
+  xlin opacity <0.3-1.0>           xlin runbar autohide on|off
+  xlin terminal [font|banner]
+
+${B}Apps and panels${R}
+  xlin launcher    xlin settings [page]    xlin panel    xlin power    xlin lock
+  xlin session (power menu)   xlin sleep | logout | poweroff | reboot
+  xlin tools [calculator|calendar|notes|screenshot]   xlin files    xlin pin|unpin <app>
+
+${B}Session${R}
+  xlin start | restart | reload            xlin doctor     xlin version
+  xlin cursor [24|32|48|64]                mouse cursor size
+  xlin update [check]                      get the newest XLIN from GitHub (check = look only)
+  xlin uninstall [--purge]                 remove XLIN and restore your old configs
+
+Every command has its own help:  xlin <command> help      Tab completes commands.
+EOT
+    ;;
+  esac
+}
+
+# "xlin <command> help" shows that command's help
+case "${2:-}" in help|-h|--help) cmd_help "${1:-}"; exit 0 ;; esac
+
+case "${1:-help}" in
+  help|-h|--help) shift; cmd_help "${1:-}" ;;
+  version|-v|--version) echo "xlin $XLIN_VERSION" ;;
+  status)    cmd_status ;;
+  screenshot) shift; cmd_screenshot "${1:-region}" ;;
+  osd)       shift; cmd_osd "${1:-}" "${2:-}" ;;
+  idle)      shift; cmd_idle "$@" ;;
+  nightlight|night) shift; cmd_nightlight "${1:-toggle}" ;;
+  clipboard) cmd_clipboard ;;
+  note)      shift; cmd_note "$@" ;;
+  notes)     shift; cmd_notes "${1:-}" ;;
+  adapt)     cmd_adapt ;;
+  hook)      cmd_hook ;;
+  update)    shift; cmd_update "${1:-}" ;;
+  cursor)    shift; cmd_cursor "${1:-}" ;;
+  uninstall) shift; cmd_uninstall "$@" ;;
+  accent)    shift; cmd_accent "${1:-}" ;;
+  welcome)   shift; cmd_welcome "${1:-}" ;;
+  keys|shortcuts) shift; cmd_keys "${1:-}" ;;
+  wifi)      shift; cmd_wifi "$@" ;;
+  bluetooth|bt) shift; cmd_bluetooth "$@" ;;
+  sound|volume) shift; cmd_sound "$@" ;;
+  brightness) shift; cmd_brightness "$@" ;;
+  battery)   shift; cmd_battery "$@" ;;
+  theme)     shift; cmd_theme "${1:-}" ;;
+  wallpaper) shift; cmd_wallpaper "${1:-next}" ;;
+  launcher)  shift; cmd_launcher "${1:-}" ;;
+  drawer)    cmd_launcher ;;     # the App drawer was merged into the Launcher
+  unhide)    shift; cmd_unhide "${1:-}" ;;
+  launch-app) shift; cmd_launch_app "${1:?usage: xlin launch-app <desktop-id>}" ;;
+  pin)       shift; cmd_pin "${1:-}" ;;
+  unpin)     shift; cmd_unpin "${1:-}" ;;
+  dock|runbar) shift; case "${1:-check}" in
+               check) dock_check ;;
+               restart) dock_restart ;;
+               autohide) echo "${2:-on}" >"$STATE/dock_autohide"; dock_restart; echo "run bar autohide: ${2:-on}" ;;
+               size) case "${2:-}" in
+                       32|40|48) echo "$2" >"$STATE/dock_icon"; dock_restart; echo "run bar icon size: $2" ;;
+                       *) echo "usage: xlin runbar size 32|40|48   (now: $(cat "$STATE/dock_icon" 2>/dev/null || echo 40))" ;;
+                     esac ;;
+               *) echo "usage: xlin runbar [autohide on|off | size 32|40|48 | restart]" ;;
+             esac ;;
+  bar)       shift; cmd_bar "$@" ;;
+  opacity)   shift; cmd_opacity "${1:-}" ;;
+  superkey)  cmd_superkey ;;
+  hypr-mode) hypr_mode ;;
+  animations|animation|anim) shift; cmd_animations "${1:-}" ;;
+  deps)      cmd_deps ;;
+  reset)     cmd_reset ;;
+  showdesktop|show-desktop) cmd_showdesktop ;;
+  warm)      shift; cmd_warm "${1:-}" ;;
+  font)      shift; cmd_font "$@" ;;
+  terminal)  shift; cmd_terminal "${1:-}" "${2:-}" "${3:-}" ;;
+  tools)     shift; cmd_tools "${1:-}" ;;
+  start)     cmd_start ;;
+  restart)   pkill -x waybar 2>/dev/null; pkill -x swaync 2>/dev/null
+             pkill -f '[x]lin-(launcher|start|store|settings|files)( |$)' 2>/dev/null   # waiting apps load the new version
+             sleep 0.5; cmd_start ;;
+  toggle)    shift; cmd_toggle "${1:-}" ;;
+  settings)  shift; cmd_settings "${1:-}" ;;
+  panel)     cmd_panel ;;
+  power)     cmd_power ;;
+  lock)      cmd_lock ;;
+  session)   cmd_session ;;
+  sleep|suspend) cmd_sleep ;;
+  logout)    hy_exit ;;
+  dpms)      hy_dpms "${2:-on}" ;;
+  poweroff|shutdown) systemctl poweroff ;;
+  reboot|restart-pc) systemctl reboot ;;
+  files)     shift; cmd_files "$@" ;;
+  store)     cmd_store ;;
+  debug)     cmd_debug ;;
+  media)     shift; cmd_media "$@" ;;
+  monitor)   cmd_monitor ;;
+  desktop-menu) shift; cmd_desktop_menu "${1:-}" ;;
+  term)      shift; cmd_term "$@" ;;
+  desktop)   shift; cmd_desktop "$@" ;;
+  reload)    reload_all ;;
+  doctor)    cmd_doctor ;;
+  *) echo "xlin: unknown command '$1'" >&2; echo >&2; cmd_help >&2; exit 1 ;;
+esac
+ 2>/dev/null; pkill -f '^nwg-dock-hyprland' 2>/dev/null
+  # Stop only service processes started and recorded by XLIN. Never kill a
+  # pre-existing hypridle/hyprsunset instance owned by the user's session.
+  for f in hypridle hyprsunset; do
+    local pidfile="$STATE/$f.pid" pid=""
+    [[ -f "$pidfile" ]] && read -r pid <"$pidfile"
+    if [[ "$pid" =~ ^[0-9]+$ && -r "/proc/$pid/comm" ]]; then
+      if [[ "$(cat "/proc/$pid/comm" 2>/dev/null)" == "$f" ]]; then
+        kill "$pid" 2>/dev/null || true
+      fi
+    fi
+    rm -f "$pidfile"
+  done
 
   for f in "$HOME/.config/waybar/config.jsonc" "$HOME/.config/swaync/config.json"; do
     bak=$(ls -1t "$f".bak-* 2>/dev/null | tail -1)       # the oldest backup = your original

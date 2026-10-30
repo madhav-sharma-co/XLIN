@@ -11,7 +11,7 @@ source "$ROOT/lib/config-backups.sh"
 export HOME="$TMP/home"
 mkdir -p "$HOME"
 # shellcheck disable=SC1090
-source <(sed -n '/^track_generated_file() {/,/^}/p; /^restore_generated_file() {/,/^}/p' "$ROOT/bin/xlin")
+source <(sed -n '/^track_generated_file() {/,/^}/p; /^restore_generated_file() {/,/^}/p; /^write_opacity() {/,/^}/p' "$ROOT/bin/xlin")
 
 mkdir -p "$TMP/config"
 file="$TMP/config/config.json"
@@ -72,5 +72,21 @@ track_generated_file "$link"
 printf 'generated regular file\n' >"$link"
 restore_generated_file "$link" >/dev/null
 [[ -L "$link" && "$(readlink "$link")" == "$target" ]] || { echo "FAIL: original symlink was not restored" >&2; exit 1; }
+
+# Opacity output must preserve pre-existing Hyprland and Kitty config files.
+mkdir -p "$HOME/.config/hypr" "$HOME/.config/kitty"
+printf 'user hypr opacity\n' >"$HOME/.config/hypr/xlin-opacity.conf"
+printf 'user lua opacity\n' >"$HOME/.config/hypr/xlin-opacity.lua"
+printf 'user kitty opacity\n' >"$HOME/.config/kitty/xlin-opacity.conf"
+write_opacity 0.90 0.82 quiet
+[[ "$(cat "$HOME/.config/hypr/xlin-opacity.conf.xlin-backup")" == "user hypr opacity" ]] || { echo "FAIL: Hyprland opacity backup missing" >&2; exit 1; }
+[[ "$(cat "$HOME/.config/hypr/xlin-opacity.lua.xlin-backup")" == "user lua opacity" ]] || { echo "FAIL: Lua opacity backup missing" >&2; exit 1; }
+[[ "$(cat "$HOME/.config/kitty/xlin-opacity.conf.xlin-backup")" == "user kitty opacity" ]] || { echo "FAIL: Kitty opacity backup missing" >&2; exit 1; }
+restore_generated_file "$HOME/.config/hypr/xlin-opacity.conf" >/dev/null
+restore_generated_file "$HOME/.config/hypr/xlin-opacity.lua" >/dev/null
+restore_generated_file "$HOME/.config/kitty/xlin-opacity.conf" >/dev/null
+[[ "$(cat "$HOME/.config/hypr/xlin-opacity.conf")" == "user hypr opacity" ]] || { echo "FAIL: Hyprland opacity config not restored" >&2; exit 1; }
+[[ "$(cat "$HOME/.config/hypr/xlin-opacity.lua")" == "user lua opacity" ]] || { echo "FAIL: Lua opacity config not restored" >&2; exit 1; }
+[[ "$(cat "$HOME/.config/kitty/xlin-opacity.conf")" == "user kitty opacity" ]] || { echo "FAIL: Kitty opacity config not restored" >&2; exit 1; }
 
 echo "Generated-file backup tests passed."

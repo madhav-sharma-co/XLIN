@@ -6,7 +6,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Bash syntax
-        run: bash -n bin/xlin install.sh update.sh config/shell/xlin.bash
+        run: bash -n bin/xlin lib/hyprland.sh install.sh update.sh config/shell/xlin.bash
       - name: ShellCheck (errors only)
         run: sudo apt-get install -y shellcheck && shellcheck -S error bin/xlin install.sh update.sh
       - name: Python compile

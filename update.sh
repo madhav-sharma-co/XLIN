@@ -49,6 +49,7 @@ for b in xlin xlin-dock-watch xlin-settings xlin-tools xlin-welcome xlin-files x
   sudo install -m 755 "$SRC/bin/$b" "/usr/local/bin/$b"
 done
 
+sudo install -D -m 644 "$SRC/lib/hyprland.sh" /usr/local/lib/xlin/hyprland.sh
 sudo install -D -m 644 "$SRC/lib/xlin_ui.py" /usr/local/lib/xlin/xlin_ui.py
 mkdir -p "$HOME/.local/share/applications"
 cp "$SRC"/config/applications/dev.xlin.*.desktop "$HOME/.local/share/applications/"

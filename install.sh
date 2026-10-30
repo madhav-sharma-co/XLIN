@@ -42,6 +42,7 @@ sudo install -m 755 "$SRC/bin/xlin-terminal" /usr/local/bin/xlin-terminal
 sudo install -m 755 "$SRC/bin/xlin-desktop" /usr/local/bin/xlin-desktop
 sudo install -m 755 "$SRC/bin/xlin-start" /usr/local/bin/xlin-start
 sudo install -D -m 644 "$SRC/lib/hyprland.sh" /usr/local/lib/xlin/hyprland.sh
+sudo install -D -m 644 "$SRC/lib/config-backups.sh" /usr/local/lib/xlin/config-backups.sh
 sudo install -D -m 644 "$SRC/lib/xlin_ui.py" /usr/local/lib/xlin/xlin_ui.py
 mkdir -p "$HOME/.local/share/applications"
 cp "$SRC"/config/applications/dev.xlin.*.desktop "$HOME/.local/share/applications/"
@@ -54,7 +55,7 @@ cp -a "$SRC/assets/cursors/." "$HOME/.local/share/icons/"
 mkdir -p "$XLIN_HOME/wallpapers" "$XLIN_HOME/state"
 echo "$SRC" >"$XLIN_HOME/state/source"
 
-backup() { [[ -e "$1" ]] && cp -a "$1" "$1.bak-$STAMP" && echo "   backed up $1" || true; }
+source "$SRC/lib/config-backups.sh"
 
 # Waybar prefers a file called `config` over `config.jsonc`, so move an old one aside
 if [[ -f "$HOME/.config/waybar/config" ]]; then
@@ -62,10 +63,10 @@ if [[ -f "$HOME/.config/waybar/config" ]]; then
   echo "   moved old waybar config aside"
 fi
 
-backup "$HOME/.config/waybar/config.jsonc"
+xlin_backup_once "$HOME/.config/waybar/config.jsonc"
 cp "$SRC/config/waybar/config.jsonc" "$HOME/.config/waybar/config.jsonc"
 cp "$SRC/config/waybar/config.jsonc" "$XLIN_HOME/waybar-base.jsonc"
-backup "$HOME/.config/swaync/config.json"
+xlin_backup_once "$HOME/.config/swaync/config.json"
 cp "$SRC/config/swaync/config.json" "$HOME/.config/swaync/config.json"
 cp "$SRC/config/hypr/xlin.conf" "$SRC/config/hypr/xlin.lua" "$HOME/.config/hypr/"
 
@@ -73,7 +74,7 @@ cp "$SRC/config/hypr/xlin.conf" "$SRC/config/hypr/xlin.lua" "$HOME/.config/hypr/
 # Hyprland 0.55+ reads hyprland.lua (0.57 dropped hyprland.conf); older versions read hyprland.conf.
 # `xlin hook` picks the right one, keeps a backup, and puts XLIN last so its shortcuts always work.
 for hc in "$HOME/.config/hypr/hyprland.lua" "$HOME/.config/hypr/hyprland.conf"; do
-  [[ -f "$hc" ]] && backup "$hc"
+  [[ -f "$hc" ]] && xlin_backup_once "$hc"
 done
 /usr/local/bin/xlin hook
 

@@ -22,21 +22,12 @@ cp "$SRC/config/hypr/xlin.conf" "$SRC/config/hypr/xlin.lua" "$HOME/.config/hypr/
 # Keep the first user-config backup across repeated updates. The installer uses
 # the same .bak- timestamp convention, so its original backup is respected.
 STAMP="$(date +%Y%m%d-%H%M%S)"
-backup_once() {
-  local file="$1"
-  [[ -e "$file" || -L "$file" ]] || return 0
-  if compgen -G "$file.bak-*" >/dev/null; then
-    echo "   existing backup preserved for $file"
-    return 0
-  fi
-  cp -a -- "$file" "$file.bak-$STAMP"
-  echo "   backed up $file"
-}
+source "$SRC/lib/config-backups.sh"
 
-backup_once "$HOME/.config/waybar/config.jsonc"
+xlin_backup_once "$HOME/.config/waybar/config.jsonc"
 cp "$SRC/config/waybar/config.jsonc" "$HOME/.config/waybar/config.jsonc"
 cp "$SRC/config/waybar/config.jsonc" "$XLIN_HOME/waybar-base.jsonc"
-backup_once "$HOME/.config/swaync/config.json"
+xlin_backup_once "$HOME/.config/swaync/config.json"
 cp "$SRC/config/swaync/config.json" "$HOME/.config/swaync/config.json"
 
 say "Checking dependencies (installs anything that is missing)"
@@ -50,6 +41,7 @@ for b in xlin xlin-dock-watch xlin-settings xlin-tools xlin-welcome xlin-files x
 done
 
 sudo install -D -m 644 "$SRC/lib/hyprland.sh" /usr/local/lib/xlin/hyprland.sh
+sudo install -D -m 644 "$SRC/lib/config-backups.sh" /usr/local/lib/xlin/config-backups.sh
 sudo install -D -m 644 "$SRC/lib/xlin_ui.py" /usr/local/lib/xlin/xlin_ui.py
 mkdir -p "$HOME/.local/share/applications"
 cp "$SRC"/config/applications/dev.xlin.*.desktop "$HOME/.local/share/applications/"

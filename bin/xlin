@@ -11,14 +11,17 @@ mkdir -p "$STATE" "$WALLS" "$(dirname "$PINS")"
 have() { command -v "$1" >/dev/null 2>&1; }
 notify() { have notify-send && notify-send -a XLIN "$@" || true; }
 
-# Hyprland compatibility helpers are kept in a small sourced module.
+# Shared helpers are installed under /usr/local/lib/xlin and also load from a source checkout.
 XLIN_LIB_DIR="${XLIN_LIB_DIR:-/usr/local/lib/xlin}"
-if [[ -r "$XLIN_LIB_DIR/hyprland.sh" ]]; then
+XLIN_SOURCE_LIB="$(dirname "${BASH_SOURCE[0]}")/../lib"
+if [[ -r "$XLIN_LIB_DIR/hyprland.sh" && -r "$XLIN_LIB_DIR/config-backups.sh" ]]; then
   source "$XLIN_LIB_DIR/hyprland.sh"
-elif [[ -r "$(dirname "${BASH_SOURCE[0]}")/../lib/hyprland.sh" ]]; then
-  source "$(dirname "${BASH_SOURCE[0]}")/../lib/hyprland.sh"
+  source "$XLIN_LIB_DIR/config-backups.sh"
+elif [[ -r "$XLIN_SOURCE_LIB/hyprland.sh" && -r "$XLIN_SOURCE_LIB/config-backups.sh" ]]; then
+  source "$XLIN_SOURCE_LIB/hyprland.sh"
+  source "$XLIN_SOURCE_LIB/config-backups.sh"
 else
-  echo "xlin: missing $XLIN_LIB_DIR/hyprland.sh; reinstall XLIN to repair the installation" >&2
+  echo "xlin: shared XLIN helpers are missing; reinstall XLIN to repair the installation" >&2
   exit 1
 fi
 
@@ -1660,8 +1663,7 @@ EOT
   done
 
   for f in "$HOME/.config/waybar/config.jsonc" "$HOME/.config/swaync/config.json"; do
-    bak=$(ls -1t "$f".bak-* 2>/dev/null | tail -1)       # the oldest backup = your original
-    [[ -n "$bak" ]] && cp -a "$bak" "$f" && echo "restored ${f/#$HOME/~}"
+    xlin_restore_oldest_backup "$f" || true
   done
   for f in \
     "$HOME/.config/waybar/style.css" \

@@ -11,7 +11,7 @@ source "$ROOT/lib/config-backups.sh"
 export HOME="$TMP/home"
 mkdir -p "$HOME"
 # shellcheck disable=SC1090
-source <(sed -n '/^track_generated_file() {/,/^}/p; /^restore_generated_file() {/,/^}/p; /^write_opacity() {/,/^}/p' "$ROOT/bin/xlin")
+source <(sed -n '/^track_generated_file() {/,/^}/p; /^restore_generated_file() {/,/^}/p; /^write_opacity() {/,/^cmd_opacity() {/ { /^cmd_opacity() {/d; p; }' "$ROOT/bin/xlin")
 
 mkdir -p "$TMP/config"
 file="$TMP/config/config.json"

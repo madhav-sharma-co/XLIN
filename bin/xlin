@@ -260,11 +260,25 @@ track_generated_file() {
 }
 
 restore_generated_file() {
-  local file="$1"
-  if [[ -e "$file.xlin-backup" || -L "$file.xlin-backup" ]]; then
-    rm -f -- "$file"
-    cp -a -- "$file.xlin-backup" "$file" || return 1
-    rm -f -- "$file.xlin-backup" "$file.xlin-created"
+  local file="$1" backup="$1.xlin-backup" tmpdir
+  if [[ -e "$backup" || -L "$backup" ]]; then
+    # Stage beside the destination, then atomically replace it. Keep both
+    # the current file and backup intact if staging or replacement fails.
+    tmpdir="$(mktemp -d "$(dirname "$file")/.xlin-restore.XXXXXX")" || return 1
+    if ! cp -a -- "$backup" "$tmpdir/restored"; then
+      rm -f -- "$tmpdir/restored"
+      rmdir -- "$tmpdir"
+      echo "failed to stage original config for $file; backup preserved" >&2
+      return 1
+    fi
+    if ! mv -fT -- "$tmpdir/restored" "$file"; then
+      rm -f -- "$tmpdir/restored"
+      rmdir -- "$tmpdir"
+      echo "failed to restore original config for $file; backup preserved" >&2
+      return 1
+    fi
+    rmdir -- "$tmpdir"
+    rm -f -- "$backup" "$file.xlin-created"
     echo "restored ${file/#$HOME/~}"
   elif [[ -e "$file.xlin-created" ]]; then
     rm -f -- "$file" "$file.xlin-created"

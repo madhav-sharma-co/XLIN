@@ -40,6 +40,22 @@ restore_generated_file "$existing" >/dev/null
 [[ "$(cat "$existing")" == "user stylesheet" ]] || { echo "FAIL: original generated-file backup was not restored" >&2; exit 1; }
 [[ ! -e "$existing.xlin-backup" ]] || { echo "FAIL: generated-file backup sidecar remained" >&2; exit 1; }
 
+# If copying the backup fails, keep both the current file and original backup.
+failure="$TMP/config/restore-failure.css"
+printf 'user original\n' >"$failure"
+track_generated_file "$failure"
+printf 'current generated\n' >"$failure"
+cp() { return 1; }
+if restore_generated_file "$failure" >/dev/null 2>&1; then
+  echo "FAIL: restore unexpectedly succeeded when backup copy failed" >&2
+  exit 1
+fi
+unset -f cp
+[[ "$(cat "$failure")" == "current generated" ]] || { echo "FAIL: failed restore deleted the current file" >&2; exit 1; }
+[[ "$(cat "$failure.xlin-backup")" == "user original" ]] || { echo "FAIL: failed restore damaged the original backup" >&2; exit 1; }
+restore_generated_file "$failure" >/dev/null
+[[ "$(cat "$failure")" == "user original" ]] || { echo "FAIL: retry did not restore original after transient failure" >&2; exit 1; }
+
 # Files created by XLIN must be removed when no original existed.
 created="$TMP/config/created.css"
 track_generated_file "$created"

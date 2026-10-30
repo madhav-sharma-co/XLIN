@@ -15,5 +15,7 @@ jobs:
         run: bash tests/test-config-backups.sh
       - name: Process ownership regression tests
         run: bash tests/test-process-ownership.sh
+      - name: No duplicated functions in bin/xlin
+        run: test -z "$(grep -E '^[a-z_]+\(\) \{' bin/xlin | sort | uniq -d)"
       - name: Python compile
         run: python3 -m py_compile bin/xlin-settings bin/xlin-tools bin/xlin-files bin/xlin-welcome bin/xlin-monitor bin/xlin-terminal bin/xlin-desktop bin/xlin-store bin/xlin-media bin/xlin-debug bin/xlin-start lib/xlin_ui.py scripts/make-cursors.py scripts/make-icons.py scripts/make-wallpapers.py

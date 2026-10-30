@@ -422,6 +422,7 @@ apply_gtk_theme() {
   fi
   for f in "$HOME/.config/gtk-3.0/settings.ini" "$HOME/.config/gtk-4.0/settings.ini"; do
     mkdir -p "$(dirname "$f")"
+    track_generated_file "$f" || { echo "cannot safely replace $f" >&2; continue; }
     [[ -f "$f" ]] || printf '[Settings]\n' >"$f"
     grep -q '^\[Settings\]' "$f" || sed -i '1i [Settings]' "$f"
     if grep -q '^gtk-application-prefer-dark-theme' "$f"; then
@@ -1695,6 +1696,8 @@ EOT
     "$HOME/.config/hypr/xlin-opacity.lua" \
     "$HOME/.config/hypr/xlin-anim.lua" \
     "$HOME/.config/hypr/xlin-anim.conf" \
+    "$HOME/.config/gtk-3.0/settings.ini" \
+    "$HOME/.config/gtk-4.0/settings.ini" \
     "$HOME/.config/kitty/xlin-theme.conf" \
     "$HOME/.config/kitty/xlin-opacity.conf" \
     "$HOME/.config/hypr/xlin-hyprlock.conf" \

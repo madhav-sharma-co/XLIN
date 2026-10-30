@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.49.2
+- Install and update handle a locked package database: they wait for a running package manager, and remove the lock only when nothing is running (a stale lock after an interrupted install)
+
 ## 0.49.1
 - Fixed the Hyprland error in xlin-anim.lua: the spring curve is not accepted by Hyprland 0.57. The Smooth animations now use a bezier curve with a small overshoot (same feel)
 

@@ -17,9 +17,27 @@ _d_missing() { # which of these packages are not installed (pacman -T also under
 
 _d_first_in_repo() { local p; for p in "$@"; do pacman -Si "$p" >/dev/null 2>&1 && { echo "$p"; return 0; }; done; return 0; }
 
+# pacman allows one run at a time. Wait for a running one; remove the lock only when nothing is running (a stale lock
+# is left behind by an interrupted install).
+_d_unlock() {
+  local lock=/var/lib/pacman/db.lck i
+  [[ -e "$lock" ]] || return 0
+  for i in $(seq 1 30); do
+    pgrep -x 'pacman|yay|paru|pamac|pamac-daemon|packagekitd' >/dev/null 2>&1 || break
+    ((i == 1)) && _d_say "Another package manager is running; waiting for it (up to a minute)"
+    sleep 2
+  done
+  if [[ -e "$lock" ]] && ! pgrep -x 'pacman|yay|paru|pamac|pamac-daemon|packagekitd' >/dev/null 2>&1; then
+    _d_say "Removing a stale pacman lock (no package manager is running)"
+    sudo rm -f "$lock"
+  fi
+  [[ ! -e "$lock" ]]
+}
+
 # install packages from the repos; if the batch fails, retry one by one so a single bad name blocks nothing
 _d_pacman() {
   (($#)) || return 0
+  _d_unlock || { echo "!! pacman is busy: close the Store / other installers and run: xlin deps"; printf '%s\n' "$@" >"${XDG_RUNTIME_DIR:-/tmp}/xlin-deps-failed"; return 0; }
   sudo pacman -S --needed --noconfirm "$@" && return 0
   local p failed=()
   for p in "$@"; do sudo pacman -S --needed --noconfirm "$p" >/dev/null 2>&1 || failed+=("$p"); done

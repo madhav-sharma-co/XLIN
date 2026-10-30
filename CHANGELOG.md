@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.50.1
+- Auto-lock and night light now stop only the hypridle / hyprsunset that XLIN started itself (pid file + matching arguments). One you run yourself is no longer killed by `xlin idle off|set` or `xlin nightlight off`. Uninstall uses the same check. Regression test added
+
 ## 0.50.0
 - Apps open faster: the check for the GTK libraries (a Python start-up before every launch) now runs once and is remembered, so a click opens the window at once
 - Shorter animations: windows, menus and workspaces now take about half the time (Smooth and Subtle), so nothing feels like it waits

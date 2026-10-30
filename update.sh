@@ -32,6 +32,7 @@ cp "$SRC/config/swaync/config.json" "$HOME/.config/swaync/config.json"
 
 say "Checking dependencies (installs anything that is missing)"
 source "$SRC/scripts/deps.sh"
+rm -f "$HOME/.config/xlin/state/.gi_ok" "$HOME/.config/xlin/state/.vte_ok"
 xlin_deps || echo "(some packages are missing; the message above says which)"
 
 say "Installing the xlin commands (asks for your password once)"

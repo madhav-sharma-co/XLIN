@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.50.0
+- Apps open faster: the check for the GTK libraries (a Python start-up before every launch) now runs once and is remembered, so a click opens the window at once
+- Shorter animations: windows, menus and workspaces now take about half the time (Smooth and Subtle), so nothing feels like it waits
+
 ## 0.49.2
 - Install and update handle a locked package database: they wait for a running package manager, and remove the lock only when nothing is running (a stale lock after an interrupted install)
 

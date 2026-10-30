@@ -952,7 +952,7 @@ cmd_terminal() {
 
   # 1) Kitty: the complete XLIN config (colours, font and opacity are generated files)
   if [[ -f "$XLIN_HOME/kitty.conf" ]]; then
-    [[ -f "$kc" && ! -f "$kc.xlin-backup" ]] && cp -a "$kc" "$kc.xlin-backup"
+    track_generated_file "$kc" || { echo "cannot safely replace $kc" >&2; return 1; }
     cp "$XLIN_HOME/kitty.conf" "$kc"
     [[ -s "$kdir/xlin-theme.conf" ]] || cmd_theme "$(cat "$STATE/theme" 2>/dev/null || echo light)" >/dev/null
     [[ -f "$kdir/xlin-font.conf" ]] || write_font
@@ -1677,9 +1677,7 @@ EOT
     "$XLIN_HOME/tools.css"; do
     restore_generated_file "$f"
   done
-  if [[ -f "$HOME/.config/kitty/kitty.conf.xlin-backup" ]]; then
-    cp -a "$HOME/.config/kitty/kitty.conf.xlin-backup" "$HOME/.config/kitty/kitty.conf" && echo "restored ~/.config/kitty/kitty.conf"
-  fi
+  restore_generated_file "$HOME/.config/kitty/kitty.conf"
   rm -f "$HOME"/.config/kitty/xlin-{theme,font,opacity}.conf
   rm -f "$HOME/.config/bashrc/99-xlin" "$HOME"/.local/share/applications/dev.xlin.*.desktop
   rm -f "$HOME"/.local/share/icons/hicolor/scalable/apps/xlin-*.svg

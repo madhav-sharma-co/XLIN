@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.49.1
+- Fixed the Hyprland error in xlin-anim.lua: the spring curve is not accepted by Hyprland 0.57. The Smooth animations now use a bezier curve with a small overshoot (same feel)
+
 ## 0.49.0
 - New animations, MacBook style: windows open with a soft spring (scale up from 88% while fading in), close quickly, workspaces slide and fade, menus and panels pop in gently
 - Settings -> Personalization -> Animations: Off / Subtle / Smooth, and `xlin animations off|subtle|smooth`. Off also turns off animations in GTK apps. (Older Hyprland without springs uses matching curves)

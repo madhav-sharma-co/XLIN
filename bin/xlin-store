@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""XLIN Store - find, install and remove apps (pacman) in a window.
+"""Xlin-soft Store - find, install and remove apps (pacman) in a window.
 
 Featured apps, search, what you installed, and updates. Installing asks for your password once
 through the system's password prompt (polkit). Run: xlin store

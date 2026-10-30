@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ---- Hyprland 0.55+ uses a Lua config (hyprland.lua); 0.57 dropped hyprland.conf. XLIN speaks both.
+# ---- Hyprland 0.55+ uses a Lua config (hyprland.lua); 0.57 dropped hyprland.conf. Xlin-soft speaks both.
 hypr_version() {   # e.g. 0.57.0
   local v=""
   have pacman && v="$(pacman -Q hyprland 2>/dev/null | awk '{print $2}' | sed -E 's/^[0-9]+://; s/-.*//')"
@@ -16,7 +16,7 @@ hypr_mode() {      # lua | conf: which kind of config Hyprland reads
 is_lua() { [[ -n "${_HYPR_MODE:-}" ]] || hypr_mode >/dev/null; [[ "$_HYPR_MODE" == lua ]]; }
 # hy_lua <lua code>: run Lua inside the running Hyprland
 hy_lua() { hyprctl eval "$1" >/dev/null 2>&1; }
-# The few window / session actions XLIN uses, written once for both config kinds
+# The few window / session actions Xlin-soft uses, written once for both config kinds
 hy_move_silent() {   # <workspace> <window address>
   if is_lua; then
     hy_lua "hl.dispatch(hl.dsp.window.move({ workspace = \"$1\", follow = false, window = \"address:$2\" }))"

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# XLIN dependencies: one list, used by install.sh, update.sh and `xlin deps`.
+# Xlin-soft dependencies: one list, used by install.sh, update.sh and `xlin deps`.
 # Installs only what is missing, so it is quiet (and needs no password) when everything is there.
 # Source it and call `xlin_deps`, or run it directly.
 

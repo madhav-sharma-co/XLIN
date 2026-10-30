@@ -1,4 +1,4 @@
--- XLIN for Hyprland 0.55+ (Lua config). hyprland.lua loads this with:  require("xlin")
+-- Xlin-soft for Hyprland 0.55+ (Lua config). hyprland.lua loads this with:  require("xlin")
 -- Older Hyprland (hyprland.conf) uses xlin.conf instead; the two files do the same things.
 --
 -- Colours and window opacity are generated files next to this one (xlin theme / xlin opacity).
@@ -50,7 +50,7 @@ for _, ns in ipairs({ "^waybar$", "^rofi$", "^xlin-start$", "^swaync-control-cen
     hl.layer_rule({ match = { namespace = ns }, blur = true, ignore_alpha = 0.3 })
 end
 
--- ---- XLIN windows: floating and centred. No fixed sizes: every app picks its own size, which grows with
+-- ---- Xlin-soft windows: floating and centred. No fixed sizes: every app picks its own size, which grows with
 -- the font size (Settings -> Personalization), so nothing is ever cut off.
 local function app(name, extra)
     local rule = { match = { class = "^(dev\\.xlin\\." .. name .. ")$" }, float = true, center = true }
@@ -96,7 +96,7 @@ local function run(keys, cmd, flags)
     bind(keys, hl.dsp.exec_cmd(cmd), flags)
 end
 
--- Hyprland's own example binds that XLIN does not use (they would clash with XLIN's keys)
+-- Hyprland's own example binds that Xlin-soft does not use (they would clash with Xlin-soft's keys)
 for _, k in ipairs({ "SUPER + R", "SUPER + J", "SUPER + 0", "SUPER + SHIFT + 0", "SUPER + M", "SUPER + SHIFT + S" }) do
     hl.unbind(k)
 end

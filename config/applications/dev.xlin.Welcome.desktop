@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
-Name=Welcome to XLIN
+Name=Welcome to Xlin-soft
 GenericName=Welcome
-Comment=A quick tour of XLIN
+Comment=A quick tour of Xlin-soft
 Exec=xlin-welcome
 Icon=xlin-welcome
 Terminal=false

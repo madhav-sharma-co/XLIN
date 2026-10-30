@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
 Name=Settings
-GenericName=XLIN settings
-Comment=Change the look and behaviour of XLIN
+GenericName=Xlin-soft settings
+Comment=Change the look and behaviour of Xlin-soft
 Exec=xlin-settings
 Icon=xlin-settings
 Terminal=false

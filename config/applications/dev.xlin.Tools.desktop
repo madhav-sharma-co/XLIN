@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
 Name=Tools
-GenericName=XLIN tools
+GenericName=Xlin-soft tools
 Comment=Notes, calculator and calendar
 Exec=xlin-tools
 Icon=xlin-tools

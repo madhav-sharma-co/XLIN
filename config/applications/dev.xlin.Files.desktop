@@ -2,7 +2,7 @@
 Type=Application
 Name=Files
 GenericName=File Manager
-Comment=Browse and manage your files (XLIN)
+Comment=Browse and manage your files (Xlin-soft)
 Exec=xlin-files %f
 Icon=xlin-files
 Terminal=false

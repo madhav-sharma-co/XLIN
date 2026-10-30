@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# XLIN installer for Arch Linux + Hyprland
+# Xlin-soft installer for Arch Linux + Hyprland
 set -euo pipefail
 
 SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -9,17 +9,17 @@ STAMP="$(date +%Y%m%d-%H%M%S)"
 
 say() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 
-[[ -f /etc/arch-release ]] || { echo "XLIN installer targets Arch Linux."; exit 1; }
+[[ -f /etc/arch-release ]] || { echo "Xlin-soft installer targets Arch Linux."; exit 1; }
 [[ $EUID -ne 0 ]] || { echo "Run as your normal user, not root."; exit 1; }
 
 # ---------------------------------------------------------------- packages
-# Everything XLIN needs is installed here (only what is missing). The same step runs on every update.
+# Everything Xlin-soft needs is installed here (only what is missing). The same step runs on every update.
 say "Installing dependencies"
 source "$SRC/scripts/deps.sh"
 xlin_deps || echo "(some packages are missing; fix them, then run: xlin deps)"
 
 # ------------------------------------------------------------------- files
-say "Installing XLIN to $XLIN_HOME"
+say "Installing Xlin-soft to $XLIN_HOME"
 mkdir -p "$XLIN_HOME" "$HOME/.config/hypr" "$HOME/.config/waybar" "$HOME/.config/swaync"
 cp -r "$SRC/themes" "$SRC/templates" "$XLIN_HOME/"
 mkdir -p "$XLIN_HOME/wallpapers"
@@ -70,9 +70,9 @@ xlin_backup_once "$HOME/.config/swaync/config.json"
 cp "$SRC/config/swaync/config.json" "$HOME/.config/swaync/config.json"
 cp "$SRC/config/hypr/xlin.conf" "$SRC/config/hypr/xlin.lua" "$HOME/.config/hypr/"
 
-# ----------------------------------------------- hook XLIN into the Hyprland config
+# ----------------------------------------------- hook Xlin-soft into the Hyprland config
 # Hyprland 0.55+ reads hyprland.lua (0.57 dropped hyprland.conf); older versions read hyprland.conf.
-# `xlin hook` picks the right one, keeps a backup, and puts XLIN last so its shortcuts always work.
+# `xlin hook` picks the right one, keeps a backup, and puts Xlin-soft last so its shortcuts always work.
 for hc in "$HOME/.config/hypr/hyprland.lua" "$HOME/.config/hypr/hyprland.conf"; do
   [[ -f "$hc" ]] && xlin_backup_once "$hc"
 done
@@ -86,7 +86,7 @@ export XLIN_HOME
 /usr/local/bin/xlin adapt || true
 
 if [[ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]]; then
-  say "Starting XLIN now"
+  say "Starting Xlin-soft now"
   hyprctl reload >/dev/null 2>&1 || true
   /usr/local/bin/xlin restart || true   # restarts the bar so old configs are replaced
 fi

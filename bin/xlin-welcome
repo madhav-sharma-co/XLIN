@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""XLIN Welcome - the short first-run tour (theme, accent colour, Run Bar, shortcuts).
+"""Xlin-soft Welcome - the short first-run tour (theme, accent colour, Run Bar, shortcuts).
 
 Starts by itself on the first login after installing; run `xlin welcome` to see it again.
 """
@@ -106,7 +106,7 @@ def page(title, sub):
 
 class WelcomeWindow(Gtk.ApplicationWindow):
     def __init__(self, app, reload_css):
-        super().__init__(application=app, title="Welcome to XLIN")
+        super().__init__(application=app, title="Welcome to Xlin-soft")
         self.reload_css = reload_css
         self.set_default_size(xlin_ui.scaled(600), xlin_ui.scaled(500))
         self.set_resizable(False)
@@ -120,7 +120,7 @@ class WelcomeWindow(Gtk.ApplicationWindow):
 
         handle = Gtk.WindowHandle()          # hold the top strip to move the window
         strip = Gtk.Box(spacing=8)
-        name = Gtk.Label(label="XLIN", xalign=0, hexpand=True)
+        name = Gtk.Label(label="Xlin-soft", xalign=0, hexpand=True)
         name.add_css_class("tool-title")
         strip.append(name)
         strip.append(xlin_ui.controls(self))
@@ -158,13 +158,13 @@ class WelcomeWindow(Gtk.ApplicationWindow):
 
     # ---- pages
     def p_welcome(self):
-        b = page("Welcome to XLIN", "A calm, clean desktop for Hyprland.\n\n"
+        b = page("Welcome to Xlin-soft", "A calm, clean desktop for Hyprland.\n\n"
                  "Take a minute to make it yours: pick light or dark, an accent colour, "
                  "and see the shortcuts. You can change everything later in Settings.")
         return b
 
     def p_look(self):
-        b = page("Make it yours", "Choose how XLIN looks.")
+        b = page("Make it yours", "Choose how Xlin-soft looks.")
         modes = Gtk.Box(spacing=12, homogeneous=True)
         modes.set_margin_top(10)
         self.mode_buttons = {}
@@ -223,7 +223,7 @@ class WelcomeWindow(Gtk.ApplicationWindow):
         if files:
             b.append(grid)
         else:
-            none = Gtk.Label(label="The built-in wallpapers are missing. Run ./update.sh in the XLIN folder.", xalign=0, wrap=True)
+            none = Gtk.Label(label="The built-in wallpapers are missing. Run ./update.sh in the Xlin-soft folder.", xalign=0, wrap=True)
             none.add_css_class("welcome-bad")
             b.append(none)
         own = Gtk.Button(label="Choose your own picture…", halign=Gtk.Align.START, margin_top=10)
@@ -349,12 +349,12 @@ class WelcomeWindow(Gtk.ApplicationWindow):
     # ---- navigation
     def go(self, step):
         self.index = max(0, min(len(self.builders) - 1, self.index + step))
-        if step > 0 and self.index == len(self.builders) - 1 and self.next.get_label() == "Start using XLIN":
+        if step > 0 and self.index == len(self.builders) - 1 and self.next.get_label() == "Start using Xlin-soft":
             self.close()
             return
         self.stack.set_visible_child_name(f"p{self.index}")
         last = self.index == len(self.builders) - 1
-        self.next.set_label("Start using XLIN" if last else "Next")
+        self.next.set_label("Start using Xlin-soft" if last else "Next")
         self.back.set_visible(self.index > 0)
         self.count.set_text(f"{self.index + 1} of {len(self.builders)}")
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""XLIN Media - plays music and video. Open files or a folder, drop them on the window, or run
+"""Xlin-soft Media - plays music and video. Open files or a folder, drop them on the window, or run
 `xlin media file1 file2`. Space plays and pauses, arrows skip. Needs GTK4's GStreamer backend
 (gst-plugins-good and gst-libav for most formats).
 """

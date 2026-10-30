@@ -1,4 +1,4 @@
-/* XLIN launcher: Start-menu style, bottom left */
+/* Xlin-soft launcher: Start-menu style, bottom left */
 * {
   bg:     @C_PANEL_HEX@;
   soft:   @C_SOFT@;

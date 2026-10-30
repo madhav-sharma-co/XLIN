@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Writes the XLIN app icons (rounded squares with a soft gradient) to assets/icons.
+"""Writes the Xlin-soft app icons (rounded squares with a soft gradient) to assets/icons.
 No dependencies. Run: python3 scripts/make-icons.py"""
 import os
 

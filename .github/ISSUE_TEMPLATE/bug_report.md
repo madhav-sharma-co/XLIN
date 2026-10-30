@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Something in XLIN does not work
+about: Something in Xlin-soft does not work
 labels: bug
 ---
 

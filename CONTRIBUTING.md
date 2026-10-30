@@ -1,6 +1,6 @@
-# Contributing to XLIN
+# Contributing to Xlin-soft
 
-Thanks for helping. XLIN is a Hyprland desktop on Arch Linux, written mostly in Bash and
+Thanks for helping. Xlin-soft is a Hyprland desktop on Arch Linux, written mostly in Bash and
 GTK4 Python.
 
 ## Layout

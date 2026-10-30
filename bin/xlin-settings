@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""XLIN Settings - sidebar + pages, in the style of KDE System Settings.
+"""Xlin-soft Settings - sidebar + pages, in the style of KDE System Settings.
 
 Usage: xlin-settings [wifi|bluetooth|display|sound|appearance|about]
 Opens centered on screen (window rules in ~/.config/hypr/xlin.conf).
@@ -630,7 +630,7 @@ def general_page(win):
         not os.path.exists(os.path.join(STATE, "warm_off")),
         lambda s: in_thread(lambda: run(["xlin", "warm", "on" if s else "off"], 20)))))
     c2.append(row("Terminal", "What Super+Return opens", segmented(
-        [("xlin", "XLIN Terminal"), ("kitty", "Kitty")], read_state("terminal", "xlin"),
+        [("xlin", "Xlin-soft Terminal"), ("kitty", "Kitty")], read_state("terminal", "xlin"),
         lambda v: in_thread(lambda: run(["xlin", "terminal", "use", v])))))
     return box
 
@@ -786,7 +786,7 @@ def launcher_page(win):
 
 
 def vte_available():
-    """True when XLIN Terminal can start (needs the VTE library: sudo pacman -S vte4)."""
+    """True when Xlin-soft Terminal can start (needs the VTE library: sudo pacman -S vte4)."""
     try:
         import gi as _gi
         _gi.require_version("Vte", "3.91")
@@ -802,10 +802,10 @@ def xlin_version():
 
 
 def about_page(win):
-    box = page_box("About", "XLIN desktop")
+    box = page_box("About", "Xlin-soft desktop")
     c = card()
     box.append(c)
-    c.append(row("XLIN", f"Version {xlin_version()}"))
+    c.append(row("Xlin-soft", f"Version {xlin_version()}"))
     ok, out = run(["hyprctl", "version", "-j"])
     ver = "unknown"
     m = re.search(r'"tag"\s*:\s*"([^"]+)"', out or "")
@@ -837,7 +837,7 @@ def about_page(win):
     def run_update():
         cmd = "xlin update; echo; read -rp 'Done. Press Enter to close.'"
         if have("xlin-terminal") and vte_available():
-            args = ["xlin-terminal", "-e", "bash", "-c", cmd]          # XLIN's own terminal
+            args = ["xlin-terminal", "-e", "bash", "-c", cmd]          # Xlin-soft's own terminal
         else:
             term = next((t for t in ("kitty", "foot", "alacritty", "gnome-terminal", "konsole", "xterm")
                          if have(t)), None)
@@ -853,7 +853,7 @@ def about_page(win):
 
     buttons = Gtk.Box(spacing=8)
     buttons.append(button("Check again", check))
-    buttons.append(button("Update XLIN", run_update))
+    buttons.append(button("Update Xlin-soft", run_update))
     u.append(row("Software update", None, buttons))
     u.append(row("Status", None, status))
     check()
@@ -871,7 +871,7 @@ def about_page(win):
     def ask_reset():
         try:
             dlg = Gtk.AlertDialog()
-            dlg.set_message("Reset XLIN settings?")
+            dlg.set_message("Reset Xlin-soft settings?")
             dlg.set_detail("Theme, accent, bars, desktop widgets, fonts and other options go back to the defaults. "
                            "Your wallpaper, pinned apps and files are kept.")
             dlg.set_buttons(["Cancel", "Reset"])
@@ -887,7 +887,7 @@ def about_page(win):
                 do_reset()
         except GLib.Error:
             pass
-    r.append(row("Reset XLIN settings", "Back to how a fresh install looks", button("Reset...", ask_reset)))
+    r.append(row("Reset Xlin-soft settings", "Back to how a fresh install looks", button("Reset...", ask_reset)))
     r.append(row("Status", None, rstatus))
     return box
 
@@ -1002,7 +1002,7 @@ class SettingsApp(Gtk.Application):
         prov.load_from_data(CSS)
         Gtk.StyleContext.add_provider_for_display(
             Gdk.Display.get_default(), prov, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
-        try:       # XLIN's window buttons, title and the system font
+        try:       # Xlin-soft's window buttons, title and the system font
             with open(os.path.expanduser("~/.config/xlin/tools.css"), "rb") as f:
                 theme = Gtk.CssProvider()
                 theme.load_from_data(f.read())

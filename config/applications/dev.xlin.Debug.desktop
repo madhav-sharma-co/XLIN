@@ -2,7 +2,7 @@
 Type=Application
 Name=SysDebug
 GenericName=Problem finder
-Comment=Health checks, logs and quick repairs for XLIN
+Comment=Health checks, logs and quick repairs for Xlin-soft
 Exec=xlin-debug
 Icon=xlin-debug
 Terminal=false

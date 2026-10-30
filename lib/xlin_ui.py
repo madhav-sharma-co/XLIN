@@ -1,4 +1,4 @@
-"""Shared pieces for the XLIN apps: the three window buttons (hide, fullscreen, close) and the title bar.
+"""Shared pieces for the Xlin-soft apps: the three window buttons (hide, fullscreen, close) and the title bar.
 
 Panels (control panel, launcher) are not windows: they only get a close button.
 """
@@ -99,7 +99,7 @@ def controls(win, hide=True, full=True):
 
 
 def titlebar(win, title, hide=True, full=True):
-    """Replace the system title bar with XLIN's: title on the left, buttons on the right, drag to move."""
+    """Replace the system title bar with Xlin-soft's: title on the left, buttons on the right, drag to move."""
     handle = Gtk.WindowHandle()
     strip = Gtk.Box(spacing=8)
     strip.add_css_class("xlin-titlebar")
@@ -167,7 +167,7 @@ _LIVE = {}
 
 
 def live_css():
-    """Load XLIN's stylesheet and keep it current. Warm (hidden) apps and open menus follow a theme or font
+    """Load Xlin-soft's stylesheet and keep it current. Warm (hidden) apps and open menus follow a theme or font
     change immediately, so dark / light and the font size apply everywhere without restarting anything."""
     if _LIVE:
         return

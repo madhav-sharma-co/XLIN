@@ -1,6 +1,6 @@
 <div align="center">
 
-# XLIN
+# Xlin-soft
 
 **A calm, clean desktop for Hyprland on Arch Linux.**
 Light and dark themes, glass panels, smooth animations, and a complete set of its own apps.
@@ -9,16 +9,16 @@ Light and dark themes, glass panels, smooth animations, and a complete set of it
 ![Arch Linux](https://img.shields.io/badge/Arch_Linux-1793d1?logo=archlinux&logoColor=white)
 ![Hyprland](https://img.shields.io/badge/Hyprland-0.53%2B_(Lua%20ready)-58e1ff)
 
-<img width="1366" height="768" alt="XLIN desktop, light theme" src="https://github.com/user-attachments/assets/bc88359e-5beb-4298-af17-064a573082b5" />
-<img width="1366" height="768" alt="XLIN desktop, dark theme" src="https://github.com/user-attachments/assets/ff2e9042-aa86-46ce-9401-deab74657cf6" />
+<img width="1366" height="768" alt="Xlin-soft desktop, light theme" src="https://github.com/user-attachments/assets/bc88359e-5beb-4298-af17-064a573082b5" />
+<img width="1366" height="768" alt="Xlin-soft desktop, dark theme" src="https://github.com/user-attachments/assets/ff2e9042-aa86-46ce-9401-deab74657cf6" />
 
 </div>
 
 ## Highlights
 
-- **One install, everything set up.** The installer adds every missing package, hooks XLIN into your Hyprland config and applies the theme. Updates do the same, so new dependencies arrive by themselves.
+- **One install, everything set up.** The installer adds every missing package, hooks Xlin-soft into your Hyprland config and applies the theme. Updates do the same, so new dependencies arrive by themselves.
 - **Its own apps.** Settings, Files, Terminal, Store, Media, System Monitor, Notes, Clock, Calendar, Calculator, Screenshot, Welcome and a debug tool, all in one look.
-- **Light and dark, everywhere.** One switch (Super+D) restyles every XLIN app, every menu, the bars, the lock screen and other GTK apps, at once.
+- **Light and dark, everywhere.** One switch (Super+D) restyles every Xlin-soft app, every menu, the bars, the lock screen and other GTK apps, at once.
 - **Smooth.** Gentle window, menu and workspace animations (Off, Subtle or Smooth in Settings). Settings, Files, Store and the Launcher wait out of sight, so they open instantly.
 - **Flexible.** Change the system font or text size and every window, panel and widget grows to fit.
 - **Works with current Hyprland.** Hyprland 0.55+ with the Lua config (the only format from 0.57) and older versions with `hyprland.conf` are both supported.
@@ -26,7 +26,7 @@ Light and dark themes, glass panels, smooth animations, and a complete set of it
 ## Install
 
     git clone https://github.com/madhav-sharma-co/XLIN.git
-    cd XLIN
+    cd Xlin-soft
     ./install.sh          # asks for your password to install packages
     hyprctl reload        # or log out and back in
     xlin doctor           # shows anything missing
@@ -35,13 +35,13 @@ Run it as your normal user, not root. The installer backs up the Waybar, swaync 
 files it changes and installs whatever is missing (from the Arch repositories, and the AUR when
 you have `paru` or `yay`).
 
-**Update:** open **Settings → About → Update XLIN**, or run `xlin update`. By hand:
+**Update:** open **Settings → About → Update Xlin-soft**, or run `xlin update`. By hand:
 
-    cd XLIN && git pull && ./update.sh
+    cd Xlin-soft && git pull && ./update.sh
 
 **Repair missing packages at any time:** `xlin deps`
 
-**Remove XLIN** (your old Waybar, swaync and Kitty configs are put back): `xlin uninstall`
+**Remove Xlin-soft** (your old Waybar, swaync and Kitty configs are put back): `xlin uninstall`
 
 ## What you get
 
@@ -57,7 +57,7 @@ you have `paru` or `yay`).
 | Tools           | Clock, Calendar, Calculator, Notes and Screenshot as small floating windows (Super+U) |
 | Apps            | Terminal with tabs, Files, System Monitor, Media player, Store (pacman and AUR) and SysDebug (checks, logs, repairs) |
 | Windows         | Every app has hide, fullscreen and close buttons. Super+H brings hidden windows back, Super+Shift+D shows the desktop |
-| Look and feel   | Light and dark, accent colours, system font and size, XLIN cursor and icons, eight wallpapers (Super+W), animations on or off |
+| Look and feel   | Light and dark, accent colours, system font and size, Xlin-soft cursor and icons, eight wallpapers (Super+W), animations on or off |
 | Daily basics    | Screenshots, clipboard history, night light, quick notes, volume and brightness pop-ups |
 
 ## Keys
@@ -97,7 +97,7 @@ Press **Super+/** or run `xlin keys` to see them all. Every key is the first let
     xlin update [check]               xlin deps       xlin doctor
     xlin reset | uninstall
 
-Tab completion works in the XLIN terminal.
+Tab completion works in the Xlin-soft terminal.
 
 ## Requirements
 
@@ -127,7 +127,7 @@ Shortcuts not working? Run `xlin hook`, then `hyprctl reload`.
 
 ## Project layout
 
-    bin/         the xlin command and the XLIN apps (GTK4, Python)
+    bin/         the xlin command and the Xlin-soft apps (GTK4, Python)
     lib/         code shared by the apps
     config/      Hyprland (Lua and conf), Waybar, swaync, Kitty, shell and app launchers
     templates/   theme files with colour placeholders, filled in by `xlin theme`
@@ -138,5 +138,5 @@ Shortcuts not working? Run `xlin hook`, then `hyprctl reload`.
 
 ## Contributing and licence
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) and the [CHANGELOG](CHANGELOG.md). XLIN is released under
+See [CONTRIBUTING.md](CONTRIBUTING.md) and the [CHANGELOG](CHANGELOG.md). Xlin-soft is released under
 the MIT licence ([LICENSE](LICENSE)).

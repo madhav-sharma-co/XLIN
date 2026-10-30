@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.51.0
+- The project is now called Xlin-soft (names, titles, notifications, the README and the licence). The `xlin` command, the config folder, app ids and the cursor theme keep their names, so existing installs and updates keep working. Xlin-advance will be a separate edition later
+
 ## 0.50.1
 - Auto-lock and night light now stop only the hypridle / hyprsunset that XLIN started itself (pid file + matching arguments). One you run yourself is no longer killed by `xlin idle off|set` or `xlin nightlight off`. Uninstall uses the same check. Regression test added
 

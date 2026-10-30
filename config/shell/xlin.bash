@@ -1,4 +1,4 @@
-# XLIN Terminal shell: a clean prompt and a small welcome card.
+# Xlin-soft Terminal shell: a clean prompt and a small welcome card.
 # Loaded by ~/.config/bashrc/99-xlin (or ~/.bashrc). Colours use the terminal's own palette,
 # so everything follows `xlin theme light|dark` by itself.
 #

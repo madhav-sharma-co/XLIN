@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""XLIN SysDebug - find out what is wrong and fix it: health checks, logs, quick repairs, and a
+"""Xlin-soft SysDebug - find out what is wrong and fix it: health checks, logs, quick repairs, and a
 report you can copy into a bug report. Run: xlin debug
 """
 import glob
@@ -50,12 +50,12 @@ def log_sources():
                     return tail(f.read(), 300) or "(empty: nothing went wrong)"
             except OSError as e:
                 return str(e)
-        srcs.append((f"XLIN: {os.path.basename(path)}", read))
+        srcs.append((f"Xlin-soft: {os.path.basename(path)}", read))
     return srcs
 
 
 def report():
-    parts = ["XLIN report", "-" * 40,
+    parts = ["Xlin-soft report", "-" * 40,
              f"Version: {sh(['xlin', 'version']).strip()}",
              f"Kernel: {platform.release()}",
              f"Hyprland: {sh(['hyprctl', 'version']).splitlines()[0] if sh(['hyprctl', 'version']).strip() else 'unknown'}",
@@ -90,7 +90,7 @@ class DebugWindow(Gtk.ApplicationWindow):
             b.connect("clicked", lambda _b, f=fn: f())
             bar.append(b)
         bar.append(Gtk.Box(hexpand=True))
-        for label, cmd in (("Restart XLIN", ["xlin", "restart"]), ("Fix shortcuts", ["xlin", "keys", "fix"]),
+        for label, cmd in (("Restart Xlin-soft", ["xlin", "restart"]), ("Fix shortcuts", ["xlin", "keys", "fix"]),
                            ("Restart desktop", ["xlin", "desktop", "restart"])):
             b = Gtk.Button(label=label)
             b.connect("clicked", lambda _b, c=cmd, n=label: self.fix(n, c))

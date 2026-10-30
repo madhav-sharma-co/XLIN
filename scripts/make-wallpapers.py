@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Draws XLIN's built-in wallpapers: soft blurred colour fields with a little grain.
+"""Draws Xlin-soft's built-in wallpapers: soft blurred colour fields with a little grain.
 Needs Pillow and numpy. Run: python3 scripts/make-wallpapers.py   -> assets/wallpapers/*.jpg"""
 import os
 

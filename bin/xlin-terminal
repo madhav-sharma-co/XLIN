@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""XLIN Terminal - the XLIN terminal app (tabs, XLIN colours, follows light/dark).
+"""Xlin-soft Terminal - the Xlin-soft terminal app (tabs, Xlin-soft colours, follows light/dark).
 
 Usage: xlin-terminal [-d folder] [-e command ...]
 

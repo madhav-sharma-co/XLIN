@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# xlin - command line for the XLIN desktop
+# xlin - command line for the Xlin-soft desktop
 set -uo pipefail
 
 XLIN_HOME="${XLIN_HOME:-$HOME/.config/xlin}"
@@ -21,7 +21,7 @@ vte_ok() {
   python3 -c "import gi; gi.require_version('Vte','3.91')" >/dev/null 2>&1 || return 1
   mkdir -p "$STATE" 2>/dev/null; : >"$STATE/.vte_ok"
 }
-notify() { have notify-send && notify-send -a XLIN "$@" || true; }
+notify() { have notify-send && notify-send -a Xlin-soft "$@" || true; }
 
 # Shared helpers are installed under /usr/local/lib/xlin and also load from a source checkout.
 XLIN_LIB_DIR="${XLIN_LIB_DIR:-/usr/local/lib/xlin}"
@@ -33,7 +33,7 @@ elif [[ -r "$XLIN_SOURCE_LIB/hyprland.sh" && -r "$XLIN_SOURCE_LIB/config-backups
   source "$XLIN_SOURCE_LIB/hyprland.sh"
   source "$XLIN_SOURCE_LIB/config-backups.sh"
 else
-  echo "xlin: shared XLIN helpers are missing; reinstall XLIN to repair the installation" >&2
+  echo "xlin: shared Xlin-soft helpers are missing; reinstall Xlin-soft to repair the installation" >&2
   exit 1
 fi
 
@@ -259,7 +259,7 @@ cmd_font() {
 }
 
 # Preserve the user's original file across theme changes and updates.
-# Sidecars live beside the generated file so they survive XLIN settings purges.
+# Sidecars live beside the generated file so they survive Xlin-soft settings purges.
 track_generated_file() {
   local file="$1"
   [[ -e "$file.xlin-backup" || -e "$file.xlin-created" ]] && return 0
@@ -301,7 +301,7 @@ restore_generated_file() {
     rm -f -- "$file" "$file.xlin-created"
     echo "removed XLIN-created ${file/#$HOME/~}"
   else
-    # Older XLIN installs did not track generated files. Preserve them rather
+    # Older Xlin-soft installs did not track generated files. Preserve them rather
     # than guessing whether they replaced a user's pre-existing file.
     [[ ! -e "$file" ]] || echo "kept untracked file ${file/#$HOME/~}"
   fi
@@ -365,7 +365,7 @@ grid_icon() {
 }
 
 # The lock screen shows the current wallpaper (blurred). hyprlock reads png/jpg only,
-# so anything else falls back to XLIN's own wallpaper for the theme.
+# so anything else falls back to Xlin-soft's own wallpaper for the theme.
 lock_wallpaper_patch() {
   local f="$HOME/.config/hypr/xlin-hyprlock.conf" theme="${1:-light}" wall
   [[ -f "$f" ]] || return 0
@@ -424,7 +424,7 @@ reload_all() {
   fi
 }
 
-# Dark / light for every GTK and portal-aware app (GTK3, GTK4, libadwaita, Electron, browsers), not only XLIN's own
+# Dark / light for every GTK and portal-aware app (GTK3, GTK4, libadwaita, Electron, browsers), not only Xlin-soft's own
 apply_gtk_theme() {
   local dark=0 name=Adwaita f
   [[ "$1" == dark ]] && { dark=1; name=Adwaita-dark; }
@@ -585,7 +585,7 @@ load_apps() {
 launch_id() {
   local f exec_line
   f="$(find /usr/share/applications "$HOME/.local/share/applications" -name "$1.desktop" 2>/dev/null | head -1)"
-  # terminal apps (btop, htop, ...): open them in the XLIN terminal; gtk-launch cannot find one on its own
+  # terminal apps (btop, htop, ...): open them in the Xlin-soft terminal; gtk-launch cannot find one on its own
   if [[ -n "$f" ]] && grep -qix 'Terminal=true' "$f"; then
     exec_line="$(grep -m1 '^Exec=' "$f" | cut -d= -f2- | sed -E 's/ %[a-zA-Z]//g')"
     # shellcheck disable=SC2086
@@ -715,7 +715,7 @@ cmd_desktop_menu() {
   [[ "$theme" == dark ]] && dm="Switch to light mode" || dm="Switch to dark mode"
   local pick
   pick="$(menu_pick "$x" "$y" "New note" "Open terminal" "Open files" "Widgets  ›" "Change wallpaper  ›" \
-    "Pin an app to the run bar…" "$dm" "System monitor" "Display settings" "XLIN settings")" || return 0
+    "Pin an app to the run bar…" "$dm" "System monitor" "Display settings" "Xlin-soft settings")" || return 0
   case "$pick" in
     "New note")               cmd_note ;;
     "Open terminal")          cmd_term ;;
@@ -728,7 +728,7 @@ cmd_desktop_menu() {
     "Switch to"*)             cmd_theme toggle ;;
     "System monitor")         cmd_monitor ;;
     "Display settings")       cmd_settings display ;;
-    "XLIN settings")          cmd_settings ;;
+    "Xlin-soft settings")          cmd_settings ;;
   esac
 }
 
@@ -829,7 +829,7 @@ cmd_settings() {
   fi
   # Fallback: simple menu when the GTK app cannot run
   if [[ -z "$pick" ]]; then
-    pick="$(printf '%s\n' "Wi-Fi" "Bluetooth" "Display" "Sound" "Appearance (toggle light/dark)" "Wallpaper (next)" "About XLIN" \
+    pick="$(printf '%s\n' "Wi-Fi" "Bluetooth" "Display" "Sound" "Appearance (toggle light/dark)" "Wallpaper (next)" "About Xlin-soft" \
       | rofi -dmenu -i -theme "$HOME/.config/rofi/xlin.rasi" \
           -theme-str 'listview { columns: 1; lines: 7; } element { orientation: horizontal; padding: 10px 12px; } element-text { horizontal-align: 0; font: "DM Sans 11"; } inputbar { enabled: false; }')" || return 0
   fi
@@ -841,7 +841,7 @@ cmd_settings() {
     appearance*) cmd_theme toggle ;;
     wallpaper*)  cmd_wallpaper next ;;
     calendar*)   notify "Calendar" "$(date '+%A, %B %-d %Y')" ;;
-    about*)      notify "XLIN" "Theme: $(cat "$STATE/theme" 2>/dev/null)  ·  $(hyprctl version -j 2>/dev/null | jq -r '.tag // "hyprland"')" ;;
+    about*)      notify "Xlin-soft" "Theme: $(cat "$STATE/theme" 2>/dev/null)  ·  $(hyprctl version -j 2>/dev/null | jq -r '.tag // "hyprland"')" ;;
   esac
 }
 
@@ -852,20 +852,20 @@ cmd_doctor() {
     elif [[ "$1" == required ]]; then printf '  MISSING  %s   (sudo pacman -S %s)\n' "$2" "$3"; missing=1
     else printf '  optional %s   (sudo pacman -S %s)\n' "$2" "$3"; fi
   }
-  echo "XLIN $XLIN_VERSION"
+  echo "Xlin-soft $XLIN_VERSION"
   echo "Core programs:"
   chk required hyprctl hyprland;       chk required waybar waybar;        chk optional rofi rofi
   chk required swaync swaync;          chk required jq jq;                chk required socat socat
   chk required nmcli networkmanager;   chk required wpctl wireplumber;    chk required brightnessctl brightnessctl
-  if vte_ok; then echo "  ok       XLIN Terminal (vte4)"
-  else echo "  missing  XLIN Terminal needs vte4   (sudo pacman -S vte4); another terminal is used meanwhile"; fi
+  if vte_ok; then echo "  ok       Xlin-soft Terminal (vte4)"
+  else echo "  missing  Xlin-soft Terminal needs vte4   (sudo pacman -S vte4); another terminal is used meanwhile"; fi
   chk required magick imagemagick;     chk required python3 python;       chk optional kitty kitty
   b=nwg-dock-hyprland; have "$b" && echo "  ok       $b" || { echo "  MISSING  $b   (AUR: nwg-dock-hyprland)"; missing=1; }
   python3 -c 'import gi; gi.require_version("Gtk","4.0")' 2>/dev/null \
     && echo "  ok       GTK4 for Python" || { echo "  MISSING  GTK4 for Python   (sudo pacman -S gtk4 python-gobject)"; missing=1; }
   if desktop_ok; then echo "  ok       gtk4-layer-shell (Launcher, desktop)"
   else echo "  MISSING  gtk4-layer-shell   (sudo pacman -S gtk4-layer-shell); the desktop menu and widgets need it"; missing=1; fi
-  echo "XLIN commands:"
+  echo "Xlin-soft commands:"
   for b in xlin xlin-dock-watch xlin-settings xlin-tools xlin-welcome xlin-files xlin-monitor xlin-terminal xlin-desktop xlin-start xlin-store xlin-media xlin-debug; do
     have "$b" && printf '  ok       %s\n' "$b" || { printf '  MISSING  %s   (run ./update.sh)\n' "$b"; missing=1; }
   done
@@ -942,9 +942,9 @@ EOF
   echo "kitty font: $name, size $size"
 }
 
-# XLIN Terminal: the full Kitty config, the XLIN prompt and welcome card.
+# Xlin-soft Terminal: the full Kitty config, the Xlin-soft prompt and welcome card.
 # Safe to run again. Your old kitty.conf is saved once as kitty.conf.xlin-backup.
-# `xlin term [-d folder] [-e command]`: open a terminal window (XLIN Terminal, or kitty as the fallback)
+# `xlin term [-d folder] [-e command]`: open a terminal window (Xlin-soft Terminal, or kitty as the fallback)
 cmd_term() {
   mkdir -p "$HOME/.cache/xlin"
   local choice
@@ -956,7 +956,7 @@ cmd_term() {
     [[ "${1:-}" == -e ]] && shift
     setsid kitty "$@" >>"$HOME/.cache/xlin/terminal.log" 2>&1 &
   else
-    notify "No terminal found" "Install one: sudo pacman -S vte4  (XLIN Terminal) or kitty"
+    notify "No terminal found" "Install one: sudo pacman -S vte4  (Xlin-soft Terminal) or kitty"
     return 1
   fi
 }
@@ -982,25 +982,25 @@ cmd_terminal() {
   local kdir="$HOME/.config/kitty" kc="$HOME/.config/kitty/kitty.conf" f
   mkdir -p "$kdir"
 
-  # 1) Kitty: the complete XLIN config (colours, font and opacity are generated files)
+  # 1) Kitty: the complete Xlin-soft config (colours, font and opacity are generated files)
   if [[ -f "$XLIN_HOME/kitty.conf" ]]; then
     track_generated_file "$kc" || { echo "cannot safely replace $kc" >&2; return 1; }
     cp "$XLIN_HOME/kitty.conf" "$kc"
     [[ -s "$kdir/xlin-theme.conf" ]] || cmd_theme "$(cat "$STATE/theme" 2>/dev/null || echo light)" >/dev/null
     [[ -f "$kdir/xlin-font.conf" ]] || write_font
     [[ -f "$kdir/xlin-opacity.conf" ]] || write_opacity 0.88 0.80 quiet
-    echo "kitty: XLIN Terminal config installed (old one: kitty.conf.xlin-backup)"
+    echo "kitty: Xlin-soft Terminal config installed (old one: kitty.conf.xlin-backup)"
   else
-    echo "kitty: $XLIN_HOME/kitty.conf is missing, run ./update.sh from the XLIN folder"
+    echo "kitty: $XLIN_HOME/kitty.conf is missing, run ./update.sh from the Xlin-soft folder"
   fi
 
-  # 2) Shell: XLIN prompt + welcome card, loaded last
+  # 2) Shell: Xlin-soft prompt + welcome card, loaded last
   if [[ -f "$XLIN_HOME/shell.bash" ]]; then
     local hook='[ -f ~/.config/xlin/shell.bash ] && source ~/.config/xlin/shell.bash'
     if [[ -d "$HOME/.config/bashrc" ]]; then
       # ML4W-style setup: it loads every file in this folder, in order, so 99- comes last
       track_generated_file "$HOME/.config/bashrc/99-xlin" || { echo "cannot safely replace ~/.config/bashrc/99-xlin" >&2; return 1; }
-      printf '# XLIN Terminal prompt and welcome card (remove this file to turn it off)\n%s\n' "$hook" \
+      printf '# Xlin-soft Terminal prompt and welcome card (remove this file to turn it off)\n%s\n' "$hook" \
         >"$HOME/.config/bashrc/99-xlin"
       # backups kept inside that folder get loaded too, which brings the old banner back
       local moved=0
@@ -1018,11 +1018,11 @@ cmd_terminal() {
       fi
     else
       touch "$HOME/.bashrc"
-      grep -q 'xlin/shell.bash' "$HOME/.bashrc" || printf '\n# XLIN Terminal\n%s\n' "$hook" >>"$HOME/.bashrc"
+      grep -q 'xlin/shell.bash' "$HOME/.bashrc" || printf '\n# Xlin-soft Terminal\n%s\n' "$hook" >>"$HOME/.bashrc"
     fi
-    echo "shell: XLIN prompt and welcome card on (xlin terminal banner off to hide the card)"
+    echo "shell: Xlin-soft prompt and welcome card on (xlin terminal banner off to hide the card)"
   else
-    echo "shell: $XLIN_HOME/shell.bash is missing, run ./update.sh from the XLIN folder"
+    echo "shell: $XLIN_HOME/shell.bash is missing, run ./update.sh from the Xlin-soft folder"
   fi
 
   pkill -USR1 -x kitty 2>/dev/null || true
@@ -1099,7 +1099,7 @@ warm_start() {
   done
 }
 
-# Put XLIN's own settings back to how a fresh install looks (wallpaper, pinned apps and files are kept)
+# Put Xlin-soft's own settings back to how a fresh install looks (wallpaper, pinned apps and files are kept)
 cmd_reset() {
   local f
   for f in theme accent dock_autohide dock_icon cursor_size terminal desktop_off bar_hidden idle_off idle_minutes \
@@ -1113,7 +1113,7 @@ cmd_reset() {
   cmd_desktop restart quiet >/dev/null 2>&1 || true
   dock_restart >/dev/null 2>&1 || true
   pkill -SIGUSR2 waybar 2>/dev/null || true
-  echo "XLIN settings are back to the defaults"
+  echo "Xlin-soft settings are back to the defaults"
 }
 
 # Show the desktop (like Win+D): hides every window on this workspace; run it again to bring them back
@@ -1165,14 +1165,14 @@ cmd_start() {
   cmd_wallpaper restore
   apply_cursor
   start_extras
-  cmd_hook quiet >/dev/null 2>&1 || true      # keeps XLIN loaded last (also after a Hyprland upgrade to 0.57)
+  cmd_hook quiet >/dev/null 2>&1 || true      # keeps Xlin-soft loaded last (also after a Hyprland upgrade to 0.57)
   ( sleep 3; cmd_keys_check fix quiet >/dev/null 2>&1 ) &
   ( sleep 4; cmd_welcome --first ) >/dev/null 2>&1 &
   ( sleep 8; warm_start ) >/dev/null 2>&1 &
 }
 
-# ================================================================= XLIN CLI
-XLIN_VERSION="0.50.1"
+# ================================================================= Xlin-soft CLI
+XLIN_VERSION="0.51.0"
 
 if [[ -t 1 ]]; then B=$'\e[1m'; D=$'\e[2m'; R=$'\e[0m'; else B=""; D=""; R=""; fi
 die() { echo "xlin: $*" >&2; return 1; }
@@ -1337,7 +1337,7 @@ cmd_battery() {
 }
 
 cmd_status() {
-  echo "${B}XLIN $XLIN_VERSION${R}"
+  echo "${B}Xlin-soft $XLIN_VERSION${R}"
   echo "Theme: $(cat "$STATE/theme" 2>/dev/null || echo light)    Run bar autohide: $(cat "$STATE/dock_autohide" 2>/dev/null || echo on)"
   echo
   have nmcli         && { cmd_wifi status 2>/dev/null | head -2; }
@@ -1424,8 +1424,8 @@ listener {
 EOT
   echo "$lock" >"$STATE/idle_minutes"
 }
-# Service processes XLIN started itself (hypridle, hyprsunset): found through the pid file XLIN wrote, and only
-# when the process is still that program with XLIN's arguments. A hypridle/hyprsunset you started yourself
+# Service processes Xlin-soft started itself (hypridle, hyprsunset): found through the pid file Xlin-soft wrote, and only
+# when the process is still that program with Xlin-soft's arguments. A hypridle/hyprsunset you started yourself
 # (or a pid that was reused) is never touched.
 owned_pid() {
   local f="$1" pid="" comm args
@@ -1508,7 +1508,7 @@ cmd_desktop() {
       [[ "$quiet" == quiet ]] || echo "desktop menu and widgets: on (right-click the desktop)" ;;
     status)
       if [[ -f "$STATE/desktop_off" ]]; then echo "Desktop layer: switched off (xlin desktop on)"
-      elif ! have xlin-desktop; then echo "Desktop layer: not installed (run ./update.sh from the XLIN folder)"
+      elif ! have xlin-desktop; then echo "Desktop layer: not installed (run ./update.sh from the Xlin-soft folder)"
       elif ! desktop_ok; then echo "Desktop layer: needs gtk4-layer-shell (sudo pacman -S gtk4-layer-shell)"
       elif pgrep -f '[x]lin-desktop$' >/dev/null; then echo "Desktop layer: running (right-click the desktop)"
       else echo "Desktop layer: not running (press Restart)"; tail -n 4 "$HOME/.cache/xlin/desktop.log" 2>/dev/null
@@ -1525,7 +1525,7 @@ cmd_monitor() {
     setsid xlin-monitor >>"$HOME/.cache/xlin/monitor.log" 2>&1 &
     return 0
   fi
-  echo "XLIN Monitor needs python-gobject (sudo pacman -S python-gobject)"; return 1
+  echo "Xlin-soft Monitor needs python-gobject (sudo pacman -S python-gobject)"; return 1
 }
 
 cmd_debug() {
@@ -1544,7 +1544,7 @@ cmd_media() {
     setsid xlin-media "$@" >>"$HOME/.cache/xlin/media.log" 2>&1 &
     return 0
   fi
-  echo "XLIN Media needs python-gobject (sudo pacman -S python-gobject)"; return 1
+  echo "Xlin-soft Media needs python-gobject (sudo pacman -S python-gobject)"; return 1
 }
 
 cmd_store() {
@@ -1553,14 +1553,14 @@ cmd_store() {
     setsid xlin-store >>"$HOME/.cache/xlin/store.log" 2>&1 &
     return 0
   fi
-  echo "XLIN Store needs python-gobject (sudo pacman -S python-gobject)"; return 1
+  echo "Xlin-soft Store needs python-gobject (sudo pacman -S python-gobject)"; return 1
 }
 
-# ---- files: the XLIN file manager, or another one if XLIN Files cannot start
+# ---- files: the Xlin-soft file manager, or another one if Xlin-soft Files cannot start
 cmd_files() {
-  if [[ "${1:-}" == default ]]; then   # make XLIN Files the app other programs use for "show in folder"
+  if [[ "${1:-}" == default ]]; then   # make Xlin-soft Files the app other programs use for "show in folder"
     have xdg-mime || { echo "xdg-mime not found (sudo pacman -S xdg-utils)"; return 1; }
-    xdg-mime default dev.xlin.Files.desktop inode/directory && echo "XLIN Files is now the default file manager"
+    xdg-mime default dev.xlin.Files.desktop inode/directory && echo "Xlin-soft Files is now the default file manager"
     return 0
   fi
   if have xlin-files && gi_ok; then
@@ -1676,19 +1676,19 @@ cmd_adapt() {
   bar_apply
 }
 
-# xlin uninstall [-y] [--purge]: put things back the way they were before XLIN
+# xlin uninstall [-y] [--purge]: put things back the way they were before Xlin-soft
 cmd_uninstall() {
   local yes=0 purge=0 a
   for a in "$@"; do case "$a" in -y|--yes) yes=1 ;; --purge) purge=1 ;; esac; done
   cat <<EOT
 This will:
-  - stop loading XLIN from your Hyprland config (hyprland.lua or hyprland.conf) and delete XLIN's Hyprland files
+  - stop loading Xlin-soft from your Hyprland config (hyprland.lua or hyprland.conf) and delete Xlin-soft's Hyprland files
   - put your old Waybar / swaync / Kitty configs back (from the backups made at install)
-  - remove the XLIN prompt hook from your shell
+  - remove the Xlin-soft prompt hook from your shell
   - delete /usr/local/bin/xlin* (asks for your password)
 EOT
   ((purge)) && echo "  - delete ~/.config/xlin (your accent, wallpapers and settings)" \
-            || echo "  (your XLIN settings in ~/.config/xlin stay; add --purge to delete them too)"
+            || echo "  (your Xlin-soft settings in ~/.config/xlin stay; add --purge to delete them too)"
   if ((!yes)); then read -rp "Continue? [y/N] " a; [[ "${a,,}" == y* ]] || { echo "cancelled"; return 0; }; fi
 
   local hc="$HOME/.config/hypr/hyprland.conf" f bak
@@ -1696,7 +1696,7 @@ EOT
   [[ -f "$HOME/.config/hypr/hyprland.lua" ]] && sed -i '/require.*"xlin")/d;/^-- XLIN/d' "$HOME/.config/hypr/hyprland.lua"
   rm -f "$HOME"/.config/hypr/xlin{,-colors,-hyprlock,-hypridle}.{conf,lua}
   pkill -f '[x]lin-dock-watch$' 2>/dev/null; pkill -f '[x]lin-desktop$' 2>/dev/null; pkill -f '^nwg-dock-hyprland' 2>/dev/null
-  # Stop only service processes started and recorded by XLIN.
+  # Stop only service processes started and recorded by Xlin-soft.
   for f in hypridle hyprsunset; do stop_owned "$f"; done
 
   for f in "$HOME/.config/waybar/config.jsonc" "$HOME/.config/swaync/config.json"; do
@@ -1730,7 +1730,7 @@ EOT
   [[ -f "$HOME/.bashrc" ]] && sed -i '/xlin\/shell\.bash/d' "$HOME/.bashrc"
   ((purge)) && rm -rf "$HOME/.config/xlin"
   have hyprctl && hyprctl reload >/dev/null 2>&1
-  echo "XLIN removed. Start your own bar with e.g. 'waybar &'. Log out and in again for a clean session."
+  echo "Xlin-soft removed. Start your own bar with e.g. 'waybar &'. Log out and in again for a clean session."
   # last step replaces this shell, because it deletes the very script that is running
   sudo rm -rf /usr/local/lib/xlin
   sudo rm -f /usr/local/bin/xlin-launcher /usr/local/bin/xlin-start /usr/local/bin/xlin-store /usr/local/bin/xlin-media /usr/local/bin/xlin-debug
@@ -1738,8 +1738,8 @@ EOT
                   /usr/local/bin/xlin-tools /usr/local/bin/xlin-welcome /usr/local/bin/xlin-files /usr/local/bin/xlin-monitor /usr/local/bin/xlin-terminal /usr/local/bin/xlin-desktop
 }
 
-# ---- keeping the XLIN shortcuts working: xlin keys check | fix, and xlin hook
-# mods|key|command  (the Hyprland binds that start XLIN things; terminal and window keys are not listed)
+# ---- keeping the Xlin-soft shortcuts working: xlin keys check | fix, and xlin hook
+# mods|key|command  (the Hyprland binds that start Xlin-soft things; terminal and window keys are not listed)
 keys_expected() {
   cat <<'EOT'
 SUPER|SPACE|xlin launcher
@@ -1774,7 +1774,7 @@ modmask_of() {   # "SUPER SHIFT" -> 65
   echo "$m"
 }
 
-# xlin keys check: report every XLIN shortcut. xlin keys fix: re-assert the ones another config took over.
+# xlin keys check: report every Xlin-soft shortcut. xlin keys fix: re-assert the ones another config took over.
 cmd_keys_check() {
   local fix="${1:-}" quiet="${2:-}" mods key cmd mask bound ok=0 bad=0 binds
   have hyprctl && have jq || { echo "needs hyprctl and jq"; return 1; }
@@ -1805,7 +1805,7 @@ cmd_keys_check() {
   [[ $fix == fix ]] || ((bad == 0))
 }
 
-# Make sure Hyprland loads XLIN as the LAST thing in its config, so nothing below it can take XLIN's keys back.
+# Make sure Hyprland loads Xlin-soft as the LAST thing in its config, so nothing below it can take Xlin-soft's keys back.
 # Hyprland 0.55+ reads hyprland.lua (0.57 dropped hyprland.conf); older versions read hyprland.conf.
 cmd_hook() {
   local quiet="${1:-}" say=echo
@@ -1815,7 +1815,7 @@ cmd_hook() {
     mkdir -p "$(dirname "$hl")"
     if [[ ! -f "$hl" ]]; then
       cat >"$hl" <<'LUA'
--- Hyprland config. XLIN is loaded by the last line; add your own settings ABOVE it.
+-- Hyprland config. Xlin-soft is loaded by the last line; add your own settings ABOVE it.
 -- (Hyprland 0.57 no longer reads the old hyprland.conf.)
 hl.monitor({ output = "", mode = "preferred", position = "auto", scale = "auto" })
 hl.config({ input = { kb_layout = "us", follow_mouse = 1 } })
@@ -1824,25 +1824,25 @@ LUA
     fi
     last="$(grep -v '^[[:space:]]*$' "$hl" | tail -1)"
     n="$(grep -c 'require, "xlin"' "$hl")"
-    if [[ "$last" == "$line" && "$n" -eq 1 ]]; then $say "hyprland.lua: XLIN is already loaded last"; return 0; fi
+    if [[ "$last" == "$line" && "$n" -eq 1 ]]; then $say "hyprland.lua: Xlin-soft is already loaded last"; return 0; fi
     [[ -e "$hl.xlin-bak" ]] || cp -a "$hl" "$hl.xlin-bak"
     sed -i '/require.*"xlin")/d;/^-- XLIN/d;/autogenerated = true/d' "$hl"
     printf '\n-- XLIN (keep this line last, so the XLIN shortcuts always win)\n%s\n' "$line" >>"$hl"
-    $say "hyprland.lua: XLIN is now loaded last"
+    $say "hyprland.lua: Xlin-soft is now loaded last"
     return 0
   fi
   local hc="$HOME/.config/hypr/hyprland.conf" cline='source = ~/.config/hypr/xlin.conf' last n
   mkdir -p "$(dirname "$hc")"; touch "$hc"
   last="$(grep -v '^[[:space:]]*$' "$hc" | tail -1)"
   n="$(grep -c 'hypr/xlin\.conf' "$hc")"
-  if [[ "$last" == "$cline" && "$n" -eq 1 ]]; then $say "hyprland.conf: XLIN is already loaded last"; return 0; fi
+  if [[ "$last" == "$cline" && "$n" -eq 1 ]]; then $say "hyprland.conf: Xlin-soft is already loaded last"; return 0; fi
   [[ -e "$hc.xlin-bak" ]] || cp -a "$hc" "$hc.xlin-bak"
   sed -i '/hypr\/xlin\.conf/d;/^# XLIN/d' "$hc"
   printf '\n# XLIN (keep this line last, so the XLIN shortcuts always win)\n%s\n' "$cline" >>"$hc"
-  $say "hyprland.conf: XLIN is now loaded last"
+  $say "hyprland.conf: Xlin-soft is now loaded last"
 }
 
-# ---- updates: xlin update [check]   (needs XLIN installed from a git clone)
+# ---- updates: xlin update [check]   (needs Xlin-soft installed from a git clone)
 cmd_update() {
   local src ver n up
   src="$(head -n1 "$STATE/source" 2>/dev/null || true)"
@@ -1850,13 +1850,13 @@ cmd_update() {
     # source file missing or damaged: look for the clone in the usual places
     local d
     for d in "$HOME/XLIN" "$HOME/Downloads/XLIN" "$HOME/Documents/XLIN" "$HOME/projects/XLIN" "$HOME/src/XLIN" "$HOME/Desktop/XLIN"; do
-      if [[ -d "$d/.git" && -x "$d/update.sh" ]] && git -C "$d" remote get-url origin 2>/dev/null | grep -qi 'XLIN'; then
+      if [[ -d "$d/.git" && -x "$d/update.sh" ]] && git -C "$d" remote get-url origin 2>/dev/null | grep -qi 'xlin'; then
         src="$d"; echo "$src" >"$STATE/source"; break
       fi
     done
   fi
   if [[ -z "$src" || ! -d "$src/.git" ]]; then
-    echo "Updates need XLIN installed from its git folder: git clone https://github.com/madhav-sharma-co/XLIN.git && cd XLIN && ./install.sh"
+    echo "Updates need Xlin-soft installed from its git folder: git clone https://github.com/madhav-sharma-co/XLIN.git && cd Xlin-soft && ./install.sh"
     return 3
   fi
   have git || { echo "git is not installed (sudo pacman -S git)"; return 3; }
@@ -1868,18 +1868,18 @@ cmd_update() {
       echo "Update available: ${up:-newer version} (you have $XLIN_VERSION)"
       return 10
     fi
-    echo "XLIN is up to date ($XLIN_VERSION)"
+    echo "Xlin-soft is up to date ($XLIN_VERSION)"
     return 0
   fi
-  echo "Updating XLIN from $src ..."
+  echo "Updating Xlin-soft from $src ..."
   git -C "$src" pull --ff-only || { echo "Could not update: you changed files in $src. Run: git -C $src status"; return 1; }
   (cd "$src" && ./update.sh)
 }
 
-# xlin deps: install anything XLIN needs that is missing (same step as install.sh / update.sh)
+# xlin deps: install anything Xlin-soft needs that is missing (same step as install.sh / update.sh)
 cmd_deps() {
   local src; src="$(head -n1 "$STATE/source" 2>/dev/null || true)"
-  [[ -f "$src/scripts/deps.sh" ]] || { echo "Run this from the XLIN folder: ./scripts/deps.sh"; return 3; }
+  [[ -f "$src/scripts/deps.sh" ]] || { echo "Run this from the Xlin-soft folder: ./scripts/deps.sh"; return 3; }
   rm -f "$STATE/.gi_ok" "$STATE/.vte_ok"     # re-check what is installed
   bash "$src/scripts/deps.sh"
 }
@@ -1887,7 +1887,7 @@ cmd_deps() {
 # Shortcut list. Edit config/hypr/xlin.conf to change keys; keep this table in step.
 KEYS_TABLE='Apps|Super (tap) / Super+Space|Launcher (Start menu with all apps)
 Apps|Super+Return / Super+T|Terminal
-Apps|Super+E|Files (Explorer) - XLIN Files
+Apps|Super+E|Files (Explorer) - Xlin-soft Files
 Apps|Super+S|Settings
 Apps|Super+C|Control panel
 Apps|Super+U|Utilities (Tools: calculator, calendar)
@@ -2005,7 +2005,7 @@ ${B}Look and feel${R}
 EOT
     ;;
     *) cat <<EOT
-${B}xlin $XLIN_VERSION${R} - the XLIN desktop
+${B}xlin $XLIN_VERSION${R} - the Xlin-soft desktop
 
 ${B}System${R}
   xlin status                      one-screen overview
@@ -2014,14 +2014,14 @@ ${B}System${R}
   xlin nightlight [on|off|<K>]     warm screen colour (1500-6500K)
   xlin clipboard                   clipboard history
   xlin monitor                     System Monitor (Super+M)
-  xlin store                       XLIN Store: find, install and remove apps
+  xlin store                       Xlin-soft Store: find, install and remove apps
   xlin font [name|size ...]        System font and size
   xlin showdesktop                 Hide all windows to show the desktop (Super+Shift+D)
-  xlin reset                       Put XLIN's settings back to the defaults
+  xlin reset                       Put Xlin-soft's settings back to the defaults
   xlin warm on|off                 Keep apps ready (instant open)
-  xlin media [files]               XLIN Media: music and video player
+  xlin media [files]               Xlin-soft Media: music and video player
   xlin debug                       SysDebug: health checks, logs, quick repairs
-  xlin files [folder|default]      XLIN Files (default = use it for "show in folder")
+  xlin files [folder|default]      Xlin-soft Files (default = use it for "show in folder")
   xlin notes [list|dir]            Notes window (Super+N); xlin note "text" saves a quick note
   xlin keys [check|fix]            all keyboard shortcuts (Super+/ shows them); check/fix repairs clashes
   xlin wifi [..]                   Wi-Fi          (xlin wifi help)
@@ -2045,8 +2045,8 @@ ${B}Apps and panels${R}
 ${B}Session${R}
   xlin start | restart | reload            xlin doctor     xlin version
   xlin cursor [24|32|48|64]                mouse cursor size
-  xlin update [check]                      get the newest XLIN from GitHub (check = look only)
-  xlin uninstall [--purge]                 remove XLIN and restore your old configs
+  xlin update [check]                      get the newest Xlin-soft from GitHub (check = look only)
+  xlin uninstall [--purge]                 remove Xlin-soft and restore your old configs
 
 Every command has its own help:  xlin <command> help      Tab completes commands.
 EOT

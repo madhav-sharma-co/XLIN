@@ -1,4 +1,4 @@
-# XLIN dark theme (palette taken from the Figma design)
+# Xlin-soft dark theme (palette taken from the Figma design)
 C_NAME="dark"
 C_INK="#e8edf8"
 C_MUTED="#9da9bc"
@@ -26,7 +26,7 @@ C_WALL_A="#111725"
 C_WALL_B="#1b2940"
 C_WALL_ORB="rgba(106,128,234,0.22)"
 
-# terminal (kitty) palette: XLIN dark base, soft blue-white text, no purple
+# terminal (kitty) palette: Xlin-soft dark base, soft blue-white text, no purple
 C_T_BG="#111725"; C_T_FG="#e8edf8"; C_T_CURSOR="#e8edf8"; C_T_SEL_BG="#243049"; C_T_SEL_FG="#e8edf8"
 C_T_0="#1c2438";  C_T_1="#f0788c";  C_T_2="#6fcf9f";  C_T_3="#f0c674"
 C_T_4="#6aa8f0";  C_T_5="#d98aa8";  C_T_6="#5fc8de";  C_T_7="#c5cee0"

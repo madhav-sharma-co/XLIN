@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""XLIN Files - the XLIN file manager (browse, search, copy/move, trash and restore, drag and drop).
+"""Xlin-soft Files - the Xlin-soft file manager (browse, search, copy/move, trash and restore, drag and drop).
 
 Usage: xlin-files [folder]
 

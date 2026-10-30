@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""XLIN Monitor - CPU, memory, disk and network at a glance, plus your running apps.
+"""Xlin-soft Monitor - CPU, memory, disk and network at a glance, plus your running apps.
 
 Usage: xlin-monitor
 Select an app and press "End" (asks it to close) or "Force quit" (stops it at once).

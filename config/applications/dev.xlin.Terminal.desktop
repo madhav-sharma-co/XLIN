@@ -2,7 +2,7 @@
 Type=Application
 Name=Terminal
 GenericName=Terminal
-Comment=The XLIN terminal
+Comment=The Xlin-soft terminal
 Exec=xlin term
 Icon=xlin-terminal
 Terminal=false

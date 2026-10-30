@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Update XLIN from this folder. Missing dependencies are installed automatically.
+# Update Xlin-soft from this folder. Missing dependencies are installed automatically.
 #   ./update.sh
 set -euo pipefail
 
@@ -10,7 +10,7 @@ export XLIN_HOME
 [[ $EUID -ne 0 ]] || { echo "Run as your normal user, not root."; exit 1; }
 say() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 
-say "Copying XLIN files"
+say "Copying Xlin-soft files"
 mkdir -p "$XLIN_HOME/state" "$XLIN_HOME/wallpapers" "$HOME/.config/hypr" "$HOME/.config/waybar" "$HOME/.config/swaync"
 echo "$SRC" >"$XLIN_HOME/state/source"
 cp -r "$SRC/themes" "$SRC/templates" "$XLIN_HOME/"

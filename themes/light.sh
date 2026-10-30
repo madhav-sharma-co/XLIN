@@ -1,4 +1,4 @@
-# XLIN light theme (palette taken from the Figma design)
+# Xlin-soft light theme (palette taken from the Figma design)
 C_NAME="light"
 C_INK="#182035"
 C_MUTED="#718096"
@@ -27,7 +27,7 @@ C_WALL_A="#dceaf7"
 C_WALL_B="#c8daee"
 C_WALL_ORB="rgba(105,128,224,0.30)"
 
-# terminal (kitty) palette: XLIN navy text, cool blue-grey tones, no purple
+# terminal (kitty) palette: Xlin-soft navy text, cool blue-grey tones, no purple
 C_T_BG="#f4f7fb"; C_T_FG="#182035"; C_T_CURSOR="#182035"; C_T_SEL_BG="#dbe5f5"; C_T_SEL_FG="#182035"
 C_T_0="#2a3350";  C_T_1="#d4566b";  C_T_2="#2f9e73";  C_T_3="#c58a1e"
 C_T_4="#2f78c4";  C_T_5="#b0597d";  C_T_6="#1f8fa8";  C_T_7="#5b6780"

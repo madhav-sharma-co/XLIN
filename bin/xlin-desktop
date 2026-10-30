@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""XLIN Desktop - the layer between your wallpaper and your windows.
+"""Xlin-soft Desktop - the layer between your wallpaper and your windows.
 
 Right-click the desktop for a menu: add an app shortcut, widgets, icon size, arrange icons, new folder,
 wallpaper, Terminal / Files / Settings. Files and folders in ~/Desktop show up as icons too.
@@ -32,7 +32,7 @@ try:
     gi.require_version("Gtk4LayerShell", "1.0")
     from gi.repository import Gtk4LayerShell as LayerShell
 except (ValueError, ImportError):
-    print("XLIN Desktop needs gtk4-layer-shell:  sudo pacman -S gtk4-layer-shell", file=sys.stderr)
+    print("Xlin-soft Desktop needs gtk4-layer-shell:  sudo pacman -S gtk4-layer-shell", file=sys.stderr)
     sys.exit(3)
 from gi.repository import Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
 
@@ -227,7 +227,7 @@ def unique_path(folder, base):
 # --------------------------------------------------------------- the desktop
 class DesktopWindow(Gtk.Window):
     def __init__(self, app):
-        super().__init__(application=app, title="XLIN Desktop")
+        super().__init__(application=app, title="Xlin-soft Desktop")
         self.cfg = load_config()
         self.add_css_class("xlin-desktop")
         self.set_decorated(False)
@@ -853,7 +853,7 @@ class DesktopWindow(Gtk.Window):
             t = self.timer
             if t["running"] and time.monotonic() >= t["end"]:
                 t.update(running=False, left=0)
-                run(["notify-send", "-a", "XLIN", "Timer finished", "Time is up"])
+                run(["notify-send", "-a", "Xlin-soft", "Timer finished", "Time is up"])
             self.draw_timer()
         return True
 

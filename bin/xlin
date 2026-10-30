@@ -987,6 +987,7 @@ cmd_terminal() {
     local hook='[ -f ~/.config/xlin/shell.bash ] && source ~/.config/xlin/shell.bash'
     if [[ -d "$HOME/.config/bashrc" ]]; then
       # ML4W-style setup: it loads every file in this folder, in order, so 99- comes last
+      track_generated_file "$HOME/.config/bashrc/99-xlin" || { echo "cannot safely replace ~/.config/bashrc/99-xlin" >&2; return 1; }
       printf '# XLIN Terminal prompt and welcome card (remove this file to turn it off)\n%s\n' "$hook" \
         >"$HOME/.config/bashrc/99-xlin"
       # backups kept inside that folder get loaded too, which brings the old banner back
@@ -1706,7 +1707,8 @@ EOT
   done
   restore_generated_file "$HOME/.config/kitty/kitty.conf"
   rm -f "$HOME"/.config/kitty/xlin-{theme,font}.conf
-  rm -f "$HOME/.config/bashrc/99-xlin" "$HOME"/.local/share/applications/dev.xlin.*.desktop
+  restore_generated_file "$HOME/.config/bashrc/99-xlin"
+  rm -f "$HOME"/.local/share/applications/dev.xlin.*.desktop
   rm -f "$HOME"/.local/share/icons/hicolor/scalable/apps/xlin-*.svg
   rm -rf "$HOME/.local/share/icons/XLIN" "$HOME/.local/share/icons/XLIN-Dark"
   [[ -f "$HOME/.bashrc" ]] && sed -i '/xlin\/shell\.bash/d' "$HOME/.bashrc"

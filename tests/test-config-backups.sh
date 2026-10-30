@@ -120,4 +120,17 @@ restore_generated_file "$HOME/.config/gtk-4.0/settings.ini" >/dev/null
 [[ "$(cat "$HOME/.config/gtk-3.0/settings.ini")" == "$(printf '[Settings]\ngtk-theme-name=UserTheme\n')" ]] || { echo "FAIL: GTK3 settings were not restored" >&2; exit 1; }
 [[ ! -e "$HOME/.config/gtk-4.0/settings.ini" ]] || { echo "FAIL: XLIN-created GTK4 settings file was not removed" >&2; exit 1; }
 
+# The ML4W-style XLIN terminal hook must preserve a pre-existing 99-xlin file.
+mkdir -p "$HOME/.config/bashrc"
+printf 'user shell hook\n' >"$HOME/.config/bashrc/99-xlin"
+track_generated_file "$HOME/.config/bashrc/99-xlin"
+printf 'XLIN shell hook\n' >"$HOME/.config/bashrc/99-xlin"
+restore_generated_file "$HOME/.config/bashrc/99-xlin" >/dev/null
+[[ "$(cat "$HOME/.config/bashrc/99-xlin")" == "user shell hook" ]] || { echo "FAIL: existing 99-xlin hook was not restored" >&2; exit 1; }
+rm -f "$HOME/.config/bashrc/99-xlin"
+track_generated_file "$HOME/.config/bashrc/99-xlin"
+printf 'XLIN shell hook\n' >"$HOME/.config/bashrc/99-xlin"
+restore_generated_file "$HOME/.config/bashrc/99-xlin" >/dev/null
+[[ ! -e "$HOME/.config/bashrc/99-xlin" ]] || { echo "FAIL: XLIN-created 99-xlin hook was not removed" >&2; exit 1; }
+
 echo "Generated-file backup tests passed."

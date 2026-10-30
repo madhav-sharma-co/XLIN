@@ -6,8 +6,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Bash syntax
-        run: bash -n bin/xlin lib/hyprland.sh install.sh update.sh config/shell/xlin.bash
+        run: bash -n bin/xlin lib/hyprland.sh install.sh update.sh config/shell/xlin.bash tests/test-hyprland.sh
       - name: ShellCheck (errors only)
-        run: sudo apt-get install -y shellcheck && shellcheck -S error bin/xlin lib/hyprland.sh install.sh update.sh
+        run: sudo apt-get install -y shellcheck && shellcheck -S error bin/xlin lib/hyprland.sh install.sh update.sh tests/test-hyprland.sh
+      - name: Hyprland helper regression tests
+        run: bash tests/test-hyprland.sh
       - name: Python compile
         run: python3 -m py_compile bin/xlin-settings bin/xlin-tools bin/xlin-files bin/xlin-welcome bin/xlin-monitor bin/xlin-terminal bin/xlin-desktop bin/xlin-store bin/xlin-media bin/xlin-debug bin/xlin-start lib/xlin_ui.py scripts/make-cursors.py scripts/make-icons.py scripts/make-wallpapers.py

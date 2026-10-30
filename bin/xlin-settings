@@ -505,7 +505,7 @@ def appearance_page(win):
     wb.append(button("Next", lambda: in_thread(lambda: run(["xlin", "wallpaper", "next"], 30))))
     wb.append(button("Choose image...", pick_wall))
     c.append(row("Wallpaper", None, wb))
-    c.append(row("Animations", "Windows, menus and workspaces: smooth is the MacBook feel", segmented(
+    c.append(row("Animations", "Windows, menus and workspaces. Smooth is the default", segmented(
         [("off", "Off"), ("subtle", "Subtle"), ("smooth", "Smooth")], read_state("animations", "smooth"),
         lambda v: in_thread(lambda: run(["xlin", "animations", v], 15)))))
 

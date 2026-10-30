@@ -991,7 +991,7 @@ class DesktopWindow(Gtk.Window):
                 run(["xlin", "wallpaper", f.get_path()])
         dlg.open(None, None, done)
 
-    # ---- the Apps and widgets gallery (like the widget picker on a phone, Windows or macOS)
+    # ---- the Apps and widgets gallery (pick widgets and apps to show on the desktop)
     WIDGET_INFO = {
         "clock": ("Clock", "Big time and the date", "12:45"),
         "calendar": ("Calendar", "This month at a glance", "Oct 2026"),

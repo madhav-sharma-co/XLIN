@@ -9,7 +9,7 @@
 }
 
 window {
-  /* centered above the dock, like the Start menu above the Windows taskbar */
+  /* centered above the dock */
   location: south;
   anchor: south;
   x-offset: 0px;

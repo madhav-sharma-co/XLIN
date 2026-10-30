@@ -40,7 +40,7 @@ hl.config({
     dwindle = { preserve_split = true },
 })
 
--- Animations are generated (xlin animations off | subtle | smooth): soft springs, scale and fade, like a MacBook
+-- Animations are generated (xlin animations off | subtle | smooth): soft springs, scale and fade
 pcall(require, "xlin-anim")
 
 pcall(require, "xlin-opacity")  -- window transparency (generated)

@@ -4,7 +4,7 @@
 - Fixed the Hyprland error in xlin-anim.lua: the spring curve is not accepted by Hyprland 0.57. The Smooth animations now use a bezier curve with a small overshoot (same feel)
 
 ## 0.49.0
-- New animations, MacBook style: windows open with a soft spring (scale up from 88% while fading in), close quickly, workspaces slide and fade, menus and panels pop in gently
+- New animations: windows open with a soft spring (scale up from 88% while fading in), close quickly, workspaces slide and fade, menus and panels pop in gently
 - Settings -> Personalization -> Animations: Off / Subtle / Smooth, and `xlin animations off|subtle|smooth`. Off also turns off animations in GTK apps. (Older Hyprland without springs uses matching curves)
 
 ## 0.48.0
@@ -22,13 +22,13 @@
 - Tap Super uses Hyprland's modifier-key bind in the Lua config
 
 ## 0.46.0
-- The App drawer is removed. The Launcher (tap Super, Super+Space or the Run Bar button) now shows Pinned, Recent and a full All apps list below, like the Windows Start menu. `xlin drawer` still works and opens the Launcher
+- The App drawer is removed. The Launcher (tap Super, Super+Space or the Run Bar button) now shows Pinned, Recent and a full All apps list below. `xlin drawer` still works and opens the Launcher
 
 ## 0.45.1
 - Terminal apps (btop, htop...) opened from the Launcher or drawer now open in the XLIN terminal instead of failing with "Unable to find terminal"
 
 ## 0.45.0
-- App drawer rebuilt from the Launcher's own code: same panel, search box, app cells and colours; narrower and taller (like a phone), apps only. Right-click an app: Open, Pin / Unpin on the Run Bar, Pin / Unpin in the Launcher
+- App drawer rebuilt from the Launcher's own code: same panel, search box, app cells and colours; narrower and taller , apps only. Right-click an app: Open, Pin / Unpin on the Run Bar, Pin / Unpin in the Launcher
 - Launcher footer: Files and Lock buttons removed (name, Settings and Power remain)
 - Fixed a broken line in the generated stylesheet
 
@@ -58,11 +58,11 @@
 
 ## 0.40.0
 - Desktop: right-click now opens a short menu (Apps and widgets, New folder, wallpaper, View, Terminal, Files, Settings) that fits any screen; View holds the icon options
-- New "Apps and widgets" gallery (right-click the desktop): widget cards with previews and Add / Remove, and an app list with Add / Remove, like the pickers on a phone, Windows and macOS
+- New "Apps and widgets" gallery (right-click the desktop): widget cards with previews and Add / Remove, and an app list with Add / Remove
 - `xlin desktop status` and a Status row with a Restart button on Settings -> Desktop say whether the desktop layer is running and why not
 
 ## 0.39.0
-- App drawer redesigned like the app drawer on a phone: A-Z grid of every app with larger icons and a rounded search pill, in the same shape and place as the Launcher
+- App drawer redesigned: A-Z grid of every app with larger icons and a rounded search pill, in the same shape and place as the Launcher
 - Right-click an app in the drawer for Open, Pin to the Run Bar or Unpin from the Run Bar (Alt+P and Alt+U still work)
 
 ## 0.38.0

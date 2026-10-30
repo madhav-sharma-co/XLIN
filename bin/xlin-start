@@ -2,7 +2,7 @@
 """XLIN Launcher - the Start menu (Super+Space, or the X button on the top bar).
 
 Search, your pinned apps, recent apps, and quick buttons for Settings and Power.
-Below them is the full list of apps (All apps), like the Windows Start menu. Esc or a click outside closes it. Needs gtk4-layer-shell.
+Below them is the full list of apps (All apps), like a Start menu. Esc or a click outside closes it. Needs gtk4-layer-shell.
 """
 import glob
 import getpass

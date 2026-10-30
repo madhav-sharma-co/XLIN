@@ -87,7 +87,7 @@ def close_button(win):
 
 
 def controls(win, hide=True, full=True):
-    """The row of buttons: hide, fullscreen, close (in that order, like Windows)."""
+    """The row of buttons: hide, fullscreen, close (in that order)."""
     box = Gtk.Box(spacing=4)
     box.add_css_class("win-controls")
     if hide:

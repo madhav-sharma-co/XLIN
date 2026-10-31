@@ -299,7 +299,7 @@ restore_generated_file() {
     echo "restored ${file/#$HOME/~}"
   elif [[ -e "$file.xlin-created" ]]; then
     rm -f -- "$file" "$file.xlin-created"
-    echo "removed XLIN-created ${file/#$HOME/~}"
+    echo "removed Xlin-soft-created ${file/#$HOME/~}"
   else
     # Older Xlin-soft installs did not track generated files. Preserve them rather
     # than guessing whether they replaced a user's pre-existing file.
@@ -1355,7 +1355,7 @@ cmd_screenshot() {
   mkdir -p "$dir" "$(dirname "$log")"
   have grim || { notify -u critical "Screenshot failed" "grim is missing: sudo pacman -S grim slurp wl-clipboard"
                  echo "grim not found (sudo pacman -S grim slurp wl-clipboard)"; return 1; }
-  file="$dir/XLIN-$(date +%Y%m%d-%H%M%S).png"
+  file="$dir/Xlin-soft-$(date +%Y%m%d-%H%M%S).png"
   case "$mode" in
     region)
       have slurp || { notify -u critical "Screenshot failed" "slurp is missing: sudo pacman -S slurp"; return 1; }

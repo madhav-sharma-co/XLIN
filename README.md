@@ -47,7 +47,7 @@ you have `paru` or `yay`).
 
 | Piece           | What it does |
 |-----------------|--------------|
-| Lock screen     | Your blurred wallpaper, time, date, battery, name and password (Super+L). Locks by itself when idle |
+| Lock screen     | Your blurred wallpaper, time, date, battery, name and password (Super+L). Locks by itself when idle, and the laptop sleeps after 5 minutes without activity (changeable in Settings) |
 | Top bar         | X launcher, current app, settings, tools, Wi-Fi, Bluetooth, sound, battery, date and time, power and control panel. Every button can be hidden |
 | Launcher        | Tap Super (or Super+Space): search, pinned apps, recent apps and the full All apps list. Right-click an app: Open, pin to the Run Bar, pin to the Launcher |
 | Run Bar         | The bottom bar with pinned and running apps and the Launcher button. Auto-hides |

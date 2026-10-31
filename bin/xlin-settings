@@ -617,12 +617,15 @@ def general_page(win):
 
     c2 = card()
     box.append(c2)
-    c2.append(row("Lock when idle", "Lock the screen when you are away", switch(
+    c2.append(row("Lock and sleep when idle", "Lock the screen and put the laptop to sleep when you are away", switch(
         not os.path.exists(os.path.join(STATE, "idle_off")),
         lambda s: in_thread(lambda: run(["xlin", "idle", "on" if s else "off"], 20)))))
     c2.append(row("Lock after", None, segmented(
         [("2", "2 min"), ("5", "5 min"), ("10", "10 min"), ("30", "30 min")], read_state("idle_minutes", "5"),
         lambda v: in_thread(lambda: run(["xlin", "idle", "set", v], 20)))))
+    c2.append(row("Sleep after", "Without any activity, on the lock screen or the desktop. The screen locks just before", segmented(
+        [("5", "5 min"), ("10", "10 min"), ("15", "15 min"), ("30", "30 min"), ("off", "Never")], read_state("sleep_minutes", "5"),
+        lambda v: in_thread(lambda: run(["xlin", "idle", "sleep", v], 20)))))
     c2.append(row("Night light", "Warmer screen colour in the evening", switch(
         os.path.exists(os.path.join(STATE, "nightlight")) and read_state("nightlight", "") != "",
         lambda s: in_thread(lambda: run(["xlin", "nightlight", "on" if s else "off"], 20)))))

@@ -174,6 +174,8 @@ for i = 1, 4 do
     bind("SUPER + " .. i, hl.dsp.focus({ workspace = i }))
     bind("SUPER + SHIFT + " .. i, hl.dsp.window.move({ workspace = i }))
 end
+bind("SUPER + ALT + right", hl.dsp.focus({ workspace = "e+1" }))     -- next / previous workspace, like paging on a phone
+bind("SUPER + ALT + left", hl.dsp.focus({ workspace = "e-1" }))
 bind("SUPER + mouse_down", hl.dsp.focus({ workspace = "e+1" }))
 bind("SUPER + mouse_up", hl.dsp.focus({ workspace = "e-1" }))
 bind("SUPER + mouse:272", hl.dsp.window.drag(), { mouse = true })

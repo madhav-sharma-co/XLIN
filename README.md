@@ -77,6 +77,7 @@ Press **Super+/** or run `xlin keys` to see them all. Every key is the first let
 | Super+B | Battery and power mode | Super+Ctrl+arrows | Resize the window |
 | Super+L | Lock | Super+drag | Move (left) / resize (right) |
 | Super+P | Power menu | Super+1..4 | Go to workspace |
+| Super+Alt+←/→ | Previous / next workspace | Super+Scroll | Next / previous workspace |
 | Super+D | Dark / light | Super+Shift+1..4 | Send window to workspace |
 | Super+W | Next wallpaper | Super+scroll | Next / previous workspace |
 | Super+V | Clipboard history | Print / Shift / Alt | Screenshot: area / screen / window |

@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.60.0
+- Switching workspaces now feels like paging on a phone: the old workspace slides out and the new one slides in with a long, soft ease-out (the three-finger swipe follows your fingers). New shortcut Super+Alt+Left / Right for the previous / next workspace
+
 ## 0.59.1
 - Fixed `./update.sh: Permission denied`: install.sh and update.sh had lost their executable bit. `xlin update` now runs the updater with bash, so it works either way. A test now checks the bit
 

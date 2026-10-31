@@ -4,6 +4,7 @@
 The first version number of Xlin-soft. We stay on 0.1.0 while the system is being finished and tested, and release 0.2.0 when it is fully ready.
 
 - The Launcher opens with Super+Space only. The Super key on its own no longer does anything
+- Windows adapt to any size: drag a window's edge, use Super+right-drag, the fullscreen button, or double-click the title bar to fill the screen (and again to go back). The content follows. Settings pages keep a comfortable width and stay centred in a very wide window, and long hints wrap in a narrow one. The floating tools (Calculator, Calendar, Notes, Clock, Screenshot) can be resized too
 - Everything listed below was built before the numbers were reset to 0.1.0
 
 ## Development history (numbers before the reset)

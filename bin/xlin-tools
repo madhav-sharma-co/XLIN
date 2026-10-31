@@ -981,10 +981,10 @@ class ScreenshotView(Gtk.Box):
 class ToolWindow(Gtk.ApplicationWindow):
     """Base: borderless window with a drag strip. Subclasses fill self.body."""
 
-    def __init__(self, app, title, width, height, with_close):
+    def __init__(self, app, title, width, height, with_close, resizable=False):
         super().__init__(application=app, title=title)
         self.set_default_size(xlin_ui.scaled(width), xlin_ui.scaled(height))
-        self.set_resizable(False)
+        self.set_resizable(resizable)
         self.set_decorated(False)
         self.add_css_class("xlin-tools")
 
@@ -1251,7 +1251,7 @@ class FloatingTool(ToolWindow):
 
     def __init__(self, app, key):
         label, _id, w, h, _sub, _icon = TOOLS[key]
-        super().__init__(app, label, w, h, with_close=True)
+        super().__init__(app, label, w, h, with_close=True, resizable=True)
         self.tool = {"calculator": Calculator, "calendar": CalendarView, "notes": NotesView,
                      "screenshot": ScreenshotView, "clock": ClockView}[key]()
         self.tool.window = self

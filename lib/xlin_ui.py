@@ -72,6 +72,17 @@ def toggle_fullscreen(win=None):
             _hypr("--batch", f"dispatch focuswindow address:{addr} ; dispatch fullscreen 0")
 
 
+def toggle_maximize(win=None):
+    """Fill the screen without hiding the bars (like the zoom button of other desktops); again to go back."""
+    addr = _address(win)
+    if addr:
+        if hypr_is_lua():
+            hypr_lua(f'hl.dispatch(hl.dsp.focus({{ window = "address:{addr}" }})); '
+                     'hl.dispatch(hl.dsp.window.fullscreen({ mode = "maximized", action = "toggle" }))')
+        else:
+            _hypr("--batch", f"dispatch focuswindow address:{addr} ; dispatch fullscreen 1")
+
+
 def _button(glyph, tip, css, fn):
     b = Gtk.Button(label=glyph)
     b.add_css_class("win-btn")
@@ -107,6 +118,10 @@ def titlebar(win, title, hide=True, full=True):
     label.add_css_class("tool-title")
     strip.append(label)
     strip.append(controls(win, hide, full))
+    if full:        # double-click the title bar: fill the screen / go back
+        dbl = Gtk.GestureClick(button=1)
+        dbl.connect("pressed", lambda g, n, _x, _y: toggle_maximize(win) if n == 2 else None)
+        strip.add_controller(dbl)
     handle.set_child(strip)
     win.set_titlebar(handle)
     return label

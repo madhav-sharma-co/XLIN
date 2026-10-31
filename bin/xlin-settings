@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import weakref
 
 import gi
 
@@ -79,8 +80,12 @@ def read_state(name, default=""):
 
 
 # ---------------------------------------------------------------- widgets
+PAGE_BOXES = weakref.WeakSet()      # every page: the window keeps their side margins in step with its width
+
+
 def page_box(title, subtitle=""):
     box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+    PAGE_BOXES.add(box)
     box.set_margin_top(26)
     box.set_margin_bottom(20)
     box.set_margin_start(30)
@@ -113,6 +118,8 @@ def row(title, subtitle=None, widget=None):
     if subtitle:
         b = Gtk.Label(label=subtitle, xalign=0)
         b.add_css_class("xlin-sub")
+        b.set_wrap(True)                 # long hints wrap, so a narrow window is never cut off
+        b.set_max_width_chars(70)
         text.append(b)
     r.append(text)
     if widget is not None:
@@ -954,6 +961,10 @@ class SettingsWindow(Gtk.ApplicationWindow):
         root.append(scroll)
 
         self.keep = []  # page objects must stay alive while their widgets are shown
+        # The window can be any size (drag its edge, Super+right-drag, fullscreen): the content follows. Pages
+        # keep a comfortable reading width and stay centred when the window is very wide.
+        self._side_w = xlin_ui.scaled(210) + 1
+        self.add_tick_callback(self._fit_pages)
 
         def keep(obj):
             self.keep.append(obj)
@@ -1026,6 +1037,18 @@ class SettingsWindow(Gtk.ApplicationWindow):
             self.on_select(None, self.pages[key][0])      # build it now so the tab can be chosen
             if self.conn is not None:
                 self.conn.show_tab(tab or "wifi")
+
+
+def _fit_pages(win, _widget, _clock):
+    margin = max(30, (win.get_width() - win._side_w - xlin_ui.scaled(860)) // 2)
+    for b in list(PAGE_BOXES):
+        if b.get_margin_start() != margin:
+            b.set_margin_start(margin)
+            b.set_margin_end(margin)
+    return GLib.SOURCE_CONTINUE
+
+
+SettingsWindow._fit_pages = _fit_pages
 
 
 class SettingsApp(Gtk.Application):

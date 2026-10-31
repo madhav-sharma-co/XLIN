@@ -40,6 +40,7 @@ source "$SRC/scripts/files.sh"
 xlin_install_files
 
 /usr/local/bin/xlin hook || true
+/usr/local/bin/xlin pins init || true      # a fresh install gets Xlin-soft's own apps pinned (your pins are never touched)
 
 say "Applying theme and terminal"
 theme="$(cat "$XLIN_HOME/state/theme" 2>/dev/null || echo light)"

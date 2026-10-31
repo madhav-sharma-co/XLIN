@@ -913,7 +913,7 @@ def about_page(win):
             dlg = Gtk.AlertDialog()
             dlg.set_message("Reset Xlin-soft settings?")
             dlg.set_detail("Theme, accent, bars, desktop widgets, fonts and other options go back to the defaults. "
-                           "Your wallpaper, pinned apps and files are kept.")
+                           "Pinned apps go back to the Xlin-soft defaults. Your wallpaper and files are kept.")
             dlg.set_buttons(["Cancel", "Reset"])
             dlg.set_cancel_button(0)
             dlg.set_default_button(0)

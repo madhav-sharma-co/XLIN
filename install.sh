@@ -54,6 +54,7 @@ for hc in "$HOME/.config/hypr/hyprland.lua" "$HOME/.config/hypr/hyprland.conf"; 
   [[ -f "$hc" ]] && xlin_backup_once "$hc"
 done
 /usr/local/bin/xlin hook
+/usr/local/bin/xlin pins init || true      # a fresh install gets Xlin-soft's own apps pinned (your pins are never touched)
 
 # ------------------------------------------------------------------- theme
 say "Applying light theme"

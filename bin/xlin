@@ -853,11 +853,8 @@ dock_start() {
 
 # Show the dock only when something is running or pinned
 dock_check() {
-  local n p
-  n="$(hyprctl clients -j 2>/dev/null | jq 'length' 2>/dev/null || echo 0)"
-  p="$(grep -c . "$PINS" 2>/dev/null)"; p="${p:-0}"
-  if ((n + p > 0)); then dock_start
-  else pkill -f '^nwg-dock-hyprland' 2>/dev/null || true; fi
+  # The Run Bar stays, even with nothing open and nothing pinned: it still has the Launcher button
+  dock_start
 }
 
 # stop the Run Bar and wait until it is really gone (so a new one can start at once, no fixed delay)
@@ -1184,6 +1181,23 @@ warm_start() {
 # ---- one part at a time: xlin <part> restart | reset      parts: runbar  bar  panel  desktop  launcher
 #      (xlin restart = everything, xlin reset = every setting; xlin restart <part> / xlin reset <part> also work)
 PARTS="runbar bar panel desktop launcher"
+
+# ---- what is pinned on a fresh install and after a reset: only Xlin-soft's own apps.
+#      Desktop 2 (Files, Terminal), Run Bar 6, Launcher 12
+RUNBAR_DEFAULT_PINS=(dev.xlin.Files dev.xlin.Terminal dev.xlin.Settings dev.xlin.Store dev.xlin.Media dev.xlin.Monitor)
+LAUNCHER_DEFAULT_PINS=(dev.xlin.Files dev.xlin.Terminal dev.xlin.Settings dev.xlin.Store dev.xlin.Media dev.xlin.Monitor
+  dev.xlin.Debug dev.xlin.Calculator dev.xlin.Calendar dev.xlin.Notes dev.xlin.Clock dev.xlin.Screenshot)
+pins_runbar_default() { mkdir -p "$(dirname "$PINS")"; printf '%s\n' "${RUNBAR_DEFAULT_PINS[@]}" >"$PINS"; }
+pins_launcher_default() { mkdir -p "$STATE"; printf '%s\n' "${LAUNCHER_DEFAULT_PINS[@]}" >"$STATE/launcher_pins"; }
+# xlin pins init   : on a fresh install only (nothing pinned yet): the defaults. Your own pins are never touched
+# xlin pins reset  : back to the defaults
+cmd_pins() {
+  case "${1:-init}" in
+    init)  if [[ ! -f "$PINS" && ! -f "$STATE/launcher_pins" ]]; then pins_runbar_default; pins_launcher_default; fi ;;
+    reset) pins_runbar_default; pins_launcher_default; dock_restart; echo "pinned apps: back to the Xlin-soft defaults" ;;
+    *) echo "usage: xlin pins [init|reset]"; return 1 ;;
+  esac
+}
 # stop_proc -x|-f <name|pattern>: ask the program to stop, wait until it has, force it after a second
 stop_proc() {
   local how="$1" pat="$2" i
@@ -1212,16 +1226,16 @@ part_restart() {
 part_reset() {
   local src
   case "$1" in
-    runbar|dock) rm -f "$STATE/dock_autohide" "$STATE/dock_icon"; dock_restart
-                 echo "run bar: default size and auto-hide (your pinned apps are kept)" ;;
+    runbar|dock) rm -f "$STATE/dock_autohide" "$STATE/dock_icon"; pins_runbar_default; dock_restart
+                 echo "run bar: default size, auto-hide and pinned apps" ;;
     bar|topbar|waybar) rm -f "$STATE/bar_hidden"; bar_apply 2>/dev/null || true
                  stop_proc -x waybar; start_waybar; echo "top bar: all buttons shown, restarted" ;;
     panel|swaync) src="$(head -n1 "$STATE/source" 2>/dev/null || true)"
                  [[ -f "$src/config/swaync/config.json" ]] && cp "$src/config/swaync/config.json" "$HOME/.config/swaync/config.json"
                  swaync_scale; stop_proc -x swaync; start_swaync; echo "control panel: default layout, restarted" ;;
     desktop) cmd_desktop reset ;;
-    launcher|start) rm -f "$STATE/launcher_pins" "$STATE/recent"; stop_proc -f '[x]lin-start( |$)'
-                 echo "Launcher: pinned and recent apps cleared" ;;
+    launcher|start) pins_launcher_default; rm -f "$STATE/recent"; stop_proc -f '[x]lin-start( |$)'
+                 echo "Launcher: default pinned apps, recent apps cleared" ;;
     *) echo "unknown part '$1'. Parts: $PARTS"; return 1 ;;
   esac
 }
@@ -1241,6 +1255,7 @@ cmd_reset() {
     rm -f "$STATE/$f"
   done
   rm -f "$XLIN_HOME/desktop.json"
+  pins_runbar_default; pins_launcher_default
   cmd_theme light >/dev/null 2>&1 || true
   bar_apply 2>/dev/null || true
   apply_cursor 2>/dev/null || true
@@ -2257,6 +2272,7 @@ case "${1:-help}" in
   animations|animation|anim) shift; cmd_animations "${1:-}" ;;
   deps)      cmd_deps ;;
   state)     shift; cmd_state "${1:-}" ;;
+  pins)      shift; cmd_pins "${1:-init}" ;;
   reset)     shift; if [[ -n "${1:-}" ]]; then part_reset "$1"; else cmd_reset; fi ;;
   showdesktop|show-desktop) cmd_showdesktop ;;
   warm)      shift; cmd_warm "${1:-}" ;;

@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.52.0
+- Install and update now also update the packages that are already installed (one `pacman -Syu` run, together with the missing ones), not only add missing ones. `XLIN_NO_UPGRADE=1` installs only the missing packages. `xlin deps` does the same
+
 ## 0.51.0
 - The project is now called Xlin-soft (names, titles, notifications, the README and the licence). The `xlin` command, the config folder, app ids and the cursor theme keep their names, so existing installs and updates keep working. Xlin-advance will be a separate edition later
 

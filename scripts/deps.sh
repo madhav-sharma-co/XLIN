@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Xlin-soft dependencies: one list, used by install.sh, update.sh and `xlin deps`.
-# Installs only what is missing, so it is quiet (and needs no password) when everything is there.
+# Updates the installed packages and installs the missing ones (pacman -Syu); XLIN_NO_UPGRADE=1 installs only the missing.
 # Source it and call `xlin_deps`, or run it directly.
 
 XLIN_REQUIRED=(hyprland waybar swaync jq socat libnotify brightnessctl networkmanager network-manager-applet
@@ -50,6 +50,18 @@ _d_aur() { # package from the AUR with paru/yay, if one is installed
   return 1
 }
 
+# Bring the system and every Xlin-soft package up to date, and install what is missing, in ONE pacman run.
+# Arch only supports full upgrades (a partial one can break the system), so this is `pacman -Syu`.
+# Skip it with XLIN_NO_UPGRADE=1 (then only missing packages are installed).
+_d_upgrade() {
+  _d_unlock || { echo "!! pacman is busy: close the Store / other installers and run: xlin deps"; return 0; }
+  _d_say "Updating the system and Xlin-soft's packages (sudo pacman -Syu)"
+  sudo pacman -Syu --needed --noconfirm "$@" && return 0
+  # one unknown package name must not block the update: upgrade alone, missing ones are installed one by one below
+  _d_say "Retrying the update without the package list"
+  sudo pacman -Syu --noconfirm || echo "(the system update did not finish; the message above says why)"
+}
+
 # xlin_deps [required-only]   returns 0 if everything required is in place
 xlin_deps() {
   local mode="${1:-}" need=() failed=() p
@@ -66,6 +78,16 @@ xlin_deps() {
     need+=("$(_d_first_in_repo ttf-jetbrains-mono-nerd ttf-jetbrains-mono)")
   fi
   mapfile -t need < <(printf '%s\n' "${need[@]}" | sed '/^$/d' | sort -u)
+
+  # update what is installed and add what is missing, in one go (skip: XLIN_NO_UPGRADE=1)
+  if [[ -z "${XLIN_NO_UPGRADE:-}" ]]; then
+    local all=("${XLIN_REQUIRED[@]}")
+    [[ "$mode" == required-only ]] || all+=("${XLIN_EXTRA[@]}")
+    all+=("${need[@]}")
+    mapfile -t all < <(printf '%s\n' "${all[@]}" | sed '/^$/d' | sort -u)
+    _d_upgrade "${all[@]}"
+    mapfile -t need < <(_d_missing "${need[@]}")      # only what is still missing
+  fi
 
   if ((${#need[@]})); then
     _d_say "Installing missing packages: ${need[*]}"

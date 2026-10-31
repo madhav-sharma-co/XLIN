@@ -1172,7 +1172,7 @@ cmd_start() {
 }
 
 # ================================================================= Xlin-soft CLI
-XLIN_VERSION="0.51.0"
+XLIN_VERSION="0.52.0"
 
 if [[ -t 1 ]]; then B=$'\e[1m'; D=$'\e[2m'; R=$'\e[0m'; else B=""; D=""; R=""; fi
 die() { echo "xlin: $*" >&2; return 1; }

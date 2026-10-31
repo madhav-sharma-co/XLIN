@@ -16,7 +16,7 @@ Light and dark themes, glass panels, smooth animations, and a complete set of it
 
 ## Highlights
 
-- **One install, everything set up.** The installer adds every missing package, hooks Xlin-soft into your Hyprland config and applies the theme. Updates do the same, so new dependencies arrive by themselves.
+- **One install, everything set up.** The installer and every update bring the system and all packages Xlin-soft needs up to date (`pacman -Syu`) and install the missing ones, hook Xlin-soft into your Hyprland config and apply the theme. New dependencies arrive by themselves. To install only what is missing, run with `XLIN_NO_UPGRADE=1`.
 - **Its own apps.** Settings, Files, Terminal, Store, Media, System Monitor, Notes, Clock, Calendar, Calculator, Screenshot, Welcome and a debug tool, all in one look.
 - **Light and dark, everywhere.** One switch (Super+D) restyles every Xlin-soft app, every menu, the bars, the lock screen and other GTK apps, at once.
 - **Smooth.** Gentle window, menu and workspace animations (Off, Subtle or Smooth in Settings). Settings, Files, Store and the Launcher wait out of sight, so they open instantly.
@@ -39,7 +39,7 @@ you have `paru` or `yay`).
 
     cd Xlin-soft && git pull && ./update.sh
 
-**Repair missing packages at any time:** `xlin deps`
+**Update packages and repair missing ones at any time:** `xlin deps`
 
 **Remove Xlin-soft** (your old Waybar, swaync and Kitty configs are put back): `xlin uninstall`
 

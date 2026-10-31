@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.56.0
+- Each panel now arrives its own way: the Launcher rises from the Run Bar, the control panel and notifications slide in from the right, the top bar and Run Bar glide in from their edge, desktop widgets fade. Subtle uses a small pop or fade everywhere. Off (Settings -> Personalization -> Animations) turns all of it off
+
 ## 0.55.0
 - System Monitor is now SysMon and System Debug is SysDeb (window titles, app entries, menus, README). Settings -> About has shortcut buttons for both, next to Update and Reset
 

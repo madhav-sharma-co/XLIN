@@ -203,8 +203,35 @@ animations {
     L+=$'\n'"hl.animation({ leaf = \"$leaf\", enabled = true, speed = $speed, $lcurve${style:+, style = \"$style\"} })"
     C+=$'\n'"    animation = $leaf, 1, $speed, $curve${style:+, $style}"
   done <<<"$rows"
+  # how each panel arrives: the Launcher rises from the Run Bar, the control panel slides in from the right,
+  # the bars glide in from their edge, widgets and menus fade (Subtle: a small pop everywhere)
+  local ns style lrules R=""
+  if [[ "$mode" == smooth ]]; then
+    lrules='xlin-start|slide bottom
+swaync-control-center|slide right
+swaync-notification-window|slide right
+waybar|slide top
+nwg-dock|slide bottom
+xlin-desktop|fade
+rofi|popin 92%
+selection|fade'
+  else
+    lrules='xlin-start|popin 97%
+swaync-control-center|popin 97%
+swaync-notification-window|popin 97%
+waybar|fade
+nwg-dock|fade
+xlin-desktop|fade
+rofi|popin 97%
+selection|fade'
+  fi
+  while IFS='|' read -r ns style; do
+    [[ -n "$ns" ]] || continue
+    L+=$'\n'"hl.layer_rule({ match = { namespace = \"^${ns}\$\" }, animation = \"$style\" })"
+    R+=$'\n'"layerrule = animation $style, match:namespace ^${ns}\$"
+  done <<<"$lrules"
   printf '%s\n' "$L" >"$dir/xlin-anim.lua"
-  printf '%s\n}\n' "$C" >"$dir/xlin-anim.conf"
+  printf '%s\n}\n%s\n' "$C" "$R" >"$dir/xlin-anim.conf"
 }
 
 cmd_animations() {

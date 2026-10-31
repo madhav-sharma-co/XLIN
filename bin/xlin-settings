@@ -712,13 +712,14 @@ def desktop_edit(change):
                 cfg = json.load(f)
         except (OSError, ValueError):
             cfg = {}
-        run(["pkill", "-f", "[x]lin-desktop$"], 3)
+        was_off = os.path.exists(os.path.join(STATE, "desktop_off"))
+        run(["xlin", "desktop", "stop"], 10)         # waits until the desktop has really stopped
         change(cfg)
         os.makedirs(os.path.dirname(DESKTOP_CFG), exist_ok=True)
         with open(DESKTOP_CFG, "w") as f:
             json.dump(cfg, f, indent=1)
-        if not os.path.exists(os.path.join(STATE, "desktop_off")):
-            run(["xlin", "desktop", "start"], 10)
+        if not was_off:
+            run(["xlin", "desktop", "on"], 10)       # (the old way started it while the old one was still closing: it never came back)
     in_thread(work)
 
 

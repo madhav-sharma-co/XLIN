@@ -96,7 +96,9 @@ Press **Super+/** or run `xlin keys` to see them all. Every key is the first let
     xlin screenshot | clipboard | idle | nightlight | lock | session
     xlin store | media | debug | showdesktop | unhide | warm on|off
     xlin update [check]               xlin deps       xlin doctor
-    xlin reset | uninstall
+    xlin restart | reset              everything
+    xlin runbar|bar|panel|desktop|launcher restart | reset     one part only
+    xlin uninstall
 
 Tab completion works in the Xlin-soft terminal.
 
@@ -123,6 +125,7 @@ Shortcuts not working? Run `xlin hook`, then `hyprctl reload`.
 | Something is missing | `xlin doctor`, then `xlin deps` |
 | Shortcuts do nothing | `xlin hook` and `hyprctl reload`, then `xlin keys check` |
 | An app looks old after an update | `xlin restart` (waiting apps are replaced) |
+| One part misbehaves (Run Bar, bar, panel, desktop, Launcher) | `xlin runbar restart` (or `bar`, `panel`, `desktop`, `launcher`); `reset` puts that part back to its defaults |
 | Slow first open of an app | Keep apps ready is on by default: `xlin warm on` |
 | Anything else | SysDeb (`xlin debug`) shows checks and logs. Logs are in `~/.cache/xlin/` |
 

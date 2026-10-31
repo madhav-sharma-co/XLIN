@@ -214,7 +214,6 @@ swaync-control-center|slide right
 swaync-notification-window|slide right
 waybar|slide top
 nwg-dock|slide bottom
-xlin-desktop|fade
 rofi|popin 92%
 selection|fade'
   else
@@ -223,7 +222,6 @@ swaync-control-center|popin 97%
 swaync-notification-window|popin 97%
 waybar|fade
 nwg-dock|fade
-xlin-desktop|fade
 rofi|popin 97%
 selection|fade'
   fi
@@ -740,7 +738,8 @@ desktop_heal() {
 cmd_desktop_menu() {
   desktop_heal
   have hyprctl && have jq && have rofi || return 0
-  if [[ "${1:-}" != force ]] && pgrep -x rofi >/dev/null; then return 0; fi
+  # a menu is already open: this right click closes it (a forgotten one can never block the menu)
+  if [[ "${1:-}" != force ]] && pgrep -x rofi >/dev/null; then pkill -x rofi; return 0; fi
   local pos x y ws theme dm
   pos="$(hyprctl cursorpos -j 2>/dev/null)" || return 0
   x="$(jq -r '.x|floor' <<<"$pos")"; y="$(jq -r '.y|floor' <<<"$pos")"
@@ -1150,6 +1149,59 @@ warm_start() {
 }
 
 # Put Xlin-soft's own settings back to how a fresh install looks (wallpaper, pinned apps and files are kept)
+# ---- one part at a time: xlin <part> restart | reset      parts: runbar  bar  panel  desktop  launcher
+#      (xlin restart = everything, xlin reset = every setting; xlin restart <part> / xlin reset <part> also work)
+PARTS="runbar bar panel desktop launcher"
+# stop_proc -x|-f <name|pattern>: ask the program to stop, wait until it has, force it after a second
+stop_proc() {
+  local how="$1" pat="$2" i
+  pgrep "$how" "$pat" >/dev/null 2>&1 || return 0
+  pkill "$how" "$pat" 2>/dev/null || true
+  for i in $(seq 1 50); do pgrep "$how" "$pat" >/dev/null 2>&1 || return 0; sleep 0.02; done
+  pkill -9 "$how" "$pat" 2>/dev/null || true
+  return 0
+}
+start_waybar() { mkdir -p "$HOME/.cache/xlin"; setsid waybar >>"$HOME/.cache/xlin/waybar.log" 2>&1 & }
+start_swaync() {
+  have swaync || return 0
+  pkill -x mako 2>/dev/null; pkill -x dunst 2>/dev/null     # only one program can own the notifications
+  mkdir -p "$HOME/.cache/xlin"; setsid swaync >>"$HOME/.cache/xlin/swaync.log" 2>&1 &
+}
+part_restart() {
+  case "$1" in
+    runbar|dock) dock_restart; echo "run bar restarted" ;;
+    bar|topbar|waybar) stop_proc -x waybar; start_waybar; echo "top bar restarted" ;;
+    panel|swaync) stop_proc -x swaync; start_swaync; echo "control panel restarted" ;;
+    desktop) cmd_desktop restart ;;
+    launcher|start) stop_proc -f '[x]lin-start( |$)'; echo "Launcher restarted (it opens fresh next time)" ;;
+    *) echo "unknown part '$1'. Parts: $PARTS"; return 1 ;;
+  esac
+}
+part_reset() {
+  local src
+  case "$1" in
+    runbar|dock) rm -f "$STATE/dock_autohide" "$STATE/dock_icon"; dock_restart
+                 echo "run bar: default size and auto-hide (your pinned apps are kept)" ;;
+    bar|topbar|waybar) rm -f "$STATE/bar_hidden"; bar_apply 2>/dev/null || true
+                 stop_proc -x waybar; start_waybar; echo "top bar: all buttons shown, restarted" ;;
+    panel|swaync) src="$(head -n1 "$STATE/source" 2>/dev/null || true)"
+                 [[ -f "$src/config/swaync/config.json" ]] && cp "$src/config/swaync/config.json" "$HOME/.config/swaync/config.json"
+                 swaync_scale; stop_proc -x swaync; start_swaync; echo "control panel: default layout, restarted" ;;
+    desktop) cmd_desktop reset ;;
+    launcher|start) rm -f "$STATE/launcher_pins" "$STATE/recent"; stop_proc -f '[x]lin-start( |$)'
+                 echo "Launcher: pinned and recent apps cleared" ;;
+    *) echo "unknown part '$1'. Parts: $PARTS"; return 1 ;;
+  esac
+}
+# everything: bars, panel, Run Bar and its watcher, desktop and the waiting apps all start again, in order
+restart_all() {
+  stop_proc -x waybar; stop_proc -x swaync
+  stop_proc -f '[x]lin-dock-watch$'; stop_proc -f '^nwg-dock-hyprland'; stop_proc -f '[x]lin-desktop$'
+  stop_proc -f '[x]lin-(launcher|start|store|settings|files|monitor|debug)( |$)'   # waiting apps load the new version
+  cmd_start
+  echo "Xlin-soft restarted"
+}
+
 cmd_reset() {
   local f
   for f in theme accent dock_autohide dock_icon cursor_size terminal desktop_off bar_hidden idle_off idle_minutes \
@@ -1557,19 +1609,23 @@ cmd_desktop() {
   local act="${1:-start}" quiet="${2:-}"
   case "$act" in
     stop|off)
-      pkill -f '[x]lin-desktop$' 2>/dev/null; touch "$STATE/desktop_off"
+      stop_proc -f '[x]lin-desktop$'; touch "$STATE/desktop_off"
       echo "desktop menu and widgets: off (xlin desktop on to bring them back)" ;;
     start|on|restart)
       [[ "$act" == on ]] && rm -f "$STATE/desktop_off"
-      [[ "$act" == restart ]] && { pkill -f '[x]lin-desktop$' 2>/dev/null; sleep 0.4; }
+      [[ "$act" == restart ]] && stop_proc -f '[x]lin-desktop$'      # wait until the old one is really gone
       if ! have xlin-desktop || ! desktop_ok; then
         [[ "$quiet" == quiet ]] || echo "The desktop menu needs gtk4-layer-shell: sudo pacman -S gtk4-layer-shell"
         return 1
       fi
       pgrep -f '[x]lin-desktop$' >/dev/null && return 0
       mkdir -p "$HOME/.cache/xlin"
-      setsid xlin-desktop >>"$HOME/.cache/xlin/desktop.log" 2>&1 &
+      # started with a lower priority: building the desktop must never make the rest of the system wait
+      setsid nice -n 10 xlin-desktop >>"$HOME/.cache/xlin/desktop.log" 2>&1 &
       [[ "$quiet" == quiet ]] || echo "desktop menu and widgets: on (right-click the desktop)" ;;
+    reset)
+      rm -f "$XLIN_HOME/desktop.json" "$STATE/desktop_off"
+      cmd_desktop restart quiet; echo "desktop: widgets and icons are back to the defaults" ;;
     status)
       if [[ -f "$STATE/desktop_off" ]]; then echo "Desktop layer: switched off (xlin desktop on)"
       elif ! have xlin-desktop; then echo "Desktop layer: not installed (run ./update.sh from the Xlin-soft folder)"
@@ -1577,7 +1633,7 @@ cmd_desktop() {
       elif pgrep -f '[x]lin-desktop$' >/dev/null; then echo "Desktop layer: running (right-click the desktop)"
       else echo "Desktop layer: not running (press Restart)"; tail -n 4 "$HOME/.cache/xlin/desktop.log" 2>/dev/null
       fi ;;
-    *) echo "usage: xlin desktop [on|off|restart|status]" ;;
+    *) echo "usage: xlin desktop [on|off|restart|reset|status]" ;;
   esac
 }
 
@@ -2061,7 +2117,9 @@ ${B}Look and feel${R}
   xlin runbar size 32|40|48        run bar icon size
   xlin bar [show|hide <name>]      top bar buttons: settings tools wifi bluetooth sound battery power panel
   xlin term [-d folder] [-e cmd]   open a terminal window
-  xlin desktop [on|off|restart]    right-click desktop menu, shortcuts and widgets
+  xlin desktop [on|off|restart|reset]   right-click desktop menu, shortcuts and widgets
+  xlin restart                     restart everything (bars, panel, Run Bar, desktop, apps)
+  xlin <part> restart | reset      one part only. Parts: runbar  bar  panel  desktop  launcher
   xlin terminal use xlin|kitty     which terminal Super+Return opens
   xlin terminal font ["Name" 12]   terminal font
   xlin terminal banner on|off      terminal welcome card
@@ -2080,7 +2138,7 @@ ${B}System${R}
   xlin store                       Xlin-soft Store: find, install and remove apps
   xlin font [name|size ...]        System font and size
   xlin showdesktop                 Hide all windows to show the desktop (Super+Shift+D)
-  xlin reset                       Put Xlin-soft's settings back to the defaults
+  xlin reset                       Put all Xlin-soft settings back to the defaults (or: xlin reset <part>)
   xlin warm on|off                 Keep apps ready (instant open)
   xlin media [files]               Xlin-soft Media: music and video player
   xlin debug                       SysDeb: health checks, logs, quick repairs
@@ -2146,7 +2204,7 @@ case "${1:-help}" in
   battery)   shift; cmd_battery "$@" ;;
   theme)     shift; cmd_theme "${1:-}" ;;
   wallpaper) shift; cmd_wallpaper "${1:-next}" ;;
-  launcher)  shift; cmd_launcher "${1:-}" ;;
+  launcher)  shift; case "${1:-}" in restart|reset) part_"$1" launcher ;; *) cmd_launcher "${1:-}" ;; esac ;;
   drawer)    cmd_launcher ;;     # the App drawer was merged into the Launcher
   unhide)    shift; cmd_unhide "${1:-}" ;;
   launch-app) shift; cmd_launch_app "${1:?usage: xlin launch-app <desktop-id>}" ;;
@@ -2154,33 +2212,31 @@ case "${1:-help}" in
   unpin)     shift; cmd_unpin "${1:-}" ;;
   dock|runbar) shift; case "${1:-check}" in
                check) dock_check ;;
-               restart) dock_restart ;;
+               restart|reset) part_"$1" runbar ;;
                autohide) echo "${2:-on}" >"$STATE/dock_autohide"; dock_restart; echo "run bar autohide: ${2:-on}" ;;
                size) case "${2:-}" in
                        32|40|48) echo "$2" >"$STATE/dock_icon"; dock_restart; echo "run bar icon size: $2" ;;
                        *) echo "usage: xlin runbar size 32|40|48   (now: $(cat "$STATE/dock_icon" 2>/dev/null || echo 40))" ;;
                      esac ;;
-               *) echo "usage: xlin runbar [autohide on|off | size 32|40|48 | restart]" ;;
+               *) echo "usage: xlin runbar [autohide on|off | size 32|40|48 | restart | reset]" ;;
              esac ;;
-  bar)       shift; cmd_bar "$@" ;;
+  bar)       shift; case "${1:-}" in restart) part_restart bar ;; reset) part_reset bar ;; *) cmd_bar "$@" ;; esac ;;
   opacity)   shift; cmd_opacity "${1:-}" ;;
   superkey)  cmd_superkey ;;
   hypr-mode) hypr_mode ;;
   animations|animation|anim) shift; cmd_animations "${1:-}" ;;
   deps)      cmd_deps ;;
-  reset)     cmd_reset ;;
+  reset)     shift; if [[ -n "${1:-}" ]]; then part_reset "$1"; else cmd_reset; fi ;;
   showdesktop|show-desktop) cmd_showdesktop ;;
   warm)      shift; cmd_warm "${1:-}" ;;
   font)      shift; cmd_font "$@" ;;
   terminal)  shift; cmd_terminal "${1:-}" "${2:-}" "${3:-}" ;;
   tools)     shift; cmd_tools "${1:-}" ;;
   start)     cmd_start ;;
-  restart)   pkill -x waybar 2>/dev/null; pkill -x swaync 2>/dev/null
-             pkill -f '[x]lin-(launcher|start|store|settings|files|monitor|debug)( |$)' 2>/dev/null   # waiting apps load the new version
-             sleep 0.5; cmd_start ;;
+  restart)   shift; if [[ -n "${1:-}" ]]; then part_restart "$1"; else restart_all; fi ;;
   toggle)    shift; cmd_toggle "${1:-}" ;;
   settings)  shift; cmd_settings "${1:-}" ;;
-  panel)     cmd_panel ;;
+  panel)     shift; case "${1:-}" in restart|reset) part_"$1" panel ;; *) cmd_panel ;; esac ;;
   power)     cmd_power ;;
   lock)      cmd_lock ;;
   session)   cmd_session ;;

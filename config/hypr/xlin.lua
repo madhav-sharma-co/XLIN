@@ -46,9 +46,12 @@ pcall(require, "xlin-anim")
 pcall(require, "xlin-opacity")  -- window transparency (generated)
 
 -- ---- blur behind bar, run bar, launcher, control panel -----------------------
-for _, ns in ipairs({ "^waybar$", "^rofi$", "^xlin-start$", "^swaync-control-center$", "^xlin-desktop$", "^nwg-dock$" }) do
+for _, ns in ipairs({ "^waybar$", "^rofi$", "^xlin-start$", "^swaync-control-center$", "^nwg-dock$" }) do
     hl.layer_rule({ match = { namespace = ns }, blur = true, ignore_alpha = 0.3 })
 end
+-- The desktop layer covers the whole screen: no blur and no animation on it (blurring a full-screen surface on
+-- every frame made the laptop lag, most of all while the desktop was restarting)
+hl.layer_rule({ match = { namespace = "^xlin-desktop$" }, no_anim = true })
 
 -- ---- Xlin-soft windows: floating and centred. No fixed sizes: every app picks its own size, which grows with
 -- the font size (Settings -> Personalization), so nothing is ever cut off.

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.58.0
+- SysMon and SysDeb now open at once, like Settings, Files and the Store: they wait out of sight (SysMon does no work while hidden)
+- New docs: docs/TESTING.md (a checklist for trying Xlin-soft on a real machine) and docs/RELEASE.md (how to make a release)
+
 ## 0.57.0
 - After an update, the terminal shows what is new (from this changelog) and a notification confirms the version
 - Log files in ~/.cache/xlin are kept small: a log over 1 MB is cut to its last 500 lines at each start

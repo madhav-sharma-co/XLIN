@@ -221,6 +221,14 @@ class MonitorWindow(Gtk.ApplicationWindow):
         self.add_controller(keys)
         self.refresh()
         GLib.timeout_add_seconds(2, self.refresh)
+        self.connect("notify::visible", self.on_visible)
+
+    def on_visible(self, *_a):
+        """Kept running out of sight so it opens at once; shown again: fresh numbers, no stale averages."""
+        if self.get_visible():
+            self.prev_cpu, self.prev_net = cpu_times(), net_bytes()
+            self.prev_procs, self.prev_t = processes(), time.monotonic()
+            GLib.timeout_add(400, lambda: (self.refresh(), False)[1])
 
     # ---- list helpers
     def sort_rows(self, a, b):
@@ -274,6 +282,8 @@ class MonitorWindow(Gtk.ApplicationWindow):
 
     # ---- one refresh tick
     def refresh(self):
+        if not self.get_visible():
+            return True            # hidden (kept ready): do no work
         now = time.monotonic()
         dt = max(0.2, now - self.prev_t)
         # processor
@@ -334,6 +344,7 @@ class MonitorApp(Gtk.Application):
     def __init__(self):
         super().__init__(application_id=APP_ID, flags=Gio.ApplicationFlags.FLAGS_NONE)
         self.win = None
+        self.background = "--background" in sys.argv
 
     def do_startup(self):
         Gtk.Application.do_startup(self)
@@ -360,6 +371,10 @@ class MonitorApp(Gtk.Application):
     def do_activate(self):
         if self.win is None:
             self.win = MonitorWindow(self)
+            xlin_ui.keep_warm(self, self.win)
+        if self.background:
+            self.background = False      # warm start: built and waiting, nothing on screen
+            return
         self.win.present()
 
 

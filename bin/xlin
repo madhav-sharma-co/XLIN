@@ -280,7 +280,7 @@ cmd_font() {
   esac
   cmd_theme "$(cat "$STATE/theme" 2>/dev/null || echo light)" >/dev/null
   # waiting apps are built for the old size: let them start again at the new one (Settings stays, it is in use)
-  pkill -f '[x]lin-(start|store|files)( |$)' 2>/dev/null || true
+  pkill -f '[x]lin-(start|store|files|monitor|debug)( |$)' 2>/dev/null || true
   swaync_scale reload
   echo "font: $(cat "$STATE/ui_font" 2>/dev/null || echo "DM Sans")   size: $(cat "$STATE/ui_size" 2>/dev/null || echo normal)"
 }
@@ -1121,7 +1121,7 @@ warm_start() {
   local avail; avail="$(awk '/MemAvailable/ {print int($2/1024)}' /proc/meminfo 2>/dev/null)"
   [[ "${avail:-0}" -ge 1500 ]] || return 0          # low on memory: skip it
   local a
-  for a in xlin-start xlin-settings xlin-files xlin-store; do
+  for a in xlin-start xlin-settings xlin-files xlin-store xlin-monitor xlin-debug; do
     have "$a" && ! pgrep -f "[x]${a#x}( |\$)" >/dev/null && setsid "$a" --background >>"$HOME/.cache/xlin/warm.log" 2>&1 &
   done
 }
@@ -1562,7 +1562,6 @@ cmd_desktop() {
 cmd_monitor() {
   if have xlin-monitor && gi_ok; then
     mkdir -p "$HOME/.cache/xlin"
-    pgrep -f '[x]lin-monitor$' >/dev/null && { hy_focus 'class:dev.xlin.Monitor'; return 0; }
     setsid xlin-monitor >>"$HOME/.cache/xlin/monitor.log" 2>&1 &
     return 0
   fi
@@ -1572,7 +1571,6 @@ cmd_monitor() {
 cmd_debug() {
   if have xlin-debug && gi_ok; then
     mkdir -p "$HOME/.cache/xlin"
-    pgrep -f '[x]lin-debug$' >/dev/null && { hy_focus 'class:dev.xlin.Debug'; return 0; }
     setsid xlin-debug >>"$HOME/.cache/xlin/debug.log" 2>&1 &
     return 0
   fi
@@ -2154,7 +2152,7 @@ case "${1:-help}" in
   tools)     shift; cmd_tools "${1:-}" ;;
   start)     cmd_start ;;
   restart)   pkill -x waybar 2>/dev/null; pkill -x swaync 2>/dev/null
-             pkill -f '[x]lin-(launcher|start|store|settings|files)( |$)' 2>/dev/null   # waiting apps load the new version
+             pkill -f '[x]lin-(launcher|start|store|settings|files|monitor|debug)( |$)' 2>/dev/null   # waiting apps load the new version
              sleep 0.5; cmd_start ;;
   toggle)    shift; cmd_toggle "${1:-}" ;;
   settings)  shift; cmd_settings "${1:-}" ;;

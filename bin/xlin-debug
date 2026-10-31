@@ -8,6 +8,7 @@ import platform
 import re
 import subprocess
 import sys
+import time
 import threading
 
 import gi
@@ -119,6 +120,14 @@ class DebugWindow(Gtk.ApplicationWindow):
         foot.append(copy)
         root.append(foot)
         self.checks()
+        self.checked_at = time.monotonic()
+        self.connect("notify::visible", self.on_visible)
+
+    def on_visible(self, *_a):
+        """Kept running out of sight so it opens at once; shown again after a while: run the checks again."""
+        if self.get_visible() and time.monotonic() - self.checked_at > 20:
+            self.checked_at = time.monotonic()
+            self.checks()
 
     def put(self, text):
         self.view.get_buffer().set_text(text)
@@ -164,6 +173,7 @@ class DebugApp(Gtk.Application):
     def __init__(self):
         super().__init__(application_id=APP_ID, flags=Gio.ApplicationFlags.FLAGS_NONE)
         self.win = None
+        self.background = "--background" in sys.argv
 
     def do_startup(self):
         Gtk.Application.do_startup(self)
@@ -181,6 +191,10 @@ class DebugApp(Gtk.Application):
     def do_activate(self):
         if self.win is None:
             self.win = DebugWindow(self)
+            xlin_ui.keep_warm(self, self.win)
+        if self.background:
+            self.background = False      # warm start: built and waiting, nothing on screen
+            return
         self.win.present()
 
 

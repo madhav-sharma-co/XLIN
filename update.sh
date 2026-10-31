@@ -36,22 +36,8 @@ rm -f "$HOME/.config/xlin/state/.gi_ok" "$HOME/.config/xlin/state/.vte_ok"
 xlin_deps || echo "(some packages are missing; the message above says which)"
 
 say "Installing the xlin commands (asks for your password once)"
-sudo rm -f /usr/local/bin/xlin-launcher      # the App drawer was merged into the Launcher
-for b in xlin xlin-dock-watch xlin-settings xlin-tools xlin-welcome xlin-files xlin-monitor xlin-terminal xlin-desktop xlin-start xlin-store xlin-media xlin-debug; do
-  sudo install -m 755 "$SRC/bin/$b" "/usr/local/bin/$b"
-done
-
-sudo install -D -m 644 "$SRC/lib/hyprland.sh" /usr/local/lib/xlin/hyprland.sh
-sudo install -D -m 644 "$SRC/lib/config-backups.sh" /usr/local/lib/xlin/config-backups.sh
-sudo install -D -m 644 "$SRC/lib/xlin_ui.py" /usr/local/lib/xlin/xlin_ui.py
-mkdir -p "$HOME/.local/share/applications"
-cp "$SRC"/config/applications/dev.xlin.*.desktop "$HOME/.local/share/applications/"
-mkdir -p "$HOME/.local/share/icons/hicolor/scalable/apps"
-cp "$SRC"/assets/icons/*.svg "$HOME/.local/share/icons/hicolor/scalable/apps/"
-command -v gtk-update-icon-cache >/dev/null && gtk-update-icon-cache -q -t "$HOME/.local/share/icons/hicolor" 2>/dev/null || true
-command -v update-desktop-database >/dev/null && update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
-mkdir -p "$HOME/.local/share/icons"
-cp -a "$SRC/assets/cursors/." "$HOME/.local/share/icons/"
+source "$SRC/scripts/files.sh"
+xlin_install_files
 
 /usr/local/bin/xlin hook || true
 

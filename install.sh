@@ -27,31 +27,8 @@ cp "$SRC"/assets/wallpapers/*.jpg "$XLIN_HOME/wallpapers/"
 cp "$SRC/config/shell/xlin.bash" "$XLIN_HOME/shell.bash"
 cp "$SRC/config/kitty/kitty.conf" "$XLIN_HOME/kitty.conf"
 
-# /usr/local/bin is on every session's PATH, including Hyprland's exec-once and Waybar clicks
-sudo install -m 755 "$SRC/bin/xlin" /usr/local/bin/xlin
-sudo install -m 755 "$SRC/bin/xlin-dock-watch" /usr/local/bin/xlin-dock-watch
-sudo install -m 755 "$SRC/bin/xlin-settings" /usr/local/bin/xlin-settings
-sudo install -m 755 "$SRC/bin/xlin-tools" /usr/local/bin/xlin-tools
-sudo install -m 755 "$SRC/bin/xlin-welcome" /usr/local/bin/xlin-welcome
-sudo install -m 755 "$SRC/bin/xlin-files" /usr/local/bin/xlin-files
-sudo install -m 755 "$SRC/bin/xlin-monitor" /usr/local/bin/xlin-monitor
-sudo install -m 755 "$SRC/bin/xlin-store" /usr/local/bin/xlin-store
-sudo install -m 755 "$SRC/bin/xlin-media" /usr/local/bin/xlin-media
-sudo install -m 755 "$SRC/bin/xlin-debug" /usr/local/bin/xlin-debug
-sudo install -m 755 "$SRC/bin/xlin-terminal" /usr/local/bin/xlin-terminal
-sudo install -m 755 "$SRC/bin/xlin-desktop" /usr/local/bin/xlin-desktop
-sudo install -m 755 "$SRC/bin/xlin-start" /usr/local/bin/xlin-start
-sudo install -D -m 644 "$SRC/lib/hyprland.sh" /usr/local/lib/xlin/hyprland.sh
-sudo install -D -m 644 "$SRC/lib/config-backups.sh" /usr/local/lib/xlin/config-backups.sh
-sudo install -D -m 644 "$SRC/lib/xlin_ui.py" /usr/local/lib/xlin/xlin_ui.py
-mkdir -p "$HOME/.local/share/applications"
-cp "$SRC"/config/applications/dev.xlin.*.desktop "$HOME/.local/share/applications/"
-mkdir -p "$HOME/.local/share/icons/hicolor/scalable/apps"
-cp "$SRC"/assets/icons/*.svg "$HOME/.local/share/icons/hicolor/scalable/apps/"
-command -v gtk-update-icon-cache >/dev/null && gtk-update-icon-cache -q -t "$HOME/.local/share/icons/hicolor" 2>/dev/null || true
-command -v update-desktop-database >/dev/null && update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
-mkdir -p "$HOME/.local/share/icons"
-cp -a "$SRC/assets/cursors/." "$HOME/.local/share/icons/"
+source "$SRC/scripts/files.sh"
+xlin_install_files
 mkdir -p "$XLIN_HOME/wallpapers" "$XLIN_HOME/state"
 echo "$SRC" >"$XLIN_HOME/state/source"
 

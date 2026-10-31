@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.58.1
+- install.sh and update.sh now share one list of the files they install (scripts/files.sh), so a new app can no longer be missing from one of them. The test checks that list
+
 ## 0.58.0
 - SysMon and SysDeb now open at once, like Settings, Files and the Store: they wait out of sight (SysMon does no work while hidden)
 - New docs: docs/TESTING.md (a checklist for trying Xlin-soft on a real machine) and docs/RELEASE.md (how to make a release)

@@ -6,7 +6,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Bash syntax
-        run: bash -n bin/xlin lib/hyprland.sh lib/config-backups.sh install.sh update.sh config/shell/xlin.bash tests/test-hyprland.sh tests/test-config-backups.sh tests/test-process-ownership.sh
+        run: bash -n bin/xlin lib/hyprland.sh lib/config-backups.sh install.sh update.sh scripts/files.sh scripts/deps.sh config/shell/xlin.bash tests/test-hyprland.sh tests/test-config-backups.sh tests/test-process-ownership.sh
       - name: ShellCheck (errors only)
         run: sudo apt-get install -y shellcheck && shellcheck -S error bin/xlin lib/hyprland.sh lib/config-backups.sh install.sh update.sh tests/test-hyprland.sh tests/test-config-backups.sh tests/test-process-ownership.sh
       - name: Hyprland helper regression tests

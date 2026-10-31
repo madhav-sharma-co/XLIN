@@ -921,6 +921,12 @@ def about_page(win):
         except GLib.Error:
             pass
     r.append(row("System tools", "SysMon: live CPU, memory and apps. SysDeb: health checks, logs and repairs", _tool_buttons()))
+    def do_restart():
+        rstatus.set_text("Restarting...")
+        in_thread(lambda: run(["xlin", "restart"], 60),
+                  lambda _r: rstatus.set_text("Done. Bars, panel, Run Bar and desktop were restarted."))
+    r.append(row("Restart Xlin-soft", "Restart the bars, control panel, Run Bar and desktop (settings are kept)",
+                 button("Restart", do_restart)))
     r.append(row("Reset Xlin-soft settings", "Back to how a fresh install looks", button("Reset...", ask_reset)))
     r.append(row("Status", None, rstatus))
     return box

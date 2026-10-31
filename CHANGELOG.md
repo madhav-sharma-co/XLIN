@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.61.1
+- Settings -> About: new Restart button next to Reset. It restarts the bars, control panel, Run Bar and desktop and keeps all your settings
+
 ## 0.61.0
 - Desktop layer no longer lags or freezes the laptop: the full-screen desktop surface had a blur and an animation on it, which Hyprland redrew every frame; both are gone. It also starts with a lower priority, and a restart waits until the old one has really stopped
 - Fixed the desktop disappearing after changing a widget in Settings (it was started again while the old copy was still closing, so it never came back)

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.53.1
+- README install steps: the clone now goes into a folder called Xlin-soft, so `cd Xlin-soft` works. `xlin update` finds the folder under that name too and its hint matches
+- New test: every program in bin/ must be installed by install.sh and update.sh and removed by uninstall
+
 ## 0.52.0
 - Install and update now also update the packages that are already installed (one `pacman -Syu` run, together with the missing ones), not only add missing ones. `XLIN_NO_UPGRADE=1` installs only the missing packages. `xlin deps` does the same
 

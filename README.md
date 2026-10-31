@@ -25,7 +25,7 @@ Light and dark themes, glass panels, smooth animations, and a complete set of it
 
 ## Install
 
-    git clone https://github.com/madhav-sharma-co/XLIN.git
+    git clone https://github.com/madhav-sharma-co/XLIN.git Xlin-soft
     cd Xlin-soft
     ./install.sh          # asks for your password to install packages
     hyprctl reload        # or log out and back in

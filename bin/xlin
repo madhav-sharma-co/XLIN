@@ -1853,14 +1853,14 @@ cmd_update() {
   if [[ -z "$src" || ! -d "$src/.git" ]]; then
     # source file missing or damaged: look for the clone in the usual places
     local d
-    for d in "$HOME/XLIN" "$HOME/Downloads/XLIN" "$HOME/Documents/XLIN" "$HOME/projects/XLIN" "$HOME/src/XLIN" "$HOME/Desktop/XLIN"; do
+    for d in "$HOME/Xlin-soft" "$HOME/XLIN" "$HOME/xlin-soft" "$HOME/xlin" "$HOME/Downloads/"{Xlin-soft,XLIN} "$HOME/Documents/"{Xlin-soft,XLIN} "$HOME/projects/"{Xlin-soft,XLIN} "$HOME/src/"{Xlin-soft,XLIN} "$HOME/Desktop/"{Xlin-soft,XLIN}; do
       if [[ -d "$d/.git" && -x "$d/update.sh" ]] && git -C "$d" remote get-url origin 2>/dev/null | grep -qi 'xlin'; then
         src="$d"; echo "$src" >"$STATE/source"; break
       fi
     done
   fi
   if [[ -z "$src" || ! -d "$src/.git" ]]; then
-    echo "Updates need Xlin-soft installed from its git folder: git clone https://github.com/madhav-sharma-co/XLIN.git && cd Xlin-soft && ./install.sh"
+    echo "Updates need Xlin-soft installed from its git folder: git clone https://github.com/madhav-sharma-co/XLIN.git ~/Xlin-soft && cd ~/Xlin-soft && ./install.sh"
     return 3
   fi
   have git || { echo "git is not installed (sudo pacman -S git)"; return 3; }
@@ -1876,7 +1876,7 @@ cmd_update() {
     return 0
   fi
   echo "Updating Xlin-soft from $src ..."
-  git -C "$src" pull --ff-only || { echo "Could not update: you changed files in $src. Run: git -C $src status"; return 1; }
+  git -C "$src" pull --ff-only || { echo "Could not update $src (files changed there, or the history was rewritten). Look with: git -C $src status"; return 1; }
   (cd "$src" && ./update.sh)
 }
 

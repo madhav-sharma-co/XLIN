@@ -1,6 +1,6 @@
 [Desktop Entry]
 Type=Application
-Name=SysDebug
+Name=SysDeb
 GenericName=Problem finder
 Comment=Health checks, logs and quick repairs for Xlin-soft
 Exec=xlin-debug

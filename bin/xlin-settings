@@ -162,6 +162,14 @@ def slider(value, on_change, lo=0, hi=100):
     return sc
 
 
+def _tool_buttons():
+    """Shortcuts to the two system tools (About page)."""
+    b = Gtk.Box(spacing=8)
+    b.append(button("SysMon", lambda: xlin_ui.run(["xlin", "monitor"])))
+    b.append(button("SysDeb", lambda: xlin_ui.run(["xlin", "debug"])))
+    return b
+
+
 def button(label, on_click):
     b = Gtk.Button(label=label)
     b.connect("clicked", lambda _b: on_click())
@@ -911,6 +919,7 @@ def about_page(win):
                 do_reset()
         except GLib.Error:
             pass
+    r.append(row("System tools", "SysMon: live CPU, memory and apps. SysDeb: health checks, logs and repairs", _tool_buttons()))
     r.append(row("Reset Xlin-soft settings", "Back to how a fresh install looks", button("Reset...", ask_reset)))
     r.append(row("Status", None, rstatus))
     return box

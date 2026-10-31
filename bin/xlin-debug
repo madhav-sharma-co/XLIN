@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Xlin-soft SysDebug - find out what is wrong and fix it: health checks, logs, quick repairs, and a
+"""Xlin-soft SysDeb - find out what is wrong and fix it: health checks, logs, quick repairs, and a
 report you can copy into a bug report. Run: xlin debug
 """
 import glob
@@ -73,10 +73,10 @@ def report():
 
 class DebugWindow(Gtk.ApplicationWindow):
     def __init__(self, app):
-        super().__init__(application=app, title="SysDebug")
+        super().__init__(application=app, title="SysDeb")
         self.set_default_size(xlin_ui.scaled(840), xlin_ui.scaled(620))
         self.add_css_class("xlin-tools")
-        xlin_ui.titlebar(self, "SysDebug")
+        xlin_ui.titlebar(self, "SysDeb")
         self.sources = log_sources()
 
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)

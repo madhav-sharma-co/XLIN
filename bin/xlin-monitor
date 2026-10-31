@@ -140,10 +140,10 @@ class Card(Gtk.Box):
 
 class MonitorWindow(Gtk.ApplicationWindow):
     def __init__(self, app):
-        super().__init__(application=app, title="System Monitor")
+        super().__init__(application=app, title="SysMon")
         self.set_default_size(xlin_ui.scaled(760), xlin_ui.scaled(600))
         self.add_css_class("xlin-tools")
-        xlin_ui.titlebar(self, "System Monitor")
+        xlin_ui.titlebar(self, "SysMon")
         self.ncpu = os.cpu_count() or 1
         self.prev_cpu = cpu_times()
         self.prev_net = net_bytes()

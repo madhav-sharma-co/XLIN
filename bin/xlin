@@ -715,7 +715,7 @@ cmd_desktop_menu() {
   [[ "$theme" == dark ]] && dm="Switch to light mode" || dm="Switch to dark mode"
   local pick
   pick="$(menu_pick "$x" "$y" "New note" "Open terminal" "Open files" "Widgets  ›" "Change wallpaper  ›" \
-    "Pin an app to the run bar…" "$dm" "System monitor" "Display settings" "Xlin-soft settings")" || return 0
+    "Pin an app to the run bar…" "$dm" "SysMon" "Display settings" "Xlin-soft settings")" || return 0
   case "$pick" in
     "New note")               cmd_note ;;
     "Open terminal")          cmd_term ;;
@@ -726,7 +726,7 @@ cmd_desktop_menu() {
     "Change wallpaper"*)      desktop_wallpaper_menu "$x" "$y" ;;
     "Pin an app"*)            sleep 0.1; cmd_launcher pin ;;
     "Switch to"*)             cmd_theme toggle ;;
-    "System monitor")         cmd_monitor ;;
+    "SysMon")         cmd_monitor ;;
     "Display settings")       cmd_settings display ;;
     "Xlin-soft settings")          cmd_settings ;;
   esac
@@ -1539,7 +1539,7 @@ cmd_debug() {
     setsid xlin-debug >>"$HOME/.cache/xlin/debug.log" 2>&1 &
     return 0
   fi
-  echo "SysDebug needs python-gobject. Meanwhile: xlin doctor"; return 1
+  echo "SysDeb needs python-gobject. Meanwhile: xlin doctor"; return 1
 }
 
 cmd_media() {
@@ -1895,7 +1895,7 @@ Apps|Super+E|Files (Explorer) - Xlin-soft Files
 Apps|Super+S|Settings
 Apps|Super+C|Control panel
 Apps|Super+U|Utilities (Tools: calculator, calendar)
-Apps|Super+M|System Monitor (CPU, memory, end a stuck app)
+Apps|Super+M|SysMon (CPU, memory, end a stuck app)
 Apps|Super+B|Battery and power mode
 Apps|Super+N|Notes (Super+Shift+N: quick note)
 System|Super+L|Lock the screen
@@ -2017,14 +2017,14 @@ ${B}System${R}
   xlin idle [on|off|set <min>|sleep <min|off>]   lock and sleep when idle (default: sleep after 5 min)
   xlin nightlight [on|off|<K>]     warm screen colour (1500-6500K)
   xlin clipboard                   clipboard history
-  xlin monitor                     System Monitor (Super+M)
+  xlin monitor                     SysMon (Super+M)
   xlin store                       Xlin-soft Store: find, install and remove apps
   xlin font [name|size ...]        System font and size
   xlin showdesktop                 Hide all windows to show the desktop (Super+Shift+D)
   xlin reset                       Put Xlin-soft's settings back to the defaults
   xlin warm on|off                 Keep apps ready (instant open)
   xlin media [files]               Xlin-soft Media: music and video player
-  xlin debug                       SysDebug: health checks, logs, quick repairs
+  xlin debug                       SysDeb: health checks, logs, quick repairs
   xlin files [folder|default]      Xlin-soft Files (default = use it for "show in folder")
   xlin notes [list|dir]            Notes window (Super+N); xlin note "text" saves a quick note
   xlin keys [check|fix]            all keyboard shortcuts (Super+/ shows them); check/fix repairs clashes

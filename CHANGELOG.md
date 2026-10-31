@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.55.0
+- System Monitor is now SysMon and System Debug is SysDeb (window titles, app entries, menus, README). Settings -> About has shortcut buttons for both, next to Update and Reset
+
 ## 0.54.0
 - The Launcher opens at once: its app grid is rebuilt only when apps, pins or recent apps changed, not on every open
 - Sliders (brightness, volume, window transparency) apply in the background and follow the handle at once, instead of freezing the window while the change is applied

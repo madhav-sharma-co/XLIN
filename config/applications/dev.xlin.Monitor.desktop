@@ -1,6 +1,6 @@
 [Desktop Entry]
 Type=Application
-Name=System Monitor
+Name=SysMon
 GenericName=Task manager
 Comment=CPU, memory, disk and your running apps
 Exec=xlin-monitor

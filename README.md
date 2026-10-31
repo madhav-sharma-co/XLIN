@@ -17,7 +17,7 @@ Light and dark themes, glass panels, smooth animations, and a complete set of it
 ## Highlights
 
 - **One install, everything set up.** The installer and every update bring the system and all packages Xlin-soft needs up to date (`pacman -Syu`) and install the missing ones, hook Xlin-soft into your Hyprland config and apply the theme. New dependencies arrive by themselves. To install only what is missing, run with `XLIN_NO_UPGRADE=1`.
-- **Its own apps.** Settings, Files, Terminal, Store, Media, System Monitor, Notes, Clock, Calendar, Calculator, Screenshot, Welcome and a debug tool, all in one look.
+- **Its own apps.** Settings, Files, Terminal, Store, Media, SysMon, Notes, Clock, Calendar, Calculator, Screenshot, Welcome and a debug tool, all in one look.
 - **Light and dark, everywhere.** One switch (Super+D) restyles every Xlin-soft app, every menu, the bars, the lock screen and other GTK apps, at once.
 - **Smooth.** Gentle window, menu and workspace animations (Off, Subtle or Smooth in Settings). Settings, Files, Store and the Launcher wait out of sight, so they open instantly.
 - **Flexible.** Change the system font or text size and every window, panel and widget grows to fit.
@@ -55,7 +55,7 @@ you have `paru` or `yay`).
 | Desktop         | Right-click for the **Apps and widgets** gallery (clock, calendar, system, battery, media, notes, to-do, timer), new folder, wallpaper and icon size. Files in `~/Desktop` show up too |
 | Settings        | General, Connectivity, Desktop, Status Bar and Run Bar, Launcher, Personalization (theme, accent, fonts, text size, animations, opacity, wallpaper, cursor), About (update, reset) |
 | Tools           | Clock, Calendar, Calculator, Notes and Screenshot as small floating windows (Super+U) |
-| Apps            | Terminal with tabs, Files, System Monitor, Media player, Store (pacman and AUR) and SysDebug (checks, logs, repairs) |
+| Apps            | Terminal with tabs, Files, SysMon, Media player, Store (pacman and AUR) and SysDeb (checks, logs, repairs) |
 | Windows         | Every app has hide, fullscreen and close buttons. Super+H brings hidden windows back, Super+Shift+D shows the desktop |
 | Look and feel   | Light and dark, accent colours, system font and size, Xlin-soft cursor and icons, eight wallpapers (Super+W), animations on or off |
 | Daily basics    | Screenshots, clipboard history, night light, quick notes, volume and brightness pop-ups |
@@ -72,7 +72,7 @@ Press **Super+/** or run `xlin keys` to see them all. Every key is the first let
 | Super+S | Settings | Super+H | Bring back hidden windows |
 | Super+C | Control panel | Super+Shift+D | Show the desktop |
 | Super+U | Utilities (tools) | Alt+Tab | Next window |
-| Super+M | System Monitor | Super+arrows | Move focus |
+| Super+M | SysMon | Super+arrows | Move focus |
 | Super+N | Notes (Shift: quick note) | Super+Shift+arrows | Move the window |
 | Super+B | Battery and power mode | Super+Ctrl+arrows | Resize the window |
 | Super+L | Lock | Super+drag | Move (left) / resize (right) |
@@ -123,7 +123,7 @@ Shortcuts not working? Run `xlin hook`, then `hyprctl reload`.
 | Shortcuts do nothing | `xlin hook` and `hyprctl reload`, then `xlin keys check` |
 | An app looks old after an update | `xlin restart` (waiting apps are replaced) |
 | Slow first open of an app | Keep apps ready is on by default: `xlin warm on` |
-| Anything else | SysDebug (`xlin debug`) shows checks and logs. Logs are in `~/.cache/xlin/` |
+| Anything else | SysDeb (`xlin debug`) shows checks and logs. Logs are in `~/.cache/xlin/` |
 
 ## Project layout
 

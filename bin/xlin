@@ -1252,15 +1252,9 @@ cmd_showdesktop() {
   return 0
 }
 
-# Tapping the Super key opens the Launcher. Hyprland also reports the release of Super at the end of every
-# Super+key shortcut, so it is ignored when something else just happened (xlin-dock-watch stamps every event).
-cmd_superkey() {
-  local f="${XDG_RUNTIME_DIR:-/tmp}/xlin-last-event" last now
-  now="${EPOCHREALTIME/./}"
-  last="$(cat "$f" 2>/dev/null)"; last="${last/./}"
-  if [[ -n "$last" ]] && (( now - last < 1200000 )); then return 0; fi
-  cmd_launcher
-}
+# The Super key on its own no longer opens the Launcher (Super+Space does). Kept so an older, not yet reloaded
+# Hyprland config that still calls `xlin superkey` does nothing instead of an error.
+cmd_superkey() { return 0; }
 
 cmd_warm() {
   case "${1:-}" in
@@ -1302,7 +1296,7 @@ cmd_start() {
 }
 
 # ================================================================= Xlin-soft CLI
-XLIN_VERSION="0.52.0"
+XLIN_VERSION="0.1.0"
 
 if [[ -t 1 ]]; then B=$'\e[1m'; D=$'\e[2m'; R=$'\e[0m'; else B=""; D=""; R=""; fi
 die() { echo "xlin: $*" >&2; return 1; }
@@ -2025,7 +2019,7 @@ cmd_deps() {
 }
 
 # Shortcut list. Edit config/hypr/xlin.conf to change keys; keep this table in step.
-KEYS_TABLE='Apps|Super (tap) / Super+Space|Launcher (Start menu with all apps)
+KEYS_TABLE='Apps|Super+Space|Launcher (Start menu with all apps)
 Apps|Super+Return / Super+T|Terminal
 Apps|Super+E|Files (Explorer) - Xlin-soft Files
 Apps|Super+S|Settings

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.0 (current: work in progress)
+The first version number of Xlin-soft. We stay on 0.1.0 while the system is being finished and tested, and release 0.2.0 when it is fully ready.
+
+- The Launcher opens with Super+Space only. The Super key on its own no longer does anything
+- Everything listed below was built before the numbers were reset to 0.1.0
+
+## Development history (numbers before the reset)
 ## 0.62.1
 - Workspaces now really slide: Hyprland's own example config sets the workspace "in" and "out" animations to a fade, and those overrode Xlin-soft's slide. Xlin-soft now sets all of them (workspaces, in, out, and the special workspace) to slide
 

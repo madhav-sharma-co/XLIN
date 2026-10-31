@@ -73,11 +73,11 @@ hl.window_rule({ match = { class = "^(dev\\.xlin\\.(Tools|Power|Session))$" }, m
 -- ---- shortcuts ---------------------------------------------------------------------
 -- Every key is the first letter of what it does.
 --   APPS                               WINDOWS
---   Super (tap)   launcher             Super+Q            close window (Quit)
---   Super+Space   launcher             Super+F            fullscreen
---   Super+Return  terminal             Super+Shift+F      floating on/off (Float)
---   Super+T       terminal (Terminal)  Alt+Tab            next window
---   Super+E       files (Explorer)     Super+arrows       move focus
+--   Super+Space   launcher             Super+Q            close window (Quit)
+--   Super+Return  terminal (Super+T)   Super+F            fullscreen
+--   Super+E       files (Explorer)     Super+Shift+F      floating on/off (Float)
+--                                      Alt+Tab            next window
+--                                      Super+arrows       move focus
 --   Super+S       Settings             Super+Shift+arrows move the window
 --   Super+C       Control panel        Super+Ctrl+arrows  resize the window
 --   Super+U       Utilities (tools)    Super+drag         move (left) / resize (right)
@@ -106,9 +106,6 @@ end
 
 -- apps
 run("SUPER + SPACE", "xlin launcher")
--- tapping Super on its own opens the Launcher (xlin ignores it when Super was part of another shortcut)
-run("Super_L", "xlin superkey", { release = true })
-run("Super_R", "xlin superkey", { release = true })
 run("SUPER + Return", terminal)
 run("SUPER + T", terminal)
 run("SUPER + E", "xlin files")

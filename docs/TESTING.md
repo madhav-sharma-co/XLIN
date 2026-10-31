@@ -8,7 +8,7 @@ Use a fresh Arch Linux install (a virtual machine is fine) with Hyprland and a n
 3. `xlin doctor` shows no MISSING line.
 
 ## Every day
-- Tap Super: Launcher opens at once. Type a name, press Enter. Right-click an app: pin and unpin.
+- Press Super+Space: Launcher opens at once; the Super key alone does nothing. Type a name, press Enter. Right-click an app: pin and unpin.
 - Super+S Settings, Super+E Files, Super+M SysMon, Super+C control panel, Super+Return Terminal.
 - Settings -> Personalization: dark mode, accent, font and size (nothing is cut off), Animations Off / Subtle / Smooth.
 - Drag the brightness, volume and transparency sliders: smooth, no freezing.

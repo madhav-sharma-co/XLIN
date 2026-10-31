@@ -813,7 +813,7 @@ def launcher_page(win):
     c2.append(row("Clear recent apps", "Empties the Recent list in the Launcher", button(
         "Clear", lambda: in_thread(lambda: (
             os.path.exists(os.path.join(STATE, "recent")) and os.remove(os.path.join(STATE, "recent")))))))
-    c2.append(row("Open the Launcher", "Search, pinned, recent and all apps (tap Super)", button(
+    c2.append(row("Open the Launcher", "Search, pinned, recent and all apps (Super+Space)", button(
         "Open", lambda: subprocess.Popen(["xlin", "launcher"]))))
     return box
 

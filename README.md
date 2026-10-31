@@ -49,7 +49,7 @@ you have `paru` or `yay`).
 |-----------------|--------------|
 | Lock screen     | Your blurred wallpaper, time, date, battery, name and password (Super+L). Locks by itself when idle, and the laptop sleeps after 5 minutes without activity (changeable in Settings) |
 | Top bar         | X launcher, current app, settings, tools, Wi-Fi, Bluetooth, sound, battery, date and time, power and control panel. Every button can be hidden |
-| Launcher        | Tap Super (or Super+Space): search, pinned apps, recent apps and the full All apps list. Right-click an app: Open, pin to the Run Bar, pin to the Launcher |
+| Launcher        | Super+Space: search, pinned apps, recent apps and the full All apps list. Right-click an app: Open, pin to the Run Bar, pin to the Launcher |
 | Run Bar         | The bottom bar with pinned and running apps and the Launcher button. Auto-hides |
 | Control panel   | Wi-Fi, Bluetooth, airplane mode, theme, night light, volume, brightness, power mode and notifications (Super+C) |
 | Desktop         | Right-click for the **Apps and widgets** gallery (clock, calendar, system, battery, media, notes, to-do, timer), new folder, wallpaper and icon size. Files in `~/Desktop` show up too |
@@ -66,7 +66,7 @@ Press **Super+/** or run `xlin keys` to see them all. Every key is the first let
 
 | Keys | Action | Keys | Action |
 |------|--------|------|--------|
-| Super (tap), Super+Space | Launcher | Super+Q | Quit (close) window |
+| Super+Space | Launcher | Super+Q | Quit (close) window |
 | Super+Return, Super+T | Terminal | Super+F | Fullscreen |
 | Super+E | Files (Explorer) | Super+Shift+F | Floating on / off |
 | Super+S | Settings | Super+H | Bring back hidden windows |

@@ -21,6 +21,14 @@ vte_ok() {
   python3 -c "import gi; gi.require_version('Vte','3.91')" >/dev/null 2>&1 || return 1
   mkdir -p "$STATE" 2>/dev/null; : >"$STATE/.vte_ok"
 }
+# warm_activate <app-id>: the app already waits out of sight, so ask that copy to show itself over D-Bus (gdbus is a
+# small C program: a few milliseconds). Starting `xlin-start` again would load Python and GTK first (a third of a second).
+warm_activate() {
+  local id="$1"
+  have gdbus || return 1
+  gdbus call --session --dest "$id" --object-path "/${id//./\/}" \
+    --method org.freedesktop.Application.Activate '{}' >/dev/null 2>&1
+}
 notify() { have notify-send && notify-send -a Xlin-soft "$@" || true; }
 
 # Shared helpers are installed under /usr/local/lib/xlin and also load from a source checkout.
@@ -168,8 +176,8 @@ windowsMove|3.4|SPRING|
 fade|2.4|xlinSoft|
 fadeIn|2.2|xlinOut|
 fadeOut|1.6|xlinSoft|
-layersIn|2.6|xlinOut|popin 94%
-layersOut|1.8|xlinSoft|popin 96%
+layersIn|2.2|xlinOut|popin 94%
+layersOut|1.5|xlinSoft|popin 96%
 fadeLayers|2.2|xlinSoft|
 workspaces|4.5|xlinSwipe|slide
 specialWorkspace|4.5|xlinSwipe|slidefadevert 12%
@@ -651,6 +659,7 @@ cmd_unhide() {
 
 # The Launcher is the Start menu (xlin-start): search, pinned, recent and every app. rofi is only a fallback.
 cmd_launcher() {
+  warm_activate dev.xlin.Start && return 0
   if have xlin-start; then
     mkdir -p "$HOME/.cache/xlin"
     local rc=0
@@ -871,6 +880,7 @@ cmd_settings() {
     notify "$(date '+%A, %B %-d')" "$(date '+%Y  ·  %I:%M %p')"; return 0
   fi
   # The real Settings app (window is centered by rules in xlin.conf)
+  [[ -z "$pick" ]] && warm_activate dev.xlin.Settings && return 0
   if have xlin-settings && gi_ok; then
     mkdir -p "$HOME/.cache/xlin"
     setsid xlin-settings ${pick:+"${pick,,}"} >>"$HOME/.cache/xlin/settings.log" 2>&1 &
@@ -1639,6 +1649,7 @@ cmd_desktop() {
 
 # ---- monitor: CPU, memory, disk, network and your running apps
 cmd_monitor() {
+  warm_activate dev.xlin.Monitor && return 0
   if have xlin-monitor && gi_ok; then
     mkdir -p "$HOME/.cache/xlin"
     setsid xlin-monitor >>"$HOME/.cache/xlin/monitor.log" 2>&1 &
@@ -1648,6 +1659,7 @@ cmd_monitor() {
 }
 
 cmd_debug() {
+  warm_activate dev.xlin.Debug && return 0
   if have xlin-debug && gi_ok; then
     mkdir -p "$HOME/.cache/xlin"
     setsid xlin-debug >>"$HOME/.cache/xlin/debug.log" 2>&1 &
@@ -1666,6 +1678,7 @@ cmd_media() {
 }
 
 cmd_store() {
+  warm_activate dev.xlin.Store && return 0
   if have xlin-store && gi_ok; then
     mkdir -p "$HOME/.cache/xlin"
     setsid xlin-store >>"$HOME/.cache/xlin/store.log" 2>&1 &
@@ -1681,6 +1694,7 @@ cmd_files() {
     xdg-mime default dev.xlin.Files.desktop inode/directory && echo "Xlin-soft Files is now the default file manager"
     return 0
   fi
+  (($# == 0)) && warm_activate dev.xlin.Files && return 0
   if have xlin-files && gi_ok; then
     mkdir -p "$HOME/.cache/xlin"
     setsid xlin-files "$@" >>"$HOME/.cache/xlin/files.log" 2>&1 &

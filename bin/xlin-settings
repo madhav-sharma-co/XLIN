@@ -1053,6 +1053,15 @@ class SettingsApp(Gtk.Application):
         except Exception:
             pass
 
+    def do_activate(self):
+        """`xlin settings` asks the waiting copy to show itself (no new process, so it opens at once)."""
+        if self.win is None:
+            self.win = SettingsWindow(self)
+            xlin_ui.keep_warm(self, self.win)
+        elif not self.win.get_visible():
+            self.win.refresh()
+        self.win.present()
+
     def do_command_line(self, cmdline):
         args = cmdline.get_arguments()[1:]
         page = args[0].lower() if args else "general"

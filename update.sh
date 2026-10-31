@@ -65,4 +65,11 @@ if [[ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]]; then
   hyprctl reload >/dev/null 2>&1 || true
   /usr/local/bin/xlin restart || true
 fi
-say "Done. Open a new terminal."
+ver="$(grep -m1 '^XLIN_VERSION=' "$SRC/bin/xlin" | cut -d'"' -f2)"
+say "Done. Xlin-soft $ver is installed. Open a new terminal."
+# what is new in this version (the newest section of the changelog)
+if [[ -f "$SRC/CHANGELOG.md" ]]; then
+  echo; echo "What's new:"
+  awk '/^## /{n++; next} n==1 && NF' "$SRC/CHANGELOG.md" | sed -n '1,8p' | cut -c1-200 | sed 's/^/  /'
+fi
+command -v notify-send >/dev/null && notify-send -a "Xlin-soft" "Xlin-soft updated" "Version $ver is installed" 2>/dev/null || true

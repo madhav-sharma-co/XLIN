@@ -1178,8 +1178,18 @@ cmd_warm() {
   esac
 }
 
+# Keep the log files small: a log over 1 MB is cut down to its last 500 lines (they grow for years otherwise)
+trim_logs() {
+  local f
+  for f in "$HOME"/.cache/xlin/*.log; do
+    [[ -f "$f" && "$(stat -c %s "$f" 2>/dev/null || echo 0)" -gt 1048576 ]] || continue
+    tail -n 500 "$f" >"$f.tmp" 2>/dev/null && mv -f "$f.tmp" "$f"
+  done
+}
+
 cmd_start() {
   mkdir -p "$HOME/.cache/xlin"
+  trim_logs
   pgrep -x waybar >/dev/null || setsid waybar >>"$HOME/.cache/xlin/waybar.log" 2>&1 &
   if ! pgrep -x swaync >/dev/null; then
     # only one program can own desktop notifications, so stop mako/dunst first

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.57.0
+- After an update, the terminal shows what is new (from this changelog) and a notification confirms the version
+- Log files in ~/.cache/xlin are kept small: a log over 1 MB is cut to its last 500 lines at each start
+
 ## 0.56.0
 - Each panel now arrives its own way: the Launcher rises from the Run Bar, the control panel and notifications slide in from the right, the top bar and Run Bar glide in from their edge, desktop widgets fade. Subtle uses a small pop or fade everywhere. Off (Settings -> Personalization -> Animations) turns all of it off
 

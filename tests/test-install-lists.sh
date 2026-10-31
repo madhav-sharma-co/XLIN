@@ -18,5 +18,8 @@ done
 for sc in install.sh update.sh; do
   grep -q 'xlin_install_files' "$ROOT/$sc" || { echo "FAIL: $sc does not call xlin_install_files"; fail=1; }
 done
+for sc in install.sh update.sh scripts/deps.sh scripts/files.sh; do
+  [[ -x "$ROOT/$sc" ]] || { echo "FAIL: $sc is not executable (chmod +x)"; fail=1; }
+done
 ((fail)) && exit 1
 echo "All install list tests passed."

@@ -1910,7 +1910,7 @@ cmd_update() {
     # source file missing or damaged: look for the clone in the usual places
     local d
     for d in "$HOME/Xlin-soft" "$HOME/XLIN" "$HOME/xlin-soft" "$HOME/xlin" "$HOME/Downloads/"{Xlin-soft,XLIN} "$HOME/Documents/"{Xlin-soft,XLIN} "$HOME/projects/"{Xlin-soft,XLIN} "$HOME/src/"{Xlin-soft,XLIN} "$HOME/Desktop/"{Xlin-soft,XLIN}; do
-      if [[ -d "$d/.git" && -x "$d/update.sh" ]] && git -C "$d" remote get-url origin 2>/dev/null | grep -qi 'xlin'; then
+      if [[ -d "$d/.git" && -f "$d/update.sh" ]] && git -C "$d" remote get-url origin 2>/dev/null | grep -qi 'xlin'; then
         src="$d"; echo "$src" >"$STATE/source"; break
       fi
     done
@@ -1933,7 +1933,7 @@ cmd_update() {
   fi
   echo "Updating Xlin-soft from $src ..."
   git -C "$src" pull --ff-only || { echo "Could not update $src (files changed there, or the history was rewritten). Look with: git -C $src status"; return 1; }
-  (cd "$src" && ./update.sh)
+  (cd "$src" && bash ./update.sh)
 }
 
 # xlin deps: install anything Xlin-soft needs that is missing (same step as install.sh / update.sh)

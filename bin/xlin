@@ -870,6 +870,20 @@ dock_stop() {
 dock_restart() { dock_stop; dock_check; }
 
 # ----------------------------------------------------- toggles + settings
+# xlin state <wifi|bluetooth|airplane|dark|nightlight|dnd>: prints true or false (the control panel's buttons show it)
+cmd_state() {
+  local on=false
+  case "${1:-}" in
+    wifi)       [[ "$(nmcli radio wifi 2>/dev/null)" == enabled ]] && on=true ;;
+    bluetooth)  bluetoothctl show 2>/dev/null | grep -q 'Powered: yes' && ! rfkill list bluetooth 2>/dev/null | grep -q 'Soft blocked: yes' && on=true ;;
+    airplane)   rfkill list 2>/dev/null | grep -q 'Soft blocked' && ! rfkill list 2>/dev/null | grep -q 'Soft blocked: no' && on=true ;;
+    dark)       [[ "$(cat "$STATE/theme" 2>/dev/null)" == dark ]] && on=true ;;
+    nightlight) owned_pid hyprsunset >/dev/null && on=true ;;
+    dnd)        [[ "$(swaync-client -D 2>/dev/null)" == true ]] && on=true ;;
+    *) echo "usage: xlin state wifi|bluetooth|airplane|dark|nightlight|dnd"; return 1 ;;
+  esac
+  echo "$on"
+}
 cmd_toggle() {
   case "${1:-}" in
     wifi)
@@ -2242,6 +2256,7 @@ case "${1:-help}" in
   hypr-mode) hypr_mode ;;
   animations|animation|anim) shift; cmd_animations "${1:-}" ;;
   deps)      cmd_deps ;;
+  state)     shift; cmd_state "${1:-}" ;;
   reset)     shift; if [[ -n "${1:-}" ]]; then part_reset "$1"; else cmd_reset; fi ;;
   showdesktop|show-desktop) cmd_showdesktop ;;
   warm)      shift; cmd_warm "${1:-}" ;;

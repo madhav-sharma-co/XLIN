@@ -51,7 +51,7 @@ you have `paru` or `yay`).
 | Top bar         | X launcher, current app, settings, tools, Wi-Fi, Bluetooth, sound, battery, date and time, power and control panel. Every button can be hidden |
 | Launcher        | Super+Space: search, pinned apps, recent apps and the full All apps list. Right-click an app: Open, pin to the Run Bar, pin to the Launcher |
 | Run Bar         | The bottom bar with pinned and running apps and the Launcher button. Auto-hides |
-| Control panel   | Wi-Fi, Bluetooth, airplane mode, theme, night light, volume, brightness, power mode and notifications (Super+C) |
+| Control panel   | Wi-Fi, Bluetooth, airplane mode, dark mode, night light and do not disturb (switched-on buttons are filled with the accent colour), volume, brightness, power mode and notifications (Super+C) |
 | Desktop         | Right-click for the **Apps and widgets** gallery (clock, calendar, system, battery, media, notes, to-do, timer), new folder, wallpaper and icon size. Files in `~/Desktop` show up too |
 | Settings        | General, Connectivity, Desktop, Status Bar and Run Bar, Launcher, Personalization (theme, accent, fonts, text size, animations, opacity, wallpaper, cursor), About (update, reset) |
 | Tools           | Clock, Calendar, Calculator, Notes and Screenshot as small floating windows (Super+U) |

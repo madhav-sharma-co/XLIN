@@ -16,12 +16,25 @@
   "timeout-critical": 0,
   "fit-to-screen": false,
   "hide-on-clear": false,
-  "widgets": ["menubar#top", "title", "buttons-grid", "volume", "backlight", "buttons-grid#power", "notifications"],
+  "widgets": [
+    "menubar#top",
+    "title",
+    "buttons-grid",
+    "volume",
+    "backlight",
+    "buttons-grid#power",
+    "notifications"
+  ],
   "widget-config": {
     "menubar#top": {
       "buttons#close": {
         "position": "right",
-        "actions": [ { "label": "\u2715", "command": "swaync-client -cp" } ]
+        "actions": [
+          {
+            "label": "\u2715",
+            "command": "swaync-client -cp"
+          }
+        ]
       }
     },
     "title": {
@@ -32,15 +45,59 @@
     "buttons-grid": {
       "buttons-per-row": 2,
       "actions": [
-        { "label": "  Wi-Fi", "command": "xlin toggle wifi" },
-        { "label": "  Bluetooth", "command": "xlin toggle bluetooth" },
-        { "label": "  Airplane", "command": "xlin toggle airplane" },
-        { "label": "  Appearance", "command": "xlin theme toggle" },
-        { "label": "\uf186  Night light", "command": "xlin nightlight toggle" },
-        { "label": "  Settings", "command": "xlin settings" }
+        {
+          "label": "\uf1eb  Wi-Fi",
+          "command": "xlin toggle wifi",
+          "type": "toggle",
+          "active": false,
+          "update-command": "xlin state wifi"
+        },
+        {
+          "label": "\uf293  Bluetooth",
+          "command": "xlin toggle bluetooth",
+          "type": "toggle",
+          "active": false,
+          "update-command": "xlin state bluetooth"
+        },
+        {
+          "label": "\uf072  Airplane",
+          "command": "xlin toggle airplane",
+          "type": "toggle",
+          "active": false,
+          "update-command": "xlin state airplane"
+        },
+        {
+          "label": "\uf186  Dark mode",
+          "command": "xlin theme toggle",
+          "type": "toggle",
+          "active": false,
+          "update-command": "xlin state dark"
+        },
+        {
+          "label": "\uf186  Night light",
+          "command": "xlin nightlight toggle",
+          "type": "toggle",
+          "active": false,
+          "update-command": "xlin state nightlight"
+        },
+        {
+          "label": "\uf1f6  Do not disturb",
+          "type": "toggle",
+          "active": false,
+          "command": "swaync-client -d",
+          "update-command": "swaync-client -D"
+        },
+        {
+          "label": "\uf013  Settings",
+          "command": "xlin settings"
+        }
       ]
     },
-    "volume": { "label": "" },
-    "backlight": { "label": "" }
+    "volume": {
+      "label": "\uf028"
+    },
+    "backlight": {
+      "label": "\uf185"
+    }
   }
 }

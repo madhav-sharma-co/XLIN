@@ -49,8 +49,19 @@
   font-size: 11px;
 }
 .widget-buttons-grid > flowbox > flowboxchild > button:hover {
+  background: alpha(@C_ACCENT@, 0.22);
+}
+/* a switched-on button is filled with the accent colour, a switched-off one stays soft (like a phone's control centre) */
+.widget-buttons-grid > flowbox > flowboxchild > button:checked,
+.widget-buttons-grid > flowbox > flowboxchild > button.toggle:checked {
   background: @C_ACCENT@;
   color: @C_ON_ACCENT@;
+}
+.widget-buttons-grid > flowbox > flowboxchild > button:checked:hover,
+.widget-buttons-grid > flowbox > flowboxchild > button.toggle:checked:hover {
+  background: @C_ACCENT@;
+  color: @C_ON_ACCENT@;
+  opacity: 0.9;
 }
 
 /* thin, flat sliders: a 3px line with a tiny dot, no big pill */

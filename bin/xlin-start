@@ -65,6 +65,16 @@ class Start(Gtk.Window):
 
         self.apps = xlin_ui.load_apps()
         self.by_id = {a[0]: a for a in self.apps}
+        # The app list only changes when apps are installed or removed: remember that instead of rebuilding
+        # every cell each time the Launcher opens (that was the delay after pressing Super)
+        self.apps_dirty = False
+        self.built_sig = None
+        try:
+            self.app_monitor = Gio.AppInfoMonitor.get()
+            self.app_monitor.connect("changed", lambda _m: setattr(self, "apps_dirty", True))
+        except Exception:
+            self.app_monitor = None
+            self.apps_dirty = True          # cannot watch: rebuild every time (safe)
 
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
         box.set_size_request(WIDTH - 2 * 16 - 2, -1)
@@ -87,6 +97,7 @@ class Start(Gtk.Window):
         self.stack.set_transition_duration(120)
         self.home = self.home_page()
         self.stack.add_named(self.home_scroll(), "home")
+        self.built_sig = self.content_sig()
         self.results_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         self.stack.add_named(self.results_box, "results")
         self.stack.set_size_request(-1, xlin_ui.scaled(480))
@@ -219,7 +230,9 @@ class Start(Gtk.Window):
         self.menu_open = state
 
     def rebuild_home(self):
-        self.home_sw.set_child(self.home_page())
+        self.home = self.home_page()
+        self.home_sw.set_child(self.home)
+        self.built_sig = self.content_sig()
         if not self.entry.get_text().strip():
             self.stack.set_visible_child_name("home")
 
@@ -290,12 +303,19 @@ class Start(Gtk.Window):
             return True
         return False
 
+    def content_sig(self):
+        return (tuple(xlin_ui.launcher_pins() or ()), tuple(xlin_ui.read_ids(PINS)), tuple(xlin_ui.read_ids(RECENT)))
+
     def show_fresh(self):
-        """Show the menu again: fresh pinned and recent apps, empty search."""
-        self.apps = xlin_ui.load_apps()
-        self.by_id = {a[0]: a for a in self.apps}
-        self.home = self.home_page()
-        self.home_sw.set_child(self.home)
+        """Show the menu again: pinned and recent apps are rebuilt only when they changed, empty search."""
+        sig = self.content_sig()
+        if self.apps_dirty or sig != self.built_sig or self.app_monitor is None:
+            self.apps = xlin_ui.load_apps()
+            self.by_id = {a[0]: a for a in self.apps}
+            self.home = self.home_page()
+            self.home_sw.set_child(self.home)
+            self.built_sig = sig
+            self.apps_dirty = self.app_monitor is None
         self.home_sw.get_vadjustment().set_value(0)
         self.was_active = False
         self.entry.set_text("")

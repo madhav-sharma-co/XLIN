@@ -129,21 +129,35 @@ def switch(active, on_change):
 
 
 def slider(value, on_change, lo=0, hi=100):
+    """A slider whose action runs in the background: the handle never waits for brightness, volume or
+    transparency to be applied. While dragging, only the newest value is applied (no queue builds up)."""
     sc = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, lo, hi, 1)
     sc.set_value(value)
     sc.set_size_request(xlin_ui.scaled(240), -1)
     sc.set_draw_value(False)
-    pending = {"id": 0}
+    lock = threading.Lock()
+    st = {"busy": False, "latest": None, "dirty": False}
+
+    def worker():
+        while True:
+            with lock:
+                v, st["dirty"] = st["latest"], False
+            try:
+                on_change(v)
+            except Exception:
+                pass
+            with lock:
+                if not st["dirty"]:
+                    st["busy"] = False
+                    return
 
     def changed(s):
-        if pending["id"]:
-            GLib.source_remove(pending["id"])
-
-        def fire():
-            pending["id"] = 0
-            on_change(s.get_value())
-            return False
-        pending["id"] = GLib.timeout_add(180, fire)  # debounce while dragging
+        with lock:
+            st["latest"], st["dirty"] = s.get_value(), True
+            if st["busy"]:
+                return
+            st["busy"] = True
+        threading.Thread(target=worker, daemon=True).start()
     sc.connect("value-changed", changed)
     return sc
 
@@ -419,15 +433,22 @@ def accent_dots():
     return box
 
 
+_FONTS = {}
+
+
 def font_families(mono):
-    """Installed font family names (monospace ones only when mono)."""
+    """Installed font family names (monospace ones only when mono). Listed once, then remembered:
+    fc-list takes a while and used to delay opening the Personalization page every time."""
+    if mono in _FONTS:
+        return _FONTS[mono]
     ok, out = run(["fc-list", ":spacing=100" if mono else ":", "family"], 10)
     names = set()
     for line in (out or "").splitlines():
         first = line.split(",")[0].strip()
         if first and not first.startswith("."):
             names.add(first)
-    return sorted(names, key=str.lower)
+    _FONTS[mono] = sorted(names, key=str.lower)
+    return _FONTS[mono]
 
 
 def terminal_font():
@@ -1000,6 +1021,8 @@ class SettingsApp(Gtk.Application):
     def do_startup(self):
         Gtk.Application.do_startup(self)
         xlin_ui.live_css()      # restyle at once when the theme or font changes (warm apps too)
+        # list the fonts in the background now, so the Personalization page opens at once later
+        threading.Thread(target=lambda: (font_families(False), font_families(True)), daemon=True).start()
         from gi.repository import Gdk
         prov = Gtk.CssProvider()
         prov.load_from_data(CSS)

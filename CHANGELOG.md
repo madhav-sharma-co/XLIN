@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.54.0
+- The Launcher opens at once: its app grid is rebuilt only when apps, pins or recent apps changed, not on every open
+- Sliders (brightness, volume, window transparency) apply in the background and follow the handle at once, instead of freezing the window while the change is applied
+- Settings -> Personalization opens at once: the font list is read in the background when Settings starts and remembered
+
 ## 0.53.1
 - README install steps: the clone now goes into a folder called Xlin-soft, so `cd Xlin-soft` works. `xlin update` finds the folder under that name too and its hint matches
 - New test: every program in bin/ must be installed by install.sh and update.sh and removed by uninstall

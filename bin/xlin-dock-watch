@@ -1,14 +1,32 @@
 #!/usr/bin/env bash
-# Keeps the dock hidden entirely when nothing is running or pinned,
-# and shows it (auto-hiding) as soon as there is something to show.
+# Keeps the Run Bar in step with the windows: hidden entirely when nothing is open or pinned, shown as soon as there is
+# something to show, and an app's icon leaves it the moment its last window closes (unless the app is pinned).
 sock="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock"
+pins="$HOME/.cache/nwg-dock-pinned"
+
+classes() { hyprctl clients -j 2>/dev/null | jq -r '.[].class | ascii_downcase' 2>/dev/null | sort -u; }
 
 xlin dock check
 [[ -S "$sock" ]] || exit 0
+prev="$(classes)"
 
 socat -U - "UNIX-CONNECT:$sock" | while read -r line; do
   case "$line" in
-    openwindow*|closewindow*) xlin dock check ;;
+    openwindow*)
+      xlin dock check
+      prev="$(classes)" ;;
+    closewindow*)
+      now="$(classes)"
+      gone="$(comm -23 <(printf '%s\n' "$prev") <(printf '%s\n' "$now"))"
+      prev="$now"
+      xlin dock check
+      for c in $gone; do
+        [[ -n "$c" ]] || continue
+        if ! grep -qiF -- "$c" "$pins" 2>/dev/null && ! grep -qiF -- "${c##*.}" "$pins" 2>/dev/null; then
+          xlin dock restart      # redraw it without the closed app's icon
+          break
+        fi
+      done ;;
   esac
   printf '%s' "$EPOCHREALTIME" >"${XDG_RUNTIME_DIR:-/tmp}/xlin-last-event"
 done

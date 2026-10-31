@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.59.0
+- Closing the last window of an app removes its icon from the Run Bar at once (pinned apps keep theirs). The Run Bar watcher now follows opened and closed windows
+- Theme, accent and font changes show everywhere at the same time: the bars, panel, Run Bar, GTK apps and terminal refresh together instead of one after another. An accent or font change no longer re-runs the wallpaper transition. The Run Bar restarts without a fixed wait, and the menu icon is only redrawn when its colour changes
+
 ## 0.58.1
 - install.sh and update.sh now share one list of the files they install (scripts/files.sh), so a new app can no longer be missing from one of them. The test checks that list
 

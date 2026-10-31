@@ -120,7 +120,7 @@ cmd_accent() {
        [[ -n "$(accent_hex "$want" light)" ]] || { echo "unknown accent '$want' (try: xlin accent)"; return 1; }
        echo "${want,,}" >"$STATE/accent" ;;
   esac
-  cmd_theme "$(cat "$STATE/theme" 2>/dev/null || echo light)" >/dev/null
+  cmd_theme "$(cat "$STATE/theme" 2>/dev/null || echo light)" quick >/dev/null
   echo "accent: $want"
 }
 
@@ -278,7 +278,7 @@ cmd_font() {
            fi
            echo "$name" >"$STATE/ui_font" ;;
   esac
-  cmd_theme "$(cat "$STATE/theme" 2>/dev/null || echo light)" >/dev/null
+  cmd_theme "$(cat "$STATE/theme" 2>/dev/null || echo light)" quick >/dev/null
   # waiting apps are built for the old size: let them start again at the new one (Settings stays, it is in use)
   pkill -f '[x]lin-(start|store|files|monitor|debug)( |$)' 2>/dev/null || true
   swaync_scale reload
@@ -377,6 +377,9 @@ render_all() {
 grid_icon() {
   local dir="$XLIN_HOME/icons" x y
   mkdir -p "$dir"
+  # same colour as last time: the icon is already right (drawing it takes a moment)
+  if [[ "$(cat "$dir/.grid-color" 2>/dev/null)" == "$C_INK" && ( -f "$dir/xlin-grid.png" || -f "$dir/xlin-grid.svg" ) ]]; then return 0; fi
+  printf '%s' "$C_INK" >"$dir/.grid-color"
   if have magick; then
     local draw=()
     for y in 16 52 88; do for x in 16 52 88; do
@@ -438,17 +441,21 @@ cmd_cursor() {
 }
 
 reload_all() {
-  pkill -SIGUSR2 waybar 2>/dev/null || true
-  have swaync-client && swaync-client -rs >/dev/null 2>&1 || true
-  pkill -USR1 -x kitty 2>/dev/null || true   # open kitty windows reload their colours
-  have hyprctl && hyprctl reload >/dev/null 2>&1 || true
-  # dock reads its css at start, so restart it if it is running
+  local pids=()
+  pkill -SIGUSR2 waybar 2>/dev/null &
+  pids+=($!)
+  if have swaync-client; then swaync-client -rs >/dev/null 2>&1 & pids+=($!); fi
+  pkill -USR1 -x kitty 2>/dev/null &      # open kitty windows reload their colours
+  pids+=($!)
+  if have hyprctl; then hyprctl reload >/dev/null 2>&1 & pids+=($!); fi
+  # the Run Bar reads its css at start, so restart it if it is running (no fixed wait)
   # note: pgrep -x cannot match names over 15 characters, so the dock is matched with -f
   if pgrep -f '^nwg-dock-hyprland' >/dev/null; then
-    pkill -f '^nwg-dock-hyprland'
-    sleep 0.2
-    dock_check
+    ( dock_stop; dock_check ) &
+    pids+=($!)
   fi
+  wait "${pids[@]}" 2>/dev/null
+  return 0
 }
 
 # Dark / light for every GTK and portal-aware app (GTK3, GTK4, libadwaita, Electron, browsers), not only Xlin-soft's own
@@ -473,21 +480,28 @@ apply_gtk_theme() {
 }
 
 cmd_theme() {
-  local want="${1:-}" cur
+  local want="${1:-}" cur quick="${2:-}" pids=()
   cur="$(cat "$STATE/theme" 2>/dev/null || echo light)"
   case "$want" in
     toggle|"") [[ "$cur" == light ]] && want=dark || want=light ;;
     light|dark) ;;
     *) echo "usage: xlin theme [light|dark|toggle]"; return 1 ;;
   esac
-  render_all "$want"
+  render_all "$want"                 # the new colours are on disk: waiting apps restyle themselves at once
   echo "$want" >"$STATE/theme"
   # shellcheck disable=SC1090
   source "$XLIN_HOME/themes/$want.sh"
-  apply_gtk_theme "$want"
-  reload_all
-  apply_cursor "$want"
-  cmd_wallpaper restore
+  # Everything that shows the change is refreshed at the same time, not one after another.
+  # quick (accent or font change, same theme): the wallpaper, cursor and GTK theme stay as they are.
+  { reload_all; apply_cursor "$want"; } &      # the cursor goes last: a Hyprland reload puts the config's cursor back
+  pids+=($!)
+  if [[ "$quick" != quick ]]; then
+    apply_gtk_theme "$want" &
+    pids+=($!)
+    cmd_wallpaper restore >/dev/null &
+    pids+=($!)
+  fi
+  wait "${pids[@]}" 2>/dev/null
   echo "theme: $want"
 }
 
@@ -828,7 +842,14 @@ dock_check() {
   else pkill -f '^nwg-dock-hyprland' 2>/dev/null || true; fi
 }
 
-dock_restart() { pkill -f '^nwg-dock-hyprland' 2>/dev/null || true; sleep 0.2; dock_check; }
+# stop the Run Bar and wait until it is really gone (so a new one can start at once, no fixed delay)
+dock_stop() {
+  local i
+  pkill -f '^nwg-dock-hyprland' 2>/dev/null || true
+  for i in $(seq 1 25); do pgrep -f '^nwg-dock-hyprland' >/dev/null || return 0; sleep 0.02; done
+  return 0
+}
+dock_restart() { dock_stop; dock_check; }
 
 # ----------------------------------------------------- toggles + settings
 cmd_toggle() {

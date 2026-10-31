@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.62.1
+- Workspaces now really slide: Hyprland's own example config sets the workspace "in" and "out" animations to a fade, and those overrode Xlin-soft's slide. Xlin-soft now sets all of them (workspaces, in, out, and the special workspace) to slide
+
 ## 0.62.0
 - The Launcher, Settings, Files, Store, SysMon and SysDeb now open at once: when a copy is already waiting out of sight, `xlin` asks it to show itself over D-Bus instead of starting Python and GTK again (that start-up was the delay after a click or the Super key)
 - Panels (Launcher, control panel) appear a little quicker: shorter arrival and leaving animations
